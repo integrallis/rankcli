@@ -6,6 +6,9 @@ export * from './types.js';
 // Comprehensive Audit Module (Ahrefs-level checks)
 export * from './audit/index.js';
 
+// Keyword Research Module
+export * from './keywords/index.js';
+
 // Loader
 export { loadAgent, loadAgentByName, interpolatePrompt } from './loader.js';
 

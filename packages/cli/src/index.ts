@@ -5,6 +5,7 @@ import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
+import { keywords, keywordsQuick } from './commands/keywords.js';
 
 const program = new Command();
 
@@ -43,10 +44,17 @@ program
 
 program
   .command('keywords')
-  .description('Keyword research based on your project')
+  .description('AI-powered keyword research with actionable suggestions')
+  .option('-u, --url <url>', 'Your website URL')
   .option('-s, --seed <keywords>', 'Seed keywords (comma-separated)')
-  .action(() => {
-    console.log('Keyword research coming soon...');
+  .option('--auto', 'Auto-extract seed keywords from your page')
+  .option('--quick', 'Quick mode - skip questions, use defaults')
+  .action(async (options) => {
+    if (options.quick && options.url) {
+      await keywordsQuick(options.url, options.seed);
+    } else {
+      await keywords(options);
+    }
   });
 
 program
