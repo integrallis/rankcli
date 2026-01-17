@@ -1,0 +1,45 @@
+{
+  "name": "@seo-autopilot/agent-runtime",
+  "version": "0.0.1",
+  "description": "Agent runtime for SEO Autopilot - executes YAML-defined agents with Claude",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsup src/index.ts --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "eslint src/",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "yaml": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "keywords": [
+    "seo",
+    "agent",
+    "claude",
+    "ai"
+  ],
+  "author": "Brian Sam-Bodden",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
