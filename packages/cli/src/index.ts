@@ -6,6 +6,7 @@ import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
 import { keywords, keywordsQuick, keywordsCompetitor } from './commands/keywords.js';
+import { analyzeContent, analyzeIntent } from './commands/content.js';
 
 const program = new Command();
 
@@ -65,6 +66,21 @@ program
       await keywords(options);
     }
   });
+
+program
+  .command('content')
+  .description('Analyze content for readability, keyword density, and featured snippets')
+  .option('-u, --url <url>', 'URL to analyze')
+  .option('-k, --keyword <keyword>', 'Target keyword for analysis')
+  .option('--headline <headline>', 'Analyze a headline')
+  .option('--mode <mode>', 'Analysis mode (full, readability, headline, snippet, density)', 'full')
+  .action(analyzeContent);
+
+program
+  .command('intent')
+  .description('Classify search intent for a keyword')
+  .argument('<keyword>', 'Keyword to analyze')
+  .action(analyzeIntent);
 
 program
   .command('competitors')

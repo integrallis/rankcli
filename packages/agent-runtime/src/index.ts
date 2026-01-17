@@ -9,6 +9,9 @@ export * from './audit/index.js';
 // Keyword Research Module
 export * from './keywords/index.js';
 
+// Content Analysis & Optimization Module
+export * from './content/index.js';
+
 // Loader
 export { loadAgent, loadAgentByName, interpolatePrompt } from './loader.js';
 
