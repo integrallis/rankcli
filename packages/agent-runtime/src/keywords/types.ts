@@ -17,7 +17,7 @@ export interface KeywordData {
   trafficPotential?: number;
   intent?: 'informational' | 'commercial' | 'transactional' | 'navigational';
   trend?: 'up' | 'down' | 'stable';
-  source: 'gsc' | 'dataforseo' | 'autocomplete' | 'manual';
+  source: 'gsc' | 'dataforseo' | 'autocomplete' | 'manual' | 'competitor';
 }
 
 export interface KeywordOpportunity extends KeywordData {

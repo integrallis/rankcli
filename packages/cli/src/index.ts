@@ -5,7 +5,7 @@ import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
-import { keywords, keywordsQuick } from './commands/keywords.js';
+import { keywords, keywordsQuick, keywordsCompetitor } from './commands/keywords.js';
 
 const program = new Command();
 
@@ -49,8 +49,17 @@ program
   .option('-s, --seed <keywords>', 'Seed keywords (comma-separated)')
   .option('--auto', 'Auto-extract seed keywords from your page')
   .option('--quick', 'Quick mode - skip questions, use defaults')
+  .option('--competitor', 'Competitor gap analysis mode (SpyFu Kombat-style)')
+  .option('-c, --competitors <domains>', 'Competitor domains (comma-separated)')
   .action(async (options) => {
-    if (options.quick && options.url) {
+    if (options.competitor && options.url && options.seed) {
+      // Competitor gap analysis mode
+      const seeds = options.seed.split(',').map((s: string) => s.trim());
+      const competitors = options.competitors
+        ? options.competitors.split(',').map((s: string) => s.trim())
+        : undefined;
+      await keywordsCompetitor(options.url, seeds, competitors);
+    } else if (options.quick && options.url) {
       await keywordsQuick(options.url, options.seed);
     } else {
       await keywords(options);

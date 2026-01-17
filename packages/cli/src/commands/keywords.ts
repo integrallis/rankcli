@@ -6,6 +6,10 @@ import {
   formatKeywordReport,
   extractSeedKeywords,
   SITE_PROFILE_QUESTIONS,
+  discoverCompetitorKeywords,
+  formatCompetitorReport,
+  groupKeywordsByTopic,
+  formatTopicReport,
   type SiteProfile,
   type KeywordResearchOptions,
 } from '@seo-autopilot/agent-runtime';
@@ -141,9 +145,18 @@ export async function keywords(options: KeywordsOptions): Promise<void> {
     // Step 5: Display results
     console.log(formatKeywordReport(result));
 
-    // Step 6: Offer to apply changes
+    // Step 6: Group keywords by topic
+    const allKeywords = [...result.quickWins, ...result.mediumTerm, ...result.longTerm];
+    if (allKeywords.length > 5) {
+      console.log('\n📚 Grouping keywords by topic...\n');
+      const topicResult = groupKeywordsByTopic(allKeywords);
+      console.log(formatTopicReport(topicResult));
+    }
+
+    // Step 7: Offer to apply changes
     if (result.quickWins.length > 0) {
       console.log('\n💡 TIP: Run "seo apply --url ' + url + '" to apply keyword optimizations');
+      console.log('💡 TIP: Run "seo keywords --competitor <domain>" to find competitor keyword gaps');
     }
 
   } catch (error) {
@@ -197,6 +210,62 @@ export async function keywordsQuick(url: string, providedSeeds?: string): Promis
     });
 
     console.log(formatKeywordReport(result));
+
+    // Also show topic grouping in quick mode
+    const allKeywords = [...result.quickWins, ...result.mediumTerm, ...result.longTerm];
+    if (allKeywords.length > 5) {
+      console.log('\n📚 Grouping keywords by topic...\n');
+      const topicResult = groupKeywordsByTopic(allKeywords);
+      console.log(formatTopicReport(topicResult));
+    }
+
+  } catch (error) {
+    console.log(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+  }
+}
+
+// Competitor analysis mode - SpyFu Kombat-style gap analysis
+export async function keywordsCompetitor(
+  yourUrl: string,
+  seedKeywords: string[],
+  competitors?: string[]
+): Promise<void> {
+  console.log('\n🔍 Competitor Keyword Gap Analysis (SpyFu Kombat-style)\n');
+
+  try {
+    const parsed = new URL(yourUrl.startsWith('http') ? yourUrl : `https://${yourUrl}`);
+    const yourDomain = parsed.hostname.replace(/^www\./, '');
+
+    console.log(`Your domain: ${yourDomain}`);
+    console.log(`Seed keywords: ${seedKeywords.join(', ')}`);
+    if (competitors && competitors.length > 0) {
+      console.log(`Competitors: ${competitors.join(', ')}`);
+    } else {
+      console.log('Competitors: Auto-discovering from SERP...');
+    }
+    console.log('');
+
+    console.log('Analyzing competitor keywords (this may take a moment)...\n');
+
+    const result = await discoverCompetitorKeywords(
+      yourDomain,
+      seedKeywords,
+      competitors
+    );
+
+    console.log(formatCompetitorReport(result));
+
+    // Actionable summary
+    if (result.missingKeywords.length > 0) {
+      console.log('\n🎯 ACTION ITEMS:');
+      console.log('─'.repeat(60));
+      console.log(`1. Create content targeting these ${Math.min(5, result.missingKeywords.length)} high-priority gaps:`);
+      for (const kw of result.missingKeywords.slice(0, 5)) {
+        console.log(`   • "${kw.keyword}"`);
+      }
+      console.log('\n2. Optimize existing pages for core keywords your competitors all rank for');
+      console.log('3. Protect your unique keyword advantages with quality content\n');
+    }
 
   } catch (error) {
     console.log(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`);

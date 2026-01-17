@@ -39,3 +39,20 @@ export {
   LOCATION_CODES,
   type DataForSEOCredentials,
 } from './sources/dataforseo.js';
+
+// Competitor Analysis (SpyFu Kombat-style)
+export {
+  discoverCompetitorKeywords,
+  formatCompetitorReport,
+  type CompetitorKeywordResult,
+  type CompetitorOverlap,
+} from './sources/competitor-analysis.js';
+
+// Topic Grouping/Clustering
+export {
+  groupKeywordsByTopic,
+  formatTopicReport,
+  type KeywordTopic,
+  type TopicClusterResult,
+  type ContentRecommendation,
+} from './topic-grouping.js';
