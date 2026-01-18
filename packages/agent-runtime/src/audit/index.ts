@@ -26,3 +26,6 @@ export { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 export { extractContentHash, detectDuplicates, generateDuplicateIssues } from './checks/duplicate-content.js';
 export { analyzePagination } from './checks/pagination.js';
 export { analyzeRedirects, checkInternalRedirects } from './checks/redirect-analysis.js';
+
+// Fix generators
+export * from './fixes/index.js';
