@@ -48,3 +48,6 @@ export {
 
 // Git integration (conventional commits, co-authoring)
 export * from './git/index.js';
+
+// Scheduler (scheduled audits, alerts)
+export * from './scheduler/index.js';

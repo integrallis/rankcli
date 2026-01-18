@@ -29,3 +29,6 @@ export { analyzeRedirects, checkInternalRedirects } from './checks/redirect-anal
 
 // Fix generators
 export * from './fixes/index.js';
+
+// High-level runner
+export * from './runner.js';

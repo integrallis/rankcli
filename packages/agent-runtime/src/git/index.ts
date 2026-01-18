@@ -5,6 +5,8 @@
  * - Conventional commit formatting
  * - Co-author support
  * - GitHub Pages detection
+ * - Pull request generation
  */
 
 export * from './commit-helper.js';
+export * from './pr-helper.js';
