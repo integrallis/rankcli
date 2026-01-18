@@ -5,7 +5,10 @@
  * detected during audits.
  */
 
-import type { AuditReport, SEOIssue } from '../types.js';
+import type { AuditReport, AuditIssue } from '../types.js';
+
+// Alias for clarity
+type SEOIssue = AuditIssue;
 
 export * from './social-meta-fixes.js';
 

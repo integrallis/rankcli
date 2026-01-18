@@ -1,0 +1,85 @@
+name: 'SEO Autopilot'
+description: 'Run 200+ SEO checks on your site. Get auto-fix PRs, Slack alerts, and detailed reports.'
+author: 'SEO Autopilot'
+branding:
+  icon: 'search'
+  color: 'green'
+
+inputs:
+  url:
+    description: 'URL to audit (e.g., https://example.com or ${{ env.DEPLOY_URL }})'
+    required: true
+
+  github-token:
+    description: 'GitHub token for creating PRs and comments (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+
+  create-pr:
+    description: 'Create a PR with SEO fixes (true/false)'
+    required: false
+    default: 'false'
+
+  pr-base-branch:
+    description: 'Base branch for fix PRs'
+    required: false
+    default: 'main'
+
+  comment-on-pr:
+    description: 'Post audit results as PR comment (true/false)'
+    required: false
+    default: 'true'
+
+  fail-on-error:
+    description: 'Fail the action if critical SEO errors are found (true/false)'
+    required: false
+    default: 'false'
+
+  score-threshold:
+    description: 'Minimum SEO score to pass (0-100). Action fails if score is below this.'
+    required: false
+    default: '0'
+
+  slack-webhook:
+    description: 'Slack webhook URL for notifications'
+    required: false
+
+  discord-webhook:
+    description: 'Discord webhook URL for notifications'
+    required: false
+
+  alert-on:
+    description: 'When to send alerts (comma-separated: error,score_drop,weekly_report,pr_created)'
+    required: false
+    default: 'error'
+
+  checks:
+    description: 'Specific checks to run (comma-separated, or "all")'
+    required: false
+    default: 'all'
+
+outputs:
+  score:
+    description: 'Overall SEO score (0-100)'
+
+  issues-count:
+    description: 'Total number of issues found'
+
+  errors-count:
+    description: 'Number of critical errors'
+
+  warnings-count:
+    description: 'Number of warnings'
+
+  pr-url:
+    description: 'URL of created PR (if create-pr was enabled)'
+
+  report-url:
+    description: 'URL to full audit report'
+
+  report-json:
+    description: 'Full audit report as JSON string'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
