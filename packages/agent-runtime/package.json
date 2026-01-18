@@ -16,7 +16,9 @@
     "dev": "tsup src/index.ts --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "lint": "eslint src/",
-    "test": "vitest"
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
