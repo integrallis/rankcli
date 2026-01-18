@@ -12,6 +12,9 @@ export * from './keywords/index.js';
 // Content Analysis & Optimization Module
 export * from './content/index.js';
 
+// Tracking & Monitoring Module
+export * from './tracking/index.js';
+
 // Loader
 export { loadAgent, loadAgentByName, interpolatePrompt } from './loader.js';
 
@@ -42,3 +45,6 @@ export {
   findPageFiles,
   analyzeUrl,
 } from './tools/index.js';
+
+// Git integration (conventional commits, co-authoring)
+export * from './git/index.js';

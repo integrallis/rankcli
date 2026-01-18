@@ -1,0 +1,326 @@
+// GitHub Action Workflow Generator
+// Creates scheduled SEO monitoring workflows
+
+export interface WorkflowConfig {
+  schedule: 'daily' | 'weekly' | 'monthly' | 'manual';
+  siteUrl: string;
+  features: {
+    audit: boolean;
+    tracking: boolean;
+    autoFix: boolean;
+    createIssues: boolean;
+    createPRs: boolean;
+  };
+  apiKey?: string; // SEO Autopilot API key for paid features
+}
+
+/**
+ * Generate GitHub Action workflow YAML
+ */
+export function generateWorkflow(config: WorkflowConfig): string {
+  const cronSchedule = getCronSchedule(config.schedule);
+
+  return `# SEO Autopilot - Automated SEO Monitoring
+# This workflow runs scheduled SEO audits and tracking
+
+name: SEO Monitoring
+
+on:
+  # Scheduled runs
+  schedule:
+    - cron: '${cronSchedule}'
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - audit-only
+          - track-only
+
+  # Run on main branch pushes (optional)
+  # push:
+  #   branches: [main]
+
+env:
+  SITE_URL: '${config.siteUrl}'
+
+jobs:
+  seo-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SEO Autopilot
+        run: npm install -g @seo-autopilot/cli
+
+      ${config.features.tracking ? `
+      - name: Pull GSC Data
+        if: \${{ inputs.mode != 'audit-only' }}
+        env:
+          GSC_SERVICE_ACCOUNT_EMAIL: \${{ secrets.GSC_SERVICE_ACCOUNT_EMAIL }}
+          GSC_PRIVATE_KEY: \${{ secrets.GSC_PRIVATE_KEY }}
+        run: |
+          seo track --site "$SITE_URL" --output tracking-report.json
+        continue-on-error: true
+      ` : ''}
+
+      ${config.features.audit ? `
+      - name: Run SEO Audit
+        if: \${{ inputs.mode != 'track-only' }}
+        run: |
+          seo audit --url "$SITE_URL" --output json > audit-report.json
+      ` : ''}
+
+      - name: Generate Report
+        id: report
+        run: |
+          seo report --combine \\
+            ${config.features.tracking ? '--tracking tracking-report.json \\' : ''}
+            ${config.features.audit ? '--audit audit-report.json \\' : ''}
+            --format markdown > seo-report.md
+
+          # Set output for issue creation
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          cat seo-report.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      ${config.features.createIssues ? `
+      - name: Create/Update Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'SEO Report - ' + new Date().toISOString().split('T')[0];
+            const body = \`\${{ steps.report.outputs.report }}\`;
+
+            // Find existing issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'seo-report',
+              state: 'open'
+            });
+
+            if (issues.data.length > 0) {
+              // Update existing issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: body
+              });
+              console.log('Updated issue #' + issues.data[0].number);
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['seo-report', 'automated']
+              });
+              console.log('Created new SEO report issue');
+            }
+      ` : ''}
+
+      ${config.features.autoFix && config.features.createPRs ? `
+      - name: Auto-fix Issues
+        id: autofix
+        run: |
+          # Run auto-fixer for safe, non-breaking changes
+          seo fix --auto --safe-only --output fixes.json
+
+          # Check if any fixes were made
+          if [ -s fixes.json ]; then
+            echo "fixes_made=true" >> $GITHUB_OUTPUT
+          else
+            echo "fixes_made=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR with Fixes
+        if: steps.autofix.outputs.fixes_made == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: \${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'fix(seo): automated SEO improvements'
+          title: '🔧 SEO Auto-Fix: Automated Improvements'
+          body: |
+            ## Automated SEO Fixes
+
+            This PR was automatically generated by SEO Autopilot.
+
+            ### Changes Made
+            \`\`\`
+            $(cat fixes.json | jq -r '.fixes[] | "- " + .description')
+            \`\`\`
+
+            ### Review Checklist
+            - [ ] Changes look correct
+            - [ ] No unintended modifications
+            - [ ] Tests pass
+
+            ---
+            🤖 Generated by [SEO Autopilot](https://github.com/seo-autopilot)
+          branch: seo-autofix-\${{ github.run_number }}
+          labels: seo, automated
+      ` : ''}
+
+      - name: Save Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-report-\${{ github.run_number }}
+          path: |
+            seo-report.md
+            ${config.features.audit ? 'audit-report.json' : ''}
+            ${config.features.tracking ? 'tracking-report.json' : ''}
+          retention-days: 90
+
+      ${config.apiKey ? `
+      - name: Send to SEO Autopilot Dashboard
+        env:
+          SEO_AUTOPILOT_API_KEY: \${{ secrets.SEO_AUTOPILOT_API_KEY }}
+        run: |
+          seo sync --api-key "$SEO_AUTOPILOT_API_KEY" \\
+            ${config.features.audit ? '--audit audit-report.json \\' : ''}
+            ${config.features.tracking ? '--tracking tracking-report.json' : ''}
+      ` : ''}
+`;
+}
+
+function getCronSchedule(schedule: WorkflowConfig['schedule']): string {
+  switch (schedule) {
+    case 'daily':
+      return '0 9 * * *'; // 9 AM UTC daily
+    case 'weekly':
+      return '0 9 * * 1'; // 9 AM UTC every Monday
+    case 'monthly':
+      return '0 9 1 * *'; // 9 AM UTC first of month
+    case 'manual':
+      return '0 0 31 2 *'; // Never (Feb 31 doesn't exist)
+    default:
+      return '0 9 * * 1';
+  }
+}
+
+/**
+ * Generate the secrets documentation
+ */
+export function generateSecretsDoc(config: WorkflowConfig): string {
+  let secrets = `# Required GitHub Secrets
+
+Go to your repository Settings > Secrets and variables > Actions
+
+`;
+
+  if (config.features.tracking) {
+    secrets += `
+## Google Search Console (Required for tracking)
+
+1. \`GSC_SERVICE_ACCOUNT_EMAIL\`
+   - Your Google Cloud service account email
+   - Example: seo-bot@my-project.iam.gserviceaccount.com
+
+2. \`GSC_PRIVATE_KEY\`
+   - The private key from your service account JSON
+   - Include the full key with -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY-----
+
+### Setup Instructions:
+1. Go to https://console.cloud.google.com
+2. Create a project and enable "Search Console API"
+3. Create a service account and download JSON key
+4. In Search Console, add the service account email as a user
+5. Copy email and private_key to GitHub Secrets
+
+`;
+  }
+
+  if (config.apiKey) {
+    secrets += `
+## SEO Autopilot (Required for dashboard sync)
+
+1. \`SEO_AUTOPILOT_API_KEY\`
+   - Get your API key from https://seo-autopilot.dev/dashboard
+   - This enables cloud dashboard, historical tracking, and alerts
+
+`;
+  }
+
+  return secrets;
+}
+
+/**
+ * Generate complete setup package
+ */
+export function generateGitHubActionSetup(config: WorkflowConfig): {
+  workflowYaml: string;
+  secretsDoc: string;
+  readmeBadge: string;
+} {
+  return {
+    workflowYaml: generateWorkflow(config),
+    secretsDoc: generateSecretsDoc(config),
+    readmeBadge: `[![SEO Status](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/seo.yml/badge.svg)](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/seo.yml)`,
+  };
+}
+
+/**
+ * Write GitHub Action files to project
+ */
+export function writeGitHubActionFiles(
+  projectPath: string,
+  config: WorkflowConfig
+): { files: string[]; instructions: string } {
+  const fs = require('fs');
+  const path = require('path');
+
+  const files: string[] = [];
+
+  // Create .github/workflows directory
+  const workflowDir = path.join(projectPath, '.github', 'workflows');
+  if (!fs.existsSync(workflowDir)) {
+    fs.mkdirSync(workflowDir, { recursive: true });
+  }
+
+  // Write workflow file
+  const workflowPath = path.join(workflowDir, 'seo.yml');
+  fs.writeFileSync(workflowPath, generateWorkflow(config));
+  files.push(workflowPath);
+
+  // Write secrets documentation
+  const docsDir = path.join(projectPath, '.github');
+  const secretsDocPath = path.join(docsDir, 'SEO_SETUP.md');
+  fs.writeFileSync(secretsDocPath, generateSecretsDoc(config));
+  files.push(secretsDocPath);
+
+  const instructions = `
+GitHub Action created! Next steps:
+
+1. Add required secrets to your repository:
+   Settings > Secrets and variables > Actions
+   See .github/SEO_SETUP.md for details
+
+2. The workflow will run ${config.schedule}
+   Or trigger manually: Actions > SEO Monitoring > Run workflow
+
+3. Add status badge to your README:
+   ${generateGitHubActionSetup(config).readmeBadge.replace('YOUR_ORG/YOUR_REPO', '<your-org>/<your-repo>')}
+`;
+
+  return { files, instructions };
+}
