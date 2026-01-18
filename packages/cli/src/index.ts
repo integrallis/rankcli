@@ -7,6 +7,7 @@ import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
 import { keywords, keywordsQuick, keywordsCompetitor } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
+import { setup, showGSCInstructions } from './commands/setup.js';
 
 const program = new Command();
 
@@ -111,5 +112,20 @@ program
   .action(() => {
     console.log('Watch mode coming soon...');
   });
+
+program
+  .command('setup')
+  .description('Set up SEO tracking (GA4, Search Console, GitHub Actions)')
+  .option('--ga4 <id>', 'Google Analytics 4 Measurement ID (G-XXXXXXXXXX)')
+  .option('--gsc <code>', 'Google Search Console verification code')
+  .option('--github-action', 'Set up automated GitHub Action')
+  .option('--schedule <freq>', 'GitHub Action schedule (daily, weekly, monthly)', 'weekly')
+  .option('--all', 'Interactive setup wizard')
+  .action(setup);
+
+program
+  .command('gsc-setup')
+  .description('Show Google Search Console API setup instructions')
+  .action(showGSCInstructions);
 
 program.parse();
