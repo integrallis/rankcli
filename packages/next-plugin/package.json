@@ -1,0 +1,50 @@
+{
+  "name": "next-seo-autopilot",
+  "version": "0.0.1",
+  "description": "Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./metadata": {
+      "import": "./dist/metadata.js",
+      "types": "./dist/metadata.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "next",
+    "nextjs",
+    "seo",
+    "metadata",
+    "sitemap",
+    "robots"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seo-autopilot/seo-autopilot"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/metadata.ts --format esm --dts",
+    "dev": "tsup src/index.ts src/metadata.ts --format esm --dts --watch",
+    "test": "vitest run",
+    "lint": "eslint src --ext ts"
+  },
+  "peerDependencies": {
+    "next": "^13.0.0 || ^14.0.0 || ^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  }
+}
