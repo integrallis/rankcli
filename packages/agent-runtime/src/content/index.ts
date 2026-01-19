@@ -44,3 +44,19 @@ export {
   type LSIKeyword,
   type ContentElements,
 } from './keyword-density.js';
+
+// Content Generation
+export {
+  generateBlogPost,
+  generateChangelog,
+  optimizeReadme,
+  scoreContentSEO,
+  type BlogPostConfig,
+  type ChangelogConfig,
+  type ReadmeConfig,
+  type GeneratedContent,
+  type ChangelogResult,
+  type ReadmeResult,
+  type SEOScore,
+  type ContentGeneratorOptions,
+} from './generator.js';
