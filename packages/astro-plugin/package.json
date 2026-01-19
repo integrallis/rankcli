@@ -1,0 +1,45 @@
+{
+  "name": "astro-seo-autopilot",
+  "version": "0.0.1",
+  "description": "Astro integration for SEO automation - sitemap, robots.txt, meta injection",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "astro",
+    "astro-integration",
+    "seo",
+    "sitemap",
+    "meta-tags"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seo-autopilot/seo-autopilot"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "test": "vitest run",
+    "lint": "eslint src --ext ts"
+  },
+  "peerDependencies": {
+    "astro": "^3.0.0 || ^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  }
+}
