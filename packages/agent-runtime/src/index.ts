@@ -51,3 +51,6 @@ export * from './git/index.js';
 
 // Scheduler (scheduled audits, alerts)
 export * from './scheduler/index.js';
+
+// Reports (HTML/PDF generation, white-label)
+export * from './reports/index.js';
