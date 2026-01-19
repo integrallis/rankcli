@@ -1,7 +1,8 @@
 {
-  "name": "@seo-autopilot/agent-runtime",
+  "name": "@rankcli/agent-runtime",
   "version": "0.0.1",
-  "description": "Agent runtime for SEO Autopilot - executes YAML-defined agents with Claude",
+  "description": "RankCLI agent runtime - executes SEO audits and fixes with AI",
+  "homepage": "https://rankcli.dev",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

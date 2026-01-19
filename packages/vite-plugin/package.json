@@ -1,8 +1,9 @@
 {
-  "name": "vite-plugin-seo-autopilot",
+  "name": "vite-plugin-rankcli",
   "version": "0.0.1",
-  "description": "Vite plugin for SEO validation, sitemap generation, and meta tag injection",
+  "description": "Vite plugin for SEO validation, sitemap generation, and meta tag injection - RankCLI",
   "license": "MIT",
+  "homepage": "https://rankcli.dev",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -22,11 +23,11 @@
     "seo",
     "sitemap",
     "meta-tags",
-    "audit"
+    "rankcli"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/seo-autopilot/seo-autopilot"
+    "url": "https://github.com/rankcli/rankcli"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

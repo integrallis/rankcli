@@ -1,8 +1,9 @@
 {
-  "name": "astro-seo-autopilot",
+  "name": "astro-rankcli",
   "version": "0.0.1",
-  "description": "Astro integration for SEO automation - sitemap, robots.txt, meta injection",
+  "description": "Astro integration for SEO automation - sitemap, robots.txt, meta injection - RankCLI",
   "license": "MIT",
+  "homepage": "https://rankcli.dev",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -21,11 +22,11 @@
     "astro-integration",
     "seo",
     "sitemap",
-    "meta-tags"
+    "rankcli"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/seo-autopilot/seo-autopilot"
+    "url": "https://github.com/rankcli/rankcli"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

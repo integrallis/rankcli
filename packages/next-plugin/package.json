@@ -1,8 +1,9 @@
 {
-  "name": "next-seo-autopilot",
+  "name": "next-rankcli",
   "version": "0.0.1",
-  "description": "Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt",
+  "description": "Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt - RankCLI",
   "license": "MIT",
+  "homepage": "https://rankcli.dev",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -26,11 +27,11 @@
     "seo",
     "metadata",
     "sitemap",
-    "robots"
+    "rankcli"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/seo-autopilot/seo-autopilot"
+    "url": "https://github.com/rankcli/rankcli"
   },
   "scripts": {
     "build": "tsup src/index.ts src/metadata.ts --format esm --dts",
