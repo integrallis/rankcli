@@ -6,3 +6,5 @@
  */
 
 export * from './geo-tracker.js';
+export * from './geo-history.js';
+export * from './geo-content.js';
