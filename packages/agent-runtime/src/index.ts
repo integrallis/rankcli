@@ -54,3 +54,6 @@ export * from './scheduler/index.js';
 
 // Reports (HTML/PDF generation, white-label)
 export * from './reports/index.js';
+
+// GEO (Generative Engine Optimization) tracking
+export * from './geo/index.js';
