@@ -32,7 +32,7 @@ export interface AuditIssueData {
   howToFix?: string;
 }
 
-export interface PageData {
+export interface ReportPageData {
   url: string;
   score: number;
   issues: number;
@@ -52,6 +52,9 @@ export interface AuditReportData {
     links: number;
     performance: number;
     security: number;
+    aiReadiness: number;
+    social: number;
+    localSeo: number;
   };
   summary: {
     errors: number;
@@ -60,7 +63,7 @@ export interface AuditReportData {
     passed: number;
   };
   issues: AuditIssueData[];
-  pages: PageData[];
+  pages: ReportPageData[];
 }
 
 const DEFAULT_BRANDING: ReportBranding = {

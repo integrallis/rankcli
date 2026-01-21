@@ -16,8 +16,45 @@ import { analyzeAnchorText } from './checks/anchor-text.js';
 import { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 import { analyzePagination } from './checks/pagination.js';
 import { analyzeRedirects } from './checks/redirect-analysis.js';
+// New competitor-parity checks
+import { runAIReadinessChecks } from './checks/ai-readiness.js';
+import { analyzeSERPPreview } from './checks/serp-preview.js';
+import { analyzeLocalSEO } from './checks/local-seo.js';
+import { analyzeSecurityHeaders } from './checks/security-headers.js';
+import { analyzeContentFreshness } from './checks/content-freshness.js';
+import { analyzeDOMStructure } from './checks/dom-analysis.js';
+import { analyzeModernImages } from './checks/modern-images.js';
+import { detectTechnologies } from './checks/tech-detection.js';
+import { analyzeKeywords } from './checks/keyword-analysis.js';
+import { runAdditionalChecks } from './checks/additional-checks.js';
+// Advanced checks from SEO research
+import { analyzeFeaturedSnippet } from './checks/featured-snippet.js';
+import { analyzeInternalLinkGraph } from './checks/internal-link-graph.js';
+import { analyzeResourceHints } from './checks/resource-hints.js';
+import { analyzeEEATSignals } from './checks/eeat-signals.js';
+import { analyzeIndexNow } from './checks/indexnow.js';
+import { analyzeContentScience } from './checks/content-science.js';
+import { analyzeSiteMaturity } from './checks/site-maturity.js';
+import { analyzeKeywordCannibalizationSinglePage } from './checks/keyword-cannibalization.js';
+// New checks from Technical SEO for Developers & Best SEO Strategies 2025
+import { analyzeTrackerBloat } from './checks/tracker-bloat.js';
+import { analyzeClientRendering } from './checks/client-rendering.js';
+import { analyzeRedirectChain } from './checks/redirect-chain.js';
+import { analyzeResponsiveImages } from './checks/responsive-images.js';
+// New checks from 2026 SEO transcripts (Nathan Gotch & Neil Patel)
+import { analyzeConversionElements } from './checks/conversion-elements.js';
+import { analyzeKeywordPlacement } from './checks/keyword-placement.js';
+import { analyzeTopicalClusters } from './checks/topical-clusters.js';
+import { analyzePlatformPresence } from './checks/platform-presence.js';
+// Advanced SEO Tips 2026 & React SEO
+import { analyzeInteractiveTools } from './checks/interactive-tools.js';
+import { analyzeFunnelIntent } from './checks/funnel-intent.js';
+// Cutting-edge differentiating checks (Google leak, Entity SEO, QDF)
+import { analyzeNavBoostSignals } from './checks/navboost-signals.js';
+import { analyzeEntitySEO } from './checks/entity-seo.js';
+import { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
+const USER_AGENT = 'RankCLI/1.0 (+https://rankcli.dev)';
 
 export interface AuditOptions {
   url: string;
@@ -197,6 +234,161 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const { issues: redirectIssues, data: redirectData } = await analyzeRedirects(url);
   allIssues.push(...redirectIssues);
 
+  // ========== PHASE 17: AI/LLM READINESS ==========
+  console.log('🤖 Checking AI/LLM readiness...');
+  const { issues: aiIssues, data: aiData } = await runAIReadinessChecks(url, html);
+  allIssues.push(...aiIssues);
+
+  // ========== PHASE 18: SERP PREVIEW & PIXEL MEASUREMENTS ==========
+  console.log('🔍 Analyzing SERP preview...');
+  const { issues: serpIssues, data: serpData } = analyzeSERPPreview(html, url);
+  allIssues.push(...serpIssues);
+
+  // ========== PHASE 19: LOCAL SEO ==========
+  console.log('📍 Checking local SEO...');
+  const { issues: localSeoIssues, data: localSeoData } = analyzeLocalSEO(html, url);
+  allIssues.push(...localSeoIssues);
+
+  // ========== PHASE 20: SECURITY HEADERS ==========
+  console.log('🛡️  Analyzing security headers...');
+  const { issues: secHeaderIssues, data: secHeaderData } = await analyzeSecurityHeaders(url);
+  allIssues.push(...secHeaderIssues);
+
+  // ========== PHASE 21: CONTENT FRESHNESS ==========
+  console.log('📅 Checking content freshness...');
+  const { issues: freshnessIssues, data: freshnessData } = await analyzeContentFreshness(url, html);
+  allIssues.push(...freshnessIssues);
+
+  // ========== PHASE 22: DOM ANALYSIS ==========
+  console.log('🏗️  Analyzing DOM structure...');
+  const { issues: domIssues, data: domData } = analyzeDOMStructure(html, url);
+  allIssues.push(...domIssues);
+
+  // ========== PHASE 23: MODERN IMAGE FORMATS ==========
+  console.log('🖼️  Checking modern image formats...');
+  const { issues: modernImageIssues, data: modernImageData } = analyzeModernImages(html, url);
+  allIssues.push(...modernImageIssues);
+
+  // ========== PHASE 24: TECHNOLOGY DETECTION ==========
+  console.log('🔧 Detecting technologies...');
+  const { issues: techIssues, data: techData } = detectTechnologies(html, url, headers);
+  allIssues.push(...techIssues);
+
+  // ========== PHASE 25: KEYWORD ANALYSIS ==========
+  console.log('🔑 Analyzing keywords...');
+  const { issues: keywordIssues, data: keywordData } = analyzeKeywords(html, url);
+  allIssues.push(...keywordIssues);
+
+  // ========== PHASE 26: ADDITIONAL CHECKS ==========
+  console.log('📋 Running additional checks (ads.txt, DMARC, AMP, etc.)...');
+  const { issues: additionalIssues, data: additionalData } = await runAdditionalChecks(url, html);
+  allIssues.push(...additionalIssues);
+
+  // ========== PHASE 27: FEATURED SNIPPET OPTIMIZATION ==========
+  console.log('🎯 Analyzing featured snippet optimization...');
+  const { issues: snippetIssues, data: snippetData } = analyzeFeaturedSnippet(html, url);
+  allIssues.push(...snippetIssues);
+
+  // ========== PHASE 28: INTERNAL LINK GRAPH ==========
+  console.log('🕸️  Analyzing internal link structure...');
+  const { issues: linkGraphIssues, data: linkGraphData } = analyzeInternalLinkGraph(html, url);
+  allIssues.push(...linkGraphIssues);
+
+  // ========== PHASE 29: RESOURCE HINTS ==========
+  console.log('⚡ Analyzing resource hints (preconnect, preload)...');
+  const { issues: resourceHintIssues, data: resourceHintData } = analyzeResourceHints(html, url);
+  allIssues.push(...resourceHintIssues);
+
+  // ========== PHASE 30: E-E-A-T SIGNALS ==========
+  console.log('👤 Analyzing E-E-A-T signals (Author, Expertise, Trust)...');
+  const { issues: eeatIssues, data: eeatData } = analyzeEEATSignals(html, url);
+  allIssues.push(...eeatIssues);
+
+  // ========== PHASE 31: INDEXNOW PROTOCOL ==========
+  console.log('📡 Checking IndexNow implementation...');
+  const { issues: indexNowIssues, data: indexNowData } = await analyzeIndexNow(html, url, headers);
+  allIssues.push(...indexNowIssues);
+
+  // ========== PHASE 32: CONTENT SCIENCE (NOVEL CHECKS) ==========
+  console.log('🔬 Running content science analysis (Zipf, Entropy, BM25)...');
+  const { issues: contentScienceIssues, data: contentScienceData } = analyzeContentScience(html, url);
+  allIssues.push(...contentScienceIssues);
+
+  // ========== PHASE 33: SITE MATURITY & STRATEGY ==========
+  console.log('📊 Analyzing site maturity and recommending strategy...');
+  const { issues: maturityIssues, data: maturityData } = await analyzeSiteMaturity(html, url);
+  allIssues.push(...maturityIssues);
+
+  // ========== PHASE 34: KEYWORD CANNIBALIZATION ==========
+  console.log('🎭 Checking for keyword cannibalization signals...');
+  const { issues: cannibalizationIssues, data: cannibalizationData } = analyzeKeywordCannibalizationSinglePage(html, url);
+  allIssues.push(...cannibalizationIssues);
+
+  // ========== PHASE 35: TRACKER BLOAT ==========
+  console.log('📊 Analyzing third-party trackers...');
+  const { issues: trackerIssues, data: trackerData } = analyzeTrackerBloat(html, url);
+  allIssues.push(...trackerIssues);
+
+  // ========== PHASE 36: CLIENT-SIDE RENDERING DETECTION ==========
+  console.log('🖥️  Detecting client-side rendering patterns...');
+  const { issues: csrIssues, data: csrData } = analyzeClientRendering(html, url);
+  allIssues.push(...csrIssues);
+
+  // ========== PHASE 37: REDIRECT CHAIN ANALYSIS ==========
+  console.log('↩️  Analyzing redirect chains...');
+  const { issues: redirectChainIssues, data: redirectChainData } = await analyzeRedirectChain(url);
+  allIssues.push(...redirectChainIssues);
+
+  // ========== PHASE 38: RESPONSIVE IMAGES ==========
+  console.log('📱 Analyzing responsive image best practices...');
+  const { issues: responsiveImgIssues, data: responsiveImgData } = analyzeResponsiveImages(html, url);
+  allIssues.push(...responsiveImgIssues);
+
+  // ========== PHASE 39: CONVERSION ELEMENTS (2026 SEO) ==========
+  console.log('💰 Analyzing conversion elements (above-the-fold, social proof)...');
+  const { issues: conversionIssues, data: conversionData } = analyzeConversionElements(html, url);
+  allIssues.push(...conversionIssues);
+
+  // ========== PHASE 40: KEYWORD PLACEMENT (2026 SEO) ==========
+  console.log('🎯 Analyzing keyword placement (title match score, first paragraph)...');
+  const { issues: keywordPlacementIssues, data: keywordPlacementData } = analyzeKeywordPlacement(html, url);
+  allIssues.push(...keywordPlacementIssues);
+
+  // ========== PHASE 41: TOPICAL CLUSTERS (2026 SEO) ==========
+  console.log('🕸️  Analyzing topical cluster structure...');
+  const { issues: clusterIssues, data: clusterData } = analyzeTopicalClusters(html, url);
+  allIssues.push(...clusterIssues);
+
+  // ========== PHASE 42: PLATFORM PRESENCE (Search Everywhere Optimization) ==========
+  console.log('🌐 Analyzing cross-platform presence (Search Everywhere Optimization)...');
+  const { issues: platformIssues, data: platformData } = analyzePlatformPresence(html, url);
+  allIssues.push(...platformIssues);
+
+  // ========== PHASE 43: INTERACTIVE TOOLS (Dwell Time Optimization) ==========
+  console.log('🛠️  Analyzing interactive tools (calculators, quizzes, free tools)...');
+  const { issues: toolIssues, data: toolData } = analyzeInteractiveTools(html, url);
+  allIssues.push(...toolIssues);
+
+  // ========== PHASE 44: FUNNEL INTENT ANALYSIS ==========
+  console.log('🎯 Analyzing search funnel intent (TOFU/MOFU/BOFU)...');
+  const { issues: funnelIssues, data: funnelData } = analyzeFunnelIntent(html, url);
+  allIssues.push(...funnelIssues);
+
+  // ========== PHASE 45: NAVBOOST SIGNALS (Google Algorithm Leak) ==========
+  console.log('📈 Analyzing NavBoost signals (CTR, engagement, dwell time)...');
+  const { issues: navboostIssues, data: navboostData } = analyzeNavBoostSignals(html, url);
+  allIssues.push(...navboostIssues);
+
+  // ========== PHASE 46: ENTITY SEO (Knowledge Graph Optimization) ==========
+  console.log('🔗 Analyzing Entity SEO (Knowledge Graph, sameAs, entity clarity)...');
+  const { issues: entityIssues, data: entityData } = analyzeEntitySEO(html, url);
+  allIssues.push(...entityIssues);
+
+  // ========== PHASE 47: FRESHNESS SIGNALS (QDF Optimization) ==========
+  console.log('📅 Analyzing freshness signals (QDF, dateModified, AI citation)...');
+  const { issues: qdfFreshnessIssues, data: qdfFreshnessData } = analyzeFreshnessSignals(html, url);
+  allIssues.push(...qdfFreshnessIssues);
+
   // ========== CREATE PAGE AUDIT ==========
   pages.push({
     url,
@@ -225,7 +417,7 @@ function createReport(url: string, domain: string, issues: AuditIssue[], pages: 
   const notices = issues.filter(i => i.severity === 'notice').length;
 
   // Calculate passed checks (rough estimate based on possible checks)
-  const totalPossibleChecks = 85; // Approximate number of checks (expanded with advanced features)
+  const totalPossibleChecks = 280; // Approximate number of checks (expanded with NavBoost, Entity SEO, QDF)
   const passed = Math.max(0, totalPossibleChecks - errors - warnings);
 
   return {
@@ -268,6 +460,9 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
     security: 0,
     mobile: 0,
     international: 0,
+    'ai-readiness': 0,
+    'social': 0,
+    'local-seo': 0,
   };
 
   for (const issue of issues) {
@@ -283,16 +478,22 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
   const links = Math.max(0, 100 - categoryDeductions.links * 3);
   const performance = Math.max(0, 100 - categoryDeductions.performance * 4);
   const security = Math.max(0, 100 - categoryDeductions.security * 5);
+  const aiReadiness = Math.max(0, 100 - categoryDeductions['ai-readiness'] * 3);
+  const social = Math.max(0, 100 - categoryDeductions.social * 2);
+  const localSeo = Math.max(0, 100 - categoryDeductions['local-seo'] * 2);
 
   // Overall score is weighted average
   const overall = Math.round(
-    (crawlability * 0.15 +
-      indexability * 0.15 +
-      onPage * 0.2 +
-      content * 0.1 +
-      links * 0.1 +
-      performance * 0.15 +
-      security * 0.15)
+    (crawlability * 0.12 +
+      indexability * 0.12 +
+      onPage * 0.18 +
+      content * 0.08 +
+      links * 0.08 +
+      performance * 0.12 +
+      security * 0.12 +
+      aiReadiness * 0.06 +
+      social * 0.06 +
+      localSeo * 0.06)
   );
 
   return {
@@ -304,6 +505,9 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
     links,
     performance,
     security,
+    aiReadiness,
+    social,
+    localSeo,
   };
 }
 
@@ -334,6 +538,9 @@ export function formatReport(report: AuditReport): string {
   lines.push(`    Links:         ${report.healthScore.links}/100`);
   lines.push(`    Performance:   ${report.healthScore.performance}/100`);
   lines.push(`    Security:      ${report.healthScore.security}/100`);
+  lines.push(`    AI Readiness:  ${report.healthScore.aiReadiness}/100`);
+  lines.push(`    Social:        ${report.healthScore.social}/100`);
+  lines.push(`    Local SEO:     ${report.healthScore.localSeo}/100`);
   lines.push('');
 
   // Summary

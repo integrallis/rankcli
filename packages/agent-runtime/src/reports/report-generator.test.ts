@@ -22,6 +22,9 @@ describe('report-generator', () => {
       links: 75,
       performance: 70,
       security: 85,
+      aiReadiness: 70,
+      social: 65,
+      localSeo: 60,
     },
     summary: {
       errors: 3,
@@ -32,7 +35,7 @@ describe('report-generator', () => {
     issues: [
       { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', affectedUrls: ['https://example.com/about'] },
       { code: 'META_DESC_MISSING', severity: 'error', category: 'on-page', title: 'Missing meta description', affectedUrls: ['https://example.com/about'] },
-      { code: 'OG_IMAGE_MISSING', severity: 'warning', category: 'social-meta', title: 'Missing OG image', affectedUrls: ['https://example.com'] },
+      { code: 'OG_IMAGE_MISSING', severity: 'warning', category: 'social', title: 'Missing OG image', affectedUrls: ['https://example.com'] },
     ],
     pages: [
       { url: 'https://example.com', score: 75, issues: 2 },

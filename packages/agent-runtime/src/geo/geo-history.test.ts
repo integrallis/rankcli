@@ -228,7 +228,7 @@ describe('geo-history', () => {
         { ...mockResult, sentiment: 'positive', timestamp: '2024-01-10T10:00:00Z' },
         { ...mockResult, sentiment: 'positive', timestamp: '2024-01-11T10:00:00Z' },
       ];
-      const newResult = { ...mockResult, sentiment: 'negative', timestamp: '2024-01-12T10:00:00Z' };
+      const newResult: GEOResult = { ...mockResult, sentiment: 'negative' as const, timestamp: '2024-01-12T10:00:00Z' };
 
       let updated = history;
       for (const r of oldResults) {

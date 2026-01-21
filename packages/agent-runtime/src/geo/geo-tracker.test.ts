@@ -197,7 +197,7 @@ describe('geo-tracker', () => {
       });
 
       expect(result.contextSnippet).toContain('SEO Autopilot');
-      expect(result.contextSnippet.length).toBeLessThan(200);
+      expect(result.contextSnippet!.length).toBeLessThan(200);
     });
   });
 

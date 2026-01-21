@@ -38,10 +38,10 @@ describe('audit-runner', () => {
         domain: 'example.com',
         timestamp: '2024-01-01T00:00:00Z',
         crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-        healthScore: { overall: 65, crawlability: 80, indexability: 70, onPage: 50, content: 70, links: 60, performance: 75, security: 80 },
+        healthScore: { overall: 65, crawlability: 80, indexability: 70, onPage: 50, content: 70, links: 60, performance: 75, security: 80, aiReadiness: 70, social: 60, localSeo: 50 },
         issues: [
-          { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title tag', affectedUrls: ['https://example.com'] },
-          { code: 'OG_IMAGE_MISSING', severity: 'warning', category: 'social-meta', title: 'Missing OG image', description: 'No og:image', affectedUrls: ['https://example.com'] },
+          { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title tag', impact: 'Critical ranking factor missing.', howToFix: 'Add a title tag.', affectedUrls: ['https://example.com'] },
+          { code: 'OG_IMAGE_MISSING', severity: 'warning', category: 'social', title: 'Missing OG image', description: 'No og:image', impact: 'Social shares will not display a preview image.', howToFix: 'Add og:image meta tag.', affectedUrls: ['https://example.com'] },
         ],
         pages: [],
         summary: { errors: 1, warnings: 1, notices: 0, passed: 80 },
@@ -49,7 +49,7 @@ describe('audit-runner', () => {
 
       const mockFixes = [
         { category: 'on-page', issues: ['TITLE_MISSING'], files: [{ path: 'index.html', content: '<title>Example</title>' }] },
-        { category: 'social-meta', issues: ['OG_IMAGE_MISSING'], files: [{ path: 'index.html', content: '<meta property="og:image">' }] },
+        { category: 'social', issues: ['OG_IMAGE_MISSING'], files: [{ path: 'index.html', content: '<meta property="og:image">' }] },
       ];
 
       vi.mocked(runFullAudit).mockResolvedValue(mockReport);
@@ -72,7 +72,7 @@ describe('audit-runner', () => {
         domain: 'example.com',
         timestamp: '2024-01-01T00:00:00Z',
         crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-        healthScore: { overall: 80, crawlability: 80, indexability: 80, onPage: 80, content: 80, links: 80, performance: 80, security: 80 },
+        healthScore: { overall: 80, crawlability: 80, indexability: 80, onPage: 80, content: 80, links: 80, performance: 80, security: 80, aiReadiness: 80, social: 80, localSeo: 80 },
         issues: [],
         pages: [],
         summary: { errors: 0, warnings: 0, notices: 0, passed: 85 },
@@ -101,8 +101,8 @@ describe('audit-runner', () => {
         domain: 'example.com',
         timestamp: '2024-01-01T00:00:00Z',
         crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-        healthScore: { overall: 80, crawlability: 80, indexability: 80, onPage: 80, content: 80, links: 80, performance: 80, security: 80 },
-        issues: [{ code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title', affectedUrls: [] }],
+        healthScore: { overall: 80, crawlability: 80, indexability: 80, onPage: 80, content: 80, links: 80, performance: 80, security: 80, aiReadiness: 80, social: 80, localSeo: 80 },
+        issues: [{ code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title', impact: 'Critical ranking factor missing.', howToFix: 'Add a title tag.', affectedUrls: [] }],
         pages: [],
         summary: { errors: 1, warnings: 0, notices: 0, passed: 84 },
       });
@@ -136,7 +136,7 @@ describe('audit-runner', () => {
           domain: 'example.com',
           timestamp: '2024-01-01T00:00:00Z',
           crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-          healthScore: { overall: 82, crawlability: 80, indexability: 80, onPage: 85, content: 80, links: 80, performance: 80, security: 80 },
+          healthScore: { overall: 82, crawlability: 80, indexability: 80, onPage: 85, content: 80, links: 80, performance: 80, security: 80, aiReadiness: 80, social: 80, localSeo: 80 },
           issues: [],
           pages: [],
           summary: { errors: 0, warnings: 0, notices: 0, passed: 85 },
@@ -180,7 +180,7 @@ describe('audit-runner', () => {
           domain: 'example.com',
           timestamp: '2024-01-01T00:00:00Z',
           crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-          healthScore: { overall: 95, crawlability: 95, indexability: 95, onPage: 95, content: 95, links: 95, performance: 95, security: 95 },
+          healthScore: { overall: 95, crawlability: 95, indexability: 95, onPage: 95, content: 95, links: 95, performance: 95, security: 95, aiReadiness: 95, social: 95, localSeo: 95 },
           issues: [],
           pages: [],
           summary: { errors: 0, warnings: 0, notices: 0, passed: 85 },
@@ -207,7 +207,7 @@ describe('audit-runner', () => {
           domain: 'example.com',
           timestamp: '2024-01-01T00:00:00Z',
           crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-          healthScore: { overall: 82, crawlability: 80, indexability: 80, onPage: 85, content: 80, links: 80, performance: 80, security: 80 },
+          healthScore: { overall: 82, crawlability: 80, indexability: 80, onPage: 85, content: 80, links: 80, performance: 80, security: 80, aiReadiness: 80, social: 80, localSeo: 80 },
           issues: [],
           pages: [],
           summary: { errors: 0, warnings: 0, notices: 0, passed: 85 },
@@ -246,12 +246,12 @@ describe('audit-runner', () => {
         domain: 'myapp.com',
         timestamp: '2024-01-01T00:00:00Z',
         crawlStats: { totalUrls: 1, crawledUrls: 1, errorUrls: 0, redirectUrls: 0, blockedUrls: 0 },
-        healthScore: { overall: 45, crawlability: 60, indexability: 50, onPage: 30, content: 40, links: 50, performance: 60, security: 70 },
+        healthScore: { overall: 45, crawlability: 60, indexability: 50, onPage: 30, content: 40, links: 50, performance: 60, security: 70, aiReadiness: 50, social: 40, localSeo: 45 },
         issues: [
-          { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title', affectedUrls: ['https://myapp.com'] },
-          { code: 'META_DESC_MISSING', severity: 'error', category: 'on-page', title: 'Missing description', description: 'No meta desc', affectedUrls: ['https://myapp.com'] },
-          { code: 'OG_TITLE_MISSING', severity: 'warning', category: 'social-meta', title: 'Missing OG title', description: 'No og:title', affectedUrls: ['https://myapp.com'] },
-          { code: 'SCHEMA_MISSING', severity: 'warning', category: 'structured-data', title: 'No schema', description: 'Missing JSON-LD', affectedUrls: ['https://myapp.com'] },
+          { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: 'No title', impact: 'Critical ranking factor missing.', howToFix: 'Add a title tag.', affectedUrls: ['https://myapp.com'] },
+          { code: 'META_DESC_MISSING', severity: 'error', category: 'on-page', title: 'Missing description', description: 'No meta desc', impact: 'Search results will show auto-generated snippets.', howToFix: 'Add a meta description.', affectedUrls: ['https://myapp.com'] },
+          { code: 'OG_TITLE_MISSING', severity: 'warning', category: 'social', title: 'Missing OG title', description: 'No og:title', impact: 'Social shares will not display properly.', howToFix: 'Add og:title meta tag.', affectedUrls: ['https://myapp.com'] },
+          { code: 'SCHEMA_MISSING', severity: 'warning', category: 'structured-data', title: 'No schema', description: 'Missing JSON-LD', impact: 'Missing rich snippet opportunities.', howToFix: 'Add structured data markup.', affectedUrls: ['https://myapp.com'] },
         ],
         pages: [],
         summary: { errors: 2, warnings: 2, notices: 0, passed: 81 },
@@ -260,7 +260,7 @@ describe('audit-runner', () => {
       // Mock fix generation
       vi.mocked(generateAllFixes).mockReturnValue([
         { category: 'on-page', issues: ['TITLE_MISSING', 'META_DESC_MISSING'], files: [{ path: 'index.html', content: '<title>...</title>' }] },
-        { category: 'social-meta', issues: ['OG_TITLE_MISSING'], files: [{ path: 'index.html', content: '<meta property="og:title">' }] },
+        { category: 'social', issues: ['OG_TITLE_MISSING'], files: [{ path: 'index.html', content: '<meta property="og:title">' }] },
         { category: 'structured-data', issues: ['SCHEMA_MISSING'], files: [{ path: 'index.html', content: '<script type="application/ld+json">' }] },
       ]);
 
