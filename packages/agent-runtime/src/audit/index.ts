@@ -1,4 +1,4 @@
-// Comprehensive SEO Audit Module - 200+ checks
+// Comprehensive SEO Audit Module - 280+ checks
 
 // Types
 export * from './types.js';
