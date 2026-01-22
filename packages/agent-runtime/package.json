@@ -27,6 +27,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "cheerio": "^1.0.0",
+    "openai": "^6.16.0",
     "yaml": "^2.3.0"
   },
   "devDependencies": {
