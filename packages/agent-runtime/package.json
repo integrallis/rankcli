@@ -14,8 +14,11 @@
     }
   },
   "scripts": {
-    "dev": "tsup src/index.ts --watch",
-    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "pnpm build:deno && tsup src/index.ts --watch --onSuccess 'pnpm build:deno'",
+    "dev:node": "tsup src/index.ts --watch",
+    "dev:deno": "tsx scripts/build-deno.ts --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts && pnpm build:deno",
+    "build:deno": "tsx scripts/build-deno.ts",
     "lint": "eslint src/",
     "test": "vitest",
     "test:run": "vitest run",
@@ -23,12 +26,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
-    "axios": "^1.6.0",
     "cheerio": "^1.0.0",
     "yaml": "^2.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "esbuild": "^0.20.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0",

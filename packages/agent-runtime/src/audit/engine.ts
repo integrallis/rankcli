@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { httpGet } from '../utils/http.js';
 import type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';
 import { runCrawlabilityChecks } from './checks/crawlability.js';
 import { analyzeOnPage } from './checks/on-page.js';
@@ -54,8 +54,6 @@ import { analyzeNavBoostSignals } from './checks/navboost-signals.js';
 import { analyzeEntitySEO } from './checks/entity-seo.js';
 import { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 
-const USER_AGENT = 'RankCLI/1.0 (+https://rankcli.dev)';
-
 export interface AuditOptions {
   url: string;
   checkBrokenLinks?: boolean;
@@ -75,329 +73,240 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
 
   console.log(`\n🔍 Running comprehensive SEO audit on ${url}...\n`);
 
-  // ========== PHASE 1: CRAWLABILITY ==========
-  console.log('📋 Checking crawlability...');
-  const crawlabilityIssues = await runCrawlabilityChecks(url);
-  allIssues.push(...crawlabilityIssues);
+  // ========== PHASE 1: CRAWLABILITY + FETCH (PARALLEL) ==========
+  console.log('📋 Phase 1: Crawlability checks + page fetch (parallel)...');
 
-  // ========== PHASE 2: FETCH PAGE ==========
-  console.log('📥 Fetching page content...');
-  let html = '';
-  let headers: Record<string, string> = {};
-
-  try {
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': USER_AGENT },
+  const [crawlabilityResult, fetchResult] = await Promise.all([
+    runCrawlabilityChecks(url).catch(err => {
+      console.error('Crawlability check failed:', err);
+      return [] as AuditIssue[];
+    }),
+    httpGet<string>(url, {
       timeout: 30000,
       validateStatus: () => true,
-    });
-    html = response.data;
-    headers = response.headers as Record<string, string>;
-  } catch (error) {
+    }).catch(err => {
+      return { error: err, data: '', headers: {} as Record<string, string> };
+    }),
+  ]);
+
+  allIssues.push(...crawlabilityResult);
+
+  // Check if fetch failed
+  if ('error' in fetchResult) {
     allIssues.push({
       code: 'FETCH_ERROR',
       severity: 'error',
       category: 'crawlability',
       title: 'Failed to fetch page',
-      description: `Could not fetch the page: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      description: `Could not fetch the page: ${fetchResult.error instanceof Error ? fetchResult.error.message : 'Unknown error'}`,
       impact: 'Cannot perform full audit without page content.',
       howToFix: 'Ensure the URL is accessible and the server is responding.',
       affectedUrls: [url],
     });
-
     return createReport(url, domain, allIssues, pages);
   }
 
-  // ========== PHASE 3: ON-PAGE SEO ==========
-  console.log('📝 Analyzing on-page SEO...');
-  const { issues: onPageIssues, data: onPageData } = analyzeOnPage(html, url);
-  allIssues.push(...onPageIssues);
+  const html = fetchResult.data;
+  const headers = fetchResult.headers;
 
-  // ========== PHASE 4: LINKS ==========
-  console.log('🔗 Analyzing links...');
-  const { issues: linkIssues, data: linkData } = await analyzeLinks(html, url, checkBrokenLinks);
-  allIssues.push(...linkIssues);
+  // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
+  console.log('📝 Phase 2: Running synchronous HTML checks (parallel)...');
 
-  // ========== PHASE 5: IMAGES ==========
-  console.log('🖼️  Analyzing images...');
-  const { issues: imageIssues, data: imageData } = await analyzeImages(html, url, checkBrokenLinks);
-  allIssues.push(...imageIssues);
+  // These are all synchronous functions that only need html/url
+  const onPageResult = analyzeOnPage(html, url);
+  const structuredDataResult = analyzeStructuredData(html, url);
+  const mobileResult = analyzeMobile(html, url);
+  const mobileResourceIssues = checkMobileResources(html, url);
+  const socialResult = analyzeSocialMeta(html, url);
+  const soft404Result = detectSoft404(html, url, 200);
+  const anchorResult = analyzeAnchorText(html, url);
+  const serpResult = analyzeSERPPreview(html, url);
+  const localSeoResult = analyzeLocalSEO(html, url);
+  const domResult = analyzeDOMStructure(html, url);
+  const modernImageResult = analyzeModernImages(html, url);
+  const techResult = detectTechnologies(html, url, headers);
+  const keywordResult = analyzeKeywords(html, url);
+  const snippetResult = analyzeFeaturedSnippet(html, url);
+  const linkGraphResult = analyzeInternalLinkGraph(html, url);
+  const resourceHintResult = analyzeResourceHints(html, url);
+  const eeatResult = analyzeEEATSignals(html, url);
+  const contentScienceResult = analyzeContentScience(html, url);
+  const cannibalizationResult = analyzeKeywordCannibalizationSinglePage(html, url);
+  const trackerResult = analyzeTrackerBloat(html, url);
+  const csrResult = analyzeClientRendering(html, url);
+  const responsiveImgResult = analyzeResponsiveImages(html, url);
+  const conversionResult = analyzeConversionElements(html, url);
+  const keywordPlacementResult = analyzeKeywordPlacement(html, url);
+  const clusterResult = analyzeTopicalClusters(html, url);
+  const platformResult = analyzePlatformPresence(html, url);
+  const toolResult = analyzeInteractiveTools(html, url);
+  const funnelResult = analyzeFunnelIntent(html, url);
+  const navboostResult = analyzeNavBoostSignals(html, url);
+  const entityResult = analyzeEntitySEO(html, url);
+  const qdfFreshnessResult = analyzeFreshnessSignals(html, url);
 
-  // ========== PHASE 6: PERFORMANCE ==========
-  console.log('⚡ Analyzing performance...');
-  const { issues: perfIssues, data: perfData } = await analyzePerformance(url);
-  allIssues.push(...perfIssues);
+  // Pagination depends on onPageData.canonical
+  const paginationResult = analyzePagination(html, url, onPageResult.data.canonical);
 
-  // Fetch Core Web Vitals if API key provided
-  if (cruxApiKey) {
-    console.log('📊 Fetching Core Web Vitals...');
-    const cwv = await fetchCoreWebVitals(url, cruxApiKey);
-    if (cwv) {
-      if (cwv.lcp?.rating === 'poor') {
-        allIssues.push({
-          code: 'LCP_POOR',
-          severity: 'error',
-          category: 'performance',
-          title: 'Poor Largest Contentful Paint (LCP)',
-          description: `LCP is ${cwv.lcp.value}ms (should be under 2500ms)`,
-          impact: 'Direct Core Web Vitals ranking factor.',
-          howToFix: 'Optimize hero images, preload critical resources, improve server response time.',
-          affectedUrls: [url],
-          details: { lcp: cwv.lcp },
-        });
-      }
-      if (cwv.cls?.rating === 'poor') {
-        allIssues.push({
-          code: 'CLS_POOR',
-          severity: 'error',
-          category: 'performance',
-          title: 'Poor Cumulative Layout Shift (CLS)',
-          description: `CLS is ${cwv.cls.value} (should be under 0.1)`,
-          impact: 'Direct Core Web Vitals ranking factor.',
-          howToFix: 'Set image dimensions, avoid inserting content above existing content.',
-          affectedUrls: [url],
-          details: { cls: cwv.cls },
-        });
-      }
-    }
-  }
-
-  // ========== PHASE 7: SECURITY ==========
-  console.log('🔒 Analyzing security...');
-  const { issues: securityIssues } = await analyzeSecurity(html, url, headers);
-  allIssues.push(...securityIssues);
-
-  // Check SSL certificate
-  const certResult = await checkCertificate(url);
-  allIssues.push(...certResult.issues);
-
-  // ========== PHASE 8: STRUCTURED DATA ==========
-  console.log('📋 Analyzing structured data...');
-  const { issues: schemaIssues, data: schemaData } = analyzeStructuredData(html, url);
-  allIssues.push(...schemaIssues);
+  // Collect all sync check issues
+  allIssues.push(
+    ...onPageResult.issues,
+    ...structuredDataResult.issues,
+    ...mobileResult.issues,
+    ...mobileResourceIssues,
+    ...socialResult.issues,
+    ...soft404Result.issues,
+    ...anchorResult.issues,
+    ...serpResult.issues,
+    ...localSeoResult.issues,
+    ...domResult.issues,
+    ...modernImageResult.issues,
+    ...techResult.issues,
+    ...keywordResult.issues,
+    ...snippetResult.issues,
+    ...linkGraphResult.issues,
+    ...resourceHintResult.issues,
+    ...eeatResult.issues,
+    ...contentScienceResult.issues,
+    ...cannibalizationResult.issues,
+    ...trackerResult.issues,
+    ...csrResult.issues,
+    ...responsiveImgResult.issues,
+    ...conversionResult.issues,
+    ...keywordPlacementResult.issues,
+    ...clusterResult.issues,
+    ...platformResult.issues,
+    ...toolResult.issues,
+    ...funnelResult.issues,
+    ...navboostResult.issues,
+    ...entityResult.issues,
+    ...qdfFreshnessResult.issues,
+    ...paginationResult.issues,
+  );
 
   // Suggest schema types if none found
-  if (!schemaData.hasSchema) {
+  if (!structuredDataResult.data.hasSchema) {
     const suggestions = suggestSchemaTypes(html, url);
-    if (suggestions.length > 0) {
-      allIssues[allIssues.length - 1].details = {
-        ...allIssues[allIssues.length - 1].details,
+    if (suggestions.length > 0 && structuredDataResult.issues.length > 0) {
+      const lastSchemaIssue = structuredDataResult.issues[structuredDataResult.issues.length - 1];
+      lastSchemaIssue.details = {
+        ...lastSchemaIssue.details,
         suggestedTypes: suggestions,
       };
     }
   }
 
-  // ========== PHASE 9: MOBILE ==========
-  console.log('📱 Analyzing mobile friendliness...');
-  const { issues: mobileIssues, data: mobileData } = analyzeMobile(html, url);
-  allIssues.push(...mobileIssues);
+  // ========== PHASE 3: ASYNC CHECKS (PARALLEL) ==========
+  console.log('🔗 Phase 3: Running async checks (parallel)...');
 
-  const mobileResourceIssues = checkMobileResources(html, url);
-  allIssues.push(...mobileResourceIssues);
+  // Helper to safely run async checks with error handling
+  const safeAsync = async <T>(
+    name: string,
+    fn: () => Promise<{ issues: AuditIssue[]; data: T }>,
+  ): Promise<AuditIssue[]> => {
+    try {
+      const result = await fn();
+      return result.issues;
+    } catch (err) {
+      console.error(`${name} failed:`, err);
+      return [];
+    }
+  };
 
-  // ========== PHASE 10: SOCIAL META (OG/Twitter) ==========
-  console.log('📣 Analyzing social meta tags...');
-  const { issues: socialIssues, data: socialData } = analyzeSocialMeta(html, url);
-  allIssues.push(...socialIssues);
+  // Helper for async checks that only return issues
+  const safeAsyncIssues = async (
+    name: string,
+    fn: () => Promise<AuditIssue[]>,
+  ): Promise<AuditIssue[]> => {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error(`${name} failed:`, err);
+      return [];
+    }
+  };
 
-  // ========== PHASE 11: SOFT 404 DETECTION ==========
-  console.log('🔍 Detecting soft 404s...');
-  const { issues: soft404Issues, data: soft404Data } = detectSoft404(html, url, 200);
-  allIssues.push(...soft404Issues);
+  // Run performance separately to capture data for page audit
+  let perfData = { loadTime: 0 };
+  const performancePromise = analyzePerformance(url)
+    .then(result => {
+      perfData = result.data;
+      return result.issues;
+    })
+    .catch(err => {
+      console.error('Performance check failed:', err);
+      return [] as AuditIssue[];
+    });
 
-  // ========== PHASE 12: ANCHOR TEXT ANALYSIS ==========
-  console.log('⚓ Analyzing anchor text...');
-  const { issues: anchorIssues, data: anchorData } = analyzeAnchorText(html, url);
-  allIssues.push(...anchorIssues);
+  // Run all async checks in parallel
+  const asyncResults = await Promise.all([
+    safeAsync('Links', () => analyzeLinks(html, url, checkBrokenLinks)),
+    safeAsync('Images', () => analyzeImages(html, url, checkBrokenLinks)),
+    performancePromise,
+    safeAsync('Security', () => analyzeSecurity(html, url, headers)),
+    safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues),
+    safeAsync('Hreflang', () => analyzeHreflang(html, url, { validateUrls: checkHreflangUrls })),
+    safeAsync('Canonical Advanced', () => analyzeCanonicalAdvanced(html, url, { checkChain: checkCanonicalChain })),
+    safeAsync('Redirects', () => analyzeRedirects(url)),
+    safeAsync('AI Readiness', () => runAIReadinessChecks(url, html)),
+    safeAsync('Security Headers', () => analyzeSecurityHeaders(url)),
+    safeAsync('Content Freshness', () => analyzeContentFreshness(url, html)),
+    safeAsync('Additional Checks', () => runAdditionalChecks(url, html)),
+    safeAsync('IndexNow', () => analyzeIndexNow(html, url, headers)),
+    safeAsync('Site Maturity', () => analyzeSiteMaturity(html, url)),
+    safeAsync('Redirect Chain', () => analyzeRedirectChain(url)),
+    // Core Web Vitals (optional)
+    cruxApiKey
+      ? safeAsyncIssues('Core Web Vitals', async () => {
+          const cwv = await fetchCoreWebVitals(url, cruxApiKey);
+          const issues: AuditIssue[] = [];
+          if (cwv) {
+            if (cwv.lcp?.rating === 'poor') {
+              issues.push({
+                code: 'LCP_POOR',
+                severity: 'error',
+                category: 'performance',
+                title: 'Poor Largest Contentful Paint (LCP)',
+                description: `LCP is ${cwv.lcp.value}ms (should be under 2500ms)`,
+                impact: 'Direct Core Web Vitals ranking factor.',
+                howToFix: 'Optimize hero images, preload critical resources, improve server response time.',
+                affectedUrls: [url],
+                details: { lcp: cwv.lcp },
+              });
+            }
+            if (cwv.cls?.rating === 'poor') {
+              issues.push({
+                code: 'CLS_POOR',
+                severity: 'error',
+                category: 'performance',
+                title: 'Poor Cumulative Layout Shift (CLS)',
+                description: `CLS is ${cwv.cls.value} (should be under 0.1)`,
+                impact: 'Direct Core Web Vitals ranking factor.',
+                howToFix: 'Set image dimensions, avoid inserting content above existing content.',
+                affectedUrls: [url],
+                details: { cls: cwv.cls },
+              });
+            }
+          }
+          return issues;
+        })
+      : Promise.resolve([]),
+  ]);
 
-  // ========== PHASE 13: HREFLANG VALIDATION ==========
-  console.log('🌍 Analyzing hreflang tags...');
-  const { issues: hreflangIssues, data: hreflangData } = await analyzeHreflang(html, url, {
-    validateUrls: checkHreflangUrls,
-  });
-  allIssues.push(...hreflangIssues);
-
-  // ========== PHASE 14: ADVANCED CANONICAL ==========
-  console.log('🔗 Analyzing canonical chains...');
-  const { issues: canonicalAdvIssues, data: canonicalAdvData } = await analyzeCanonicalAdvanced(html, url, {
-    checkChain: checkCanonicalChain,
-  });
-  allIssues.push(...canonicalAdvIssues);
-
-  // ========== PHASE 15: PAGINATION ANALYSIS ==========
-  console.log('📄 Analyzing pagination...');
-  const { issues: paginationIssues, data: paginationData } = analyzePagination(html, url, onPageData.canonical);
-  allIssues.push(...paginationIssues);
-
-  // ========== PHASE 16: REDIRECT ANALYSIS ==========
-  console.log('↪️  Analyzing redirects...');
-  const { issues: redirectIssues, data: redirectData } = await analyzeRedirects(url);
-  allIssues.push(...redirectIssues);
-
-  // ========== PHASE 17: AI/LLM READINESS ==========
-  console.log('🤖 Checking AI/LLM readiness...');
-  const { issues: aiIssues, data: aiData } = await runAIReadinessChecks(url, html);
-  allIssues.push(...aiIssues);
-
-  // ========== PHASE 18: SERP PREVIEW & PIXEL MEASUREMENTS ==========
-  console.log('🔍 Analyzing SERP preview...');
-  const { issues: serpIssues, data: serpData } = analyzeSERPPreview(html, url);
-  allIssues.push(...serpIssues);
-
-  // ========== PHASE 19: LOCAL SEO ==========
-  console.log('📍 Checking local SEO...');
-  const { issues: localSeoIssues, data: localSeoData } = analyzeLocalSEO(html, url);
-  allIssues.push(...localSeoIssues);
-
-  // ========== PHASE 20: SECURITY HEADERS ==========
-  console.log('🛡️  Analyzing security headers...');
-  const { issues: secHeaderIssues, data: secHeaderData } = await analyzeSecurityHeaders(url);
-  allIssues.push(...secHeaderIssues);
-
-  // ========== PHASE 21: CONTENT FRESHNESS ==========
-  console.log('📅 Checking content freshness...');
-  const { issues: freshnessIssues, data: freshnessData } = await analyzeContentFreshness(url, html);
-  allIssues.push(...freshnessIssues);
-
-  // ========== PHASE 22: DOM ANALYSIS ==========
-  console.log('🏗️  Analyzing DOM structure...');
-  const { issues: domIssues, data: domData } = analyzeDOMStructure(html, url);
-  allIssues.push(...domIssues);
-
-  // ========== PHASE 23: MODERN IMAGE FORMATS ==========
-  console.log('🖼️  Checking modern image formats...');
-  const { issues: modernImageIssues, data: modernImageData } = analyzeModernImages(html, url);
-  allIssues.push(...modernImageIssues);
-
-  // ========== PHASE 24: TECHNOLOGY DETECTION ==========
-  console.log('🔧 Detecting technologies...');
-  const { issues: techIssues, data: techData } = detectTechnologies(html, url, headers);
-  allIssues.push(...techIssues);
-
-  // ========== PHASE 25: KEYWORD ANALYSIS ==========
-  console.log('🔑 Analyzing keywords...');
-  const { issues: keywordIssues, data: keywordData } = analyzeKeywords(html, url);
-  allIssues.push(...keywordIssues);
-
-  // ========== PHASE 26: ADDITIONAL CHECKS ==========
-  console.log('📋 Running additional checks (ads.txt, DMARC, AMP, etc.)...');
-  const { issues: additionalIssues, data: additionalData } = await runAdditionalChecks(url, html);
-  allIssues.push(...additionalIssues);
-
-  // ========== PHASE 27: FEATURED SNIPPET OPTIMIZATION ==========
-  console.log('🎯 Analyzing featured snippet optimization...');
-  const { issues: snippetIssues, data: snippetData } = analyzeFeaturedSnippet(html, url);
-  allIssues.push(...snippetIssues);
-
-  // ========== PHASE 28: INTERNAL LINK GRAPH ==========
-  console.log('🕸️  Analyzing internal link structure...');
-  const { issues: linkGraphIssues, data: linkGraphData } = analyzeInternalLinkGraph(html, url);
-  allIssues.push(...linkGraphIssues);
-
-  // ========== PHASE 29: RESOURCE HINTS ==========
-  console.log('⚡ Analyzing resource hints (preconnect, preload)...');
-  const { issues: resourceHintIssues, data: resourceHintData } = analyzeResourceHints(html, url);
-  allIssues.push(...resourceHintIssues);
-
-  // ========== PHASE 30: E-E-A-T SIGNALS ==========
-  console.log('👤 Analyzing E-E-A-T signals (Author, Expertise, Trust)...');
-  const { issues: eeatIssues, data: eeatData } = analyzeEEATSignals(html, url);
-  allIssues.push(...eeatIssues);
-
-  // ========== PHASE 31: INDEXNOW PROTOCOL ==========
-  console.log('📡 Checking IndexNow implementation...');
-  const { issues: indexNowIssues, data: indexNowData } = await analyzeIndexNow(html, url, headers);
-  allIssues.push(...indexNowIssues);
-
-  // ========== PHASE 32: CONTENT SCIENCE (NOVEL CHECKS) ==========
-  console.log('🔬 Running content science analysis (Zipf, Entropy, BM25)...');
-  const { issues: contentScienceIssues, data: contentScienceData } = analyzeContentScience(html, url);
-  allIssues.push(...contentScienceIssues);
-
-  // ========== PHASE 33: SITE MATURITY & STRATEGY ==========
-  console.log('📊 Analyzing site maturity and recommending strategy...');
-  const { issues: maturityIssues, data: maturityData } = await analyzeSiteMaturity(html, url);
-  allIssues.push(...maturityIssues);
-
-  // ========== PHASE 34: KEYWORD CANNIBALIZATION ==========
-  console.log('🎭 Checking for keyword cannibalization signals...');
-  const { issues: cannibalizationIssues, data: cannibalizationData } = analyzeKeywordCannibalizationSinglePage(html, url);
-  allIssues.push(...cannibalizationIssues);
-
-  // ========== PHASE 35: TRACKER BLOAT ==========
-  console.log('📊 Analyzing third-party trackers...');
-  const { issues: trackerIssues, data: trackerData } = analyzeTrackerBloat(html, url);
-  allIssues.push(...trackerIssues);
-
-  // ========== PHASE 36: CLIENT-SIDE RENDERING DETECTION ==========
-  console.log('🖥️  Detecting client-side rendering patterns...');
-  const { issues: csrIssues, data: csrData } = analyzeClientRendering(html, url);
-  allIssues.push(...csrIssues);
-
-  // ========== PHASE 37: REDIRECT CHAIN ANALYSIS ==========
-  console.log('↩️  Analyzing redirect chains...');
-  const { issues: redirectChainIssues, data: redirectChainData } = await analyzeRedirectChain(url);
-  allIssues.push(...redirectChainIssues);
-
-  // ========== PHASE 38: RESPONSIVE IMAGES ==========
-  console.log('📱 Analyzing responsive image best practices...');
-  const { issues: responsiveImgIssues, data: responsiveImgData } = analyzeResponsiveImages(html, url);
-  allIssues.push(...responsiveImgIssues);
-
-  // ========== PHASE 39: CONVERSION ELEMENTS (2026 SEO) ==========
-  console.log('💰 Analyzing conversion elements (above-the-fold, social proof)...');
-  const { issues: conversionIssues, data: conversionData } = analyzeConversionElements(html, url);
-  allIssues.push(...conversionIssues);
-
-  // ========== PHASE 40: KEYWORD PLACEMENT (2026 SEO) ==========
-  console.log('🎯 Analyzing keyword placement (title match score, first paragraph)...');
-  const { issues: keywordPlacementIssues, data: keywordPlacementData } = analyzeKeywordPlacement(html, url);
-  allIssues.push(...keywordPlacementIssues);
-
-  // ========== PHASE 41: TOPICAL CLUSTERS (2026 SEO) ==========
-  console.log('🕸️  Analyzing topical cluster structure...');
-  const { issues: clusterIssues, data: clusterData } = analyzeTopicalClusters(html, url);
-  allIssues.push(...clusterIssues);
-
-  // ========== PHASE 42: PLATFORM PRESENCE (Search Everywhere Optimization) ==========
-  console.log('🌐 Analyzing cross-platform presence (Search Everywhere Optimization)...');
-  const { issues: platformIssues, data: platformData } = analyzePlatformPresence(html, url);
-  allIssues.push(...platformIssues);
-
-  // ========== PHASE 43: INTERACTIVE TOOLS (Dwell Time Optimization) ==========
-  console.log('🛠️  Analyzing interactive tools (calculators, quizzes, free tools)...');
-  const { issues: toolIssues, data: toolData } = analyzeInteractiveTools(html, url);
-  allIssues.push(...toolIssues);
-
-  // ========== PHASE 44: FUNNEL INTENT ANALYSIS ==========
-  console.log('🎯 Analyzing search funnel intent (TOFU/MOFU/BOFU)...');
-  const { issues: funnelIssues, data: funnelData } = analyzeFunnelIntent(html, url);
-  allIssues.push(...funnelIssues);
-
-  // ========== PHASE 45: NAVBOOST SIGNALS (Google Algorithm Leak) ==========
-  console.log('📈 Analyzing NavBoost signals (CTR, engagement, dwell time)...');
-  const { issues: navboostIssues, data: navboostData } = analyzeNavBoostSignals(html, url);
-  allIssues.push(...navboostIssues);
-
-  // ========== PHASE 46: ENTITY SEO (Knowledge Graph Optimization) ==========
-  console.log('🔗 Analyzing Entity SEO (Knowledge Graph, sameAs, entity clarity)...');
-  const { issues: entityIssues, data: entityData } = analyzeEntitySEO(html, url);
-  allIssues.push(...entityIssues);
-
-  // ========== PHASE 47: FRESHNESS SIGNALS (QDF Optimization) ==========
-  console.log('📅 Analyzing freshness signals (QDF, dateModified, AI citation)...');
-  const { issues: qdfFreshnessIssues, data: qdfFreshnessData } = analyzeFreshnessSignals(html, url);
-  allIssues.push(...qdfFreshnessIssues);
+  // Collect all async issues
+  for (const issues of asyncResults) {
+    allIssues.push(...issues);
+  }
 
   // ========== CREATE PAGE AUDIT ==========
   pages.push({
     url,
     statusCode: 200,
-    title: onPageData.title,
-    description: onPageData.description,
-    canonical: onPageData.canonical,
-    h1: onPageData.h1s,
-    wordCount: onPageData.wordCount,
+    title: onPageResult.data.title,
+    description: onPageResult.data.description,
+    canonical: onPageResult.data.canonical,
+    h1: onPageResult.data.h1s,
+    wordCount: onPageResult.data.wordCount,
     loadTime: perfData.loadTime,
     issues: allIssues.map(i => i.code),
   });
