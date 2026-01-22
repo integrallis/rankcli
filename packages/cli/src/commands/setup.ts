@@ -11,7 +11,7 @@ import {
   getGSCSetupInstructions,
   generateGA4EnvTemplate,
   type WorkflowConfig,
-} from '@seo-autopilot/agent-runtime';
+} from '@rankcli/agent-runtime';
 
 interface SetupOptions {
   ga4?: string;           // GA4 Measurement ID

@@ -1,4 +1,4 @@
-import { runFullAudit, formatReport, type AuditReport } from '@seo-autopilot/agent-runtime';
+import { runFullAudit, formatReport, type AuditReport } from '@rankcli/agent-runtime';
 
 interface AuditOptions {
   url?: string;

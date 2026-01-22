@@ -19,7 +19,8 @@ import {
   sendDiscordAlert,
   AlertConfig,
   AuditAlertPayload,
-} from '@seo-autopilot/agent-runtime';
+  AuditIssue,
+} from '@rankcli/agent-runtime';
 
 async function run(): Promise<void> {
   try {
@@ -40,8 +41,8 @@ async function run(): Promise<void> {
       url: inputs.url,
       score,
       issuesCount: report.issues.length,
-      errorsCount: report.issues.filter((i) => i.severity === 'error').length,
-      warningsCount: report.issues.filter((i) => i.severity === 'warning').length,
+      errorsCount: report.issues.filter((i: AuditIssue) => i.severity === 'error').length,
+      warningsCount: report.issues.filter((i: AuditIssue) => i.severity === 'warning').length,
       categories: {},
     };
 

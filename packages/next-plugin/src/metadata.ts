@@ -202,10 +202,16 @@ export function mergeMetadata(...metadataObjects: (Metadata | undefined)[]): Met
 
     // Merge robots
     if (metadata.robots) {
-      result.robots = {
-        ...result.robots,
-        ...metadata.robots,
-      };
+      if (typeof metadata.robots === 'string') {
+        result.robots = metadata.robots;
+      } else if (typeof result.robots === 'object') {
+        result.robots = {
+          ...result.robots,
+          ...metadata.robots,
+        };
+      } else {
+        result.robots = metadata.robots;
+      }
     }
   }
 

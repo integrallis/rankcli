@@ -14,7 +14,7 @@ import {
   analyzeKeywordDensity,
   formatKeywordDensityReport,
   crawlUrl,
-} from '@seo-autopilot/agent-runtime';
+} from '@rankcli/agent-runtime';
 
 interface ContentOptions {
   url?: string;

@@ -60,7 +60,7 @@ export interface SitemapConfig {
 
 export interface SitemapRoute {
   path: string;
-  changefreq?: string;
+  changefreq?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
   priority?: number;
   lastmod?: string;
 }

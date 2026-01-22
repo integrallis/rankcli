@@ -8,7 +8,7 @@ import {
   type SEOAnalysisResult,
   type GeneratedFix,
   type FrameworkInfo,
-} from '@seo-autopilot/agent-runtime';
+} from '@rankcli/agent-runtime';
 
 interface ApplyOptions {
   url?: string;

@@ -12,7 +12,7 @@ import {
   formatTopicReport,
   type SiteProfile,
   type KeywordResearchOptions,
-} from '@seo-autopilot/agent-runtime';
+} from '@rankcli/agent-runtime';
 
 interface KeywordsOptions {
   url?: string;
