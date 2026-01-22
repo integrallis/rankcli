@@ -18,6 +18,13 @@ export interface RenderingAnalysis {
   recommendations: string[];
   metaManagement: string | null; // React Helmet, Vue Meta, etc.
   hasDynamicMetaTags: boolean;
+  // AI-specific content accessibility metrics
+  aiAccessibility: {
+    htmlContentRatio: number; // % of content in raw HTML vs total expected
+    hasSemanticStructure: boolean; // Proper heading hierarchy, landmarks
+    keyContentInHTML: boolean; // Title, main headings, first paragraphs in HTML
+    aiReadableScore: number; // 0-100 score for AI parsing ability
+  };
 }
 
 export interface RenderingSignal {
@@ -184,6 +191,64 @@ export function analyzeRendering(html: string): RenderingAnalysis {
     $('meta[data-react-helmet]').length > 0 ||
     $('meta[data-vue-meta]').length > 0;
 
+  // === AI ACCESSIBILITY ANALYSIS ===
+  // AI systems (ChatGPT, Claude, etc.) primarily read raw HTML
+  // Content hidden behind JavaScript may not be indexed by AI
+
+  // Check semantic structure
+  const hasH1 = $('h1').length > 0 && $('h1').text().trim().length > 0;
+  const hasH2 = $('h2').length > 0;
+  const hasMain = $('main, [role="main"]').length > 0;
+  const hasArticle = $('article').length > 0;
+  const hasSemanticStructure = hasH1 && (hasMain || hasArticle);
+
+  // Check if key content is in HTML
+  const title = $('title').text().trim();
+  const h1Text = $('h1').first().text().trim();
+  const firstParagraph = $('p').first().text().trim();
+
+  const keyContentInHTML =
+    title.length > 10 &&
+    h1Text.length > 5 &&
+    firstParagraph.length > 50;
+
+  // Calculate HTML content ratio
+  // Compare actual content to expected minimum for a meaningful page
+  const EXPECTED_MIN_CONTENT = 1000; // Minimum expected chars for a content page
+  const htmlContentRatio = Math.min(100, (mainContentCharCount / EXPECTED_MIN_CONTENT) * 100);
+
+  // Calculate AI readable score
+  let aiReadableScore = 50; // Base score
+
+  // Content amount
+  if (mainContentCharCount > 2000) aiReadableScore += 20;
+  else if (mainContentCharCount > 1000) aiReadableScore += 15;
+  else if (mainContentCharCount > 500) aiReadableScore += 10;
+  else if (mainContentCharCount < 200) aiReadableScore -= 20;
+
+  // Semantic structure
+  if (hasSemanticStructure) aiReadableScore += 15;
+  if (hasH1 && hasH2) aiReadableScore += 5;
+
+  // Key content in HTML
+  if (keyContentInHTML) aiReadableScore += 15;
+  else aiReadableScore -= 10;
+
+  // SSR/SSG bonus
+  if (hasHydrationMarkers || ssrScore > csrScore) aiReadableScore += 10;
+
+  // CSR penalty
+  if (csrScore > ssrScore + 3) aiReadableScore -= 20;
+
+  aiReadableScore = Math.max(0, Math.min(100, aiReadableScore));
+
+  const aiAccessibility = {
+    htmlContentRatio: Math.round(htmlContentRatio),
+    hasSemanticStructure,
+    keyContentInHTML,
+    aiReadableScore,
+  };
+
   // Determine rendering method
   let renderingMethod: 'ssr' | 'ssg' | 'csr' | 'hybrid' | 'unknown';
   let confidence: 'high' | 'medium' | 'low';
@@ -228,6 +293,7 @@ export function analyzeRendering(html: string): RenderingAnalysis {
     recommendations,
     metaManagement,
     hasDynamicMetaTags,
+    aiAccessibility,
   };
 }
 
@@ -400,6 +466,61 @@ export function analyzeClientRendering(
         },
       });
     }
+  }
+
+  // === AI-SPECIFIC CONTENT ACCESSIBILITY CHECKS ===
+
+  // Low AI readable score
+  if (analysis.aiAccessibility.aiReadableScore < 50) {
+    issues.push({
+      code: 'AI_LOW_HTML_READABILITY',
+      severity: 'warning',
+      category: 'ai-readiness',
+      title: 'Content not optimally accessible to AI systems',
+      description: `AI readability score: ${analysis.aiAccessibility.aiReadableScore}/100. AI systems like ChatGPT primarily read raw HTML and may miss JavaScript-rendered content.`,
+      impact: 'Content may not be properly indexed by AI search systems (ChatGPT, Perplexity, etc.), reducing AI citation likelihood.',
+      howToFix: 'Ensure key content is in the initial HTML response: 1) Use SSR/SSG, 2) Include title, H1, and main content in HTML, 3) Don\'t hide content behind JavaScript interactions.',
+      affectedUrls: [url],
+      details: {
+        aiReadableScore: analysis.aiAccessibility.aiReadableScore,
+        htmlContentRatio: analysis.aiAccessibility.htmlContentRatio,
+        hasSemanticStructure: analysis.aiAccessibility.hasSemanticStructure,
+        keyContentInHTML: analysis.aiAccessibility.keyContentInHTML,
+      },
+    });
+  }
+
+  // Missing semantic structure for AI
+  if (!analysis.aiAccessibility.hasSemanticStructure && analysis.mainContentCharCount > 500) {
+    issues.push({
+      code: 'AI_NO_SEMANTIC_STRUCTURE',
+      severity: 'notice',
+      category: 'ai-readiness',
+      title: 'Content lacks semantic HTML structure for AI parsing',
+      description: 'Missing semantic landmarks (<main>, <article>) or heading hierarchy. AI systems use these to identify and extract key content.',
+      impact: 'AI may not correctly identify the main content area, potentially extracting navigation or footer text instead.',
+      howToFix: 'Add semantic HTML: wrap main content in <main> or <article>, ensure H1 exists and heading hierarchy is logical (H1 → H2 → H3).',
+      affectedUrls: [url],
+    });
+  }
+
+  // Key content not in initial HTML
+  if (!analysis.aiAccessibility.keyContentInHTML && analysis.renderingMethod !== 'csr') {
+    issues.push({
+      code: 'AI_KEY_CONTENT_NOT_IN_HTML',
+      severity: 'warning',
+      category: 'ai-readiness',
+      title: 'Key content elements missing from initial HTML',
+      description: 'Title, H1, or opening paragraph content is missing or too short in the HTML. AI systems extract these first.',
+      impact: 'AI may not have access to your primary message, reducing chances of accurate citation.',
+      howToFix: 'Ensure the initial HTML contains: meaningful <title>, descriptive <h1>, and a substantial first paragraph with your key message.',
+      affectedUrls: [url],
+      details: {
+        hasTitle: $('title').text().trim().length > 10,
+        hasH1: $('h1').text().trim().length > 5,
+        hasFirstParagraph: $('p').first().text().trim().length > 50,
+      },
+    });
   }
 
   return { issues, data: analysis };

@@ -53,6 +53,11 @@ import { analyzeFunnelIntent } from './checks/funnel-intent.js';
 import { analyzeNavBoostSignals } from './checks/navboost-signals.js';
 import { analyzeEntitySEO } from './checks/entity-seo.js';
 import { analyzeFreshnessSignals } from './checks/freshness-signals.js';
+// AI Search Optimization checks (2026 - ChatGPT, AI Overviews)
+import { analyzeBingOptimization } from './checks/bing-optimization.js';
+import { analyzeAIContentStructure } from './checks/ai-content-structure.js';
+import { analyzeCitationQuality } from './checks/citation-quality.js';
+import { analyzeAnswerConciseness } from './checks/answer-conciseness.js';
 
 export interface AuditOptions {
   url: string;
@@ -144,6 +149,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const navboostResult = analyzeNavBoostSignals(html, url);
   const entityResult = analyzeEntitySEO(html, url);
   const qdfFreshnessResult = analyzeFreshnessSignals(html, url);
+  // AI Search Optimization (2026)
+  const aiContentStructureResult = analyzeAIContentStructure(html, url);
+  const citationQualityResult = analyzeCitationQuality(html, url);
+  const answerConcisenessResult = analyzeAnswerConciseness(html, url);
 
   // Pagination depends on onPageData.canonical
   const paginationResult = analyzePagination(html, url, onPageResult.data.canonical);
@@ -181,6 +190,9 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...navboostResult.issues,
     ...entityResult.issues,
     ...qdfFreshnessResult.issues,
+    ...aiContentStructureResult.issues,
+    ...citationQualityResult.issues,
+    ...answerConcisenessResult.issues,
     ...paginationResult.issues,
   );
 
@@ -255,6 +267,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     safeAsync('IndexNow', () => analyzeIndexNow(html, url, headers)),
     safeAsync('Site Maturity', () => analyzeSiteMaturity(html, url)),
     safeAsync('Redirect Chain', () => analyzeRedirectChain(url)),
+    safeAsync('Bing Optimization', () => analyzeBingOptimization(html, url)),
     // Core Web Vitals (optional)
     cruxApiKey
       ? safeAsyncIssues('Core Web Vitals', async () => {
