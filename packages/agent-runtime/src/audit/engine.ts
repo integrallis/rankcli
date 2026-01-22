@@ -58,6 +58,10 @@ import { analyzeBingOptimization } from './checks/bing-optimization.js';
 import { analyzeAIContentStructure } from './checks/ai-content-structure.js';
 import { analyzeCitationQuality } from './checks/citation-quality.js';
 import { analyzeAnswerConciseness } from './checks/answer-conciseness.js';
+// AI SEO Skills checks (brand narrative, citation worthiness, review ecosystem)
+import { analyzeBrandMentionOptimization } from './checks/brand-mention-optimization.js';
+import { analyzeAICitationWorthiness } from './checks/ai-citation-worthiness.js';
+import { analyzeReviewEcosystem } from './checks/review-ecosystem.js';
 
 export interface AuditOptions {
   url: string;
@@ -153,6 +157,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const aiContentStructureResult = analyzeAIContentStructure(html, url);
   const citationQualityResult = analyzeCitationQuality(html, url);
   const answerConcisenessResult = analyzeAnswerConciseness(html, url);
+  // AI SEO Skills (brand narrative, citation worthiness, review ecosystem)
+  const brandMentionResult = analyzeBrandMentionOptimization(html, url);
+  const citationWorthinessResult = analyzeAICitationWorthiness(html, url);
+  const reviewEcosystemResult = analyzeReviewEcosystem(html, url);
 
   // Pagination depends on onPageData.canonical
   const paginationResult = analyzePagination(html, url, onPageResult.data.canonical);
@@ -193,6 +201,9 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...aiContentStructureResult.issues,
     ...citationQualityResult.issues,
     ...answerConcisenessResult.issues,
+    ...brandMentionResult.issues,
+    ...citationWorthinessResult.issues,
+    ...reviewEcosystemResult.issues,
     ...paginationResult.issues,
   );
 
