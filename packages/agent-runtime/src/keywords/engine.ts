@@ -1,7 +1,7 @@
 // Main Keyword Research Engine
 
 import * as cheerio from 'cheerio';
-import axios from 'axios';
+import { httpGet } from '../utils/http.js';
 import type {
   SiteProfile,
   KeywordData,
@@ -138,8 +138,8 @@ export async function runKeywordResearch(
 
 async function fetchPageMeta(url: string): Promise<PageMeta> {
   try {
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': USER_AGENT },
+    const response = await httpGet<string>(url, {
+      
       timeout: 10000,
     });
 
@@ -322,8 +322,8 @@ function formatKeywordTable(keywords: KeywordData[]): string {
 // Extract seed keywords from page content
 export async function extractSeedKeywords(url: string): Promise<string[]> {
   try {
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': USER_AGENT },
+    const response = await httpGet<string>(url, {
+      
       timeout: 10000,
     });
 

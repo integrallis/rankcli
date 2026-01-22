@@ -1,9 +1,7 @@
 import * as cheerio from 'cheerio';
-import axios from 'axios';
+import { httpHead } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
-
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
 
 export interface ImageData {
   total: number;
@@ -73,8 +71,7 @@ export async function analyzeImages(
     for (const img of imagesToCheck) {
       try {
         const fullUrl = new URL(img.src, baseUrl).href;
-        const response = await axios.head(fullUrl, {
-          headers: { 'User-Agent': USER_AGENT },
+        const response = await httpHead(fullUrl, {
           timeout: 5000,
           validateStatus: () => true,
         });

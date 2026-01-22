@@ -1,7 +1,7 @@
 // Competitor Keyword Analysis (SpyFu Kombat-style)
 // Analyze competitor rankings to find keyword gaps and opportunities
 
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { KeywordData } from '../types.js';
 
@@ -179,7 +179,7 @@ interface SERPData {
 
 async function analyzeSERP(query: string): Promise<SERPData> {
   try {
-    const response = await axios.get('https://www.google.com/search', {
+    const response = await httpGet<string>('https://www.google.com/search', {
       params: { q: query, num: 20 },
       headers: { 'User-Agent': USER_AGENT },
       timeout: 10000,

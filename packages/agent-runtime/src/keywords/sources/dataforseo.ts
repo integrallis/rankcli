@@ -1,7 +1,7 @@
 // DataForSEO API Integration (Budget-Friendly Paid Option)
 // Pricing: ~$0.002 per request, $50 minimum deposit
 
-import axios from 'axios';
+import { httpGet, httpPost } from '../../utils/http.js';
 import type { KeywordData } from '../types.js';
 
 const DATAFORSEO_BASE_URL = 'https://api.dataforseo.com/v3';
@@ -30,7 +30,7 @@ export async function getKeywordData(
   const auth = Buffer.from(`${credentials.login}:${credentials.password}`).toString('base64');
 
   try {
-    const response = await axios.post(
+    const response = await httpPost(
       `${DATAFORSEO_BASE_URL}/keywords_data/google_ads/search_volume/live`,
       [
         {
@@ -48,7 +48,8 @@ export async function getKeywordData(
       }
     );
 
-    const results: DataForSEOKeywordResult[] = response.data?.tasks?.[0]?.result || [];
+    const data = response.data as { tasks?: Array<{ result?: DataForSEOKeywordResult[] }> };
+    const results: DataForSEOKeywordResult[] = data?.tasks?.[0]?.result || [];
 
     return results.map((r) => ({
       keyword: r.keyword,
@@ -73,7 +74,7 @@ export async function getKeywordSuggestions(
   const auth = Buffer.from(`${credentials.login}:${credentials.password}`).toString('base64');
 
   try {
-    const response = await axios.post(
+    const response = await httpPost(
       `${DATAFORSEO_BASE_URL}/dataforseo_labs/google/keyword_suggestions/live`,
       [
         {
@@ -93,15 +94,19 @@ export async function getKeywordSuggestions(
       }
     );
 
-    const results = response.data?.tasks?.[0]?.result?.[0]?.items || [];
+    const data = response.data as { tasks?: Array<{ result?: Array<{ items?: unknown[] }> }> };
+    const results = data?.tasks?.[0]?.result?.[0]?.items || [];
 
-    return results.map((item: { keyword_data: DataForSEOKeywordResult }) => ({
-      keyword: item.keyword_data.keyword,
-      searchVolume: item.keyword_data.search_volume || 0,
-      keywordDifficulty: item.keyword_data.keyword_difficulty || 0,
-      cpc: item.keyword_data.cpc,
-      source: 'dataforseo' as const,
-    }));
+    return results.map((item) => {
+      const i = item as { keyword_data: DataForSEOKeywordResult };
+      return {
+        keyword: i.keyword_data.keyword,
+        searchVolume: i.keyword_data.search_volume || 0,
+        keywordDifficulty: i.keyword_data.keyword_difficulty || 0,
+        cpc: i.keyword_data.cpc,
+        source: 'dataforseo' as const,
+      };
+    });
   } catch (error) {
     console.error('DataForSEO suggestions error:', error);
     throw new Error(`DataForSEO API failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -118,7 +123,7 @@ export async function getRelatedKeywords(
   const auth = Buffer.from(`${credentials.login}:${credentials.password}`).toString('base64');
 
   try {
-    const response = await axios.post(
+    const response = await httpPost(
       `${DATAFORSEO_BASE_URL}/dataforseo_labs/google/related_keywords/live`,
       [
         {
@@ -137,15 +142,19 @@ export async function getRelatedKeywords(
       }
     );
 
-    const results = response.data?.tasks?.[0]?.result?.[0]?.items || [];
+    const data = response.data as { tasks?: Array<{ result?: Array<{ items?: unknown[] }> }> };
+    const results = data?.tasks?.[0]?.result?.[0]?.items || [];
 
-    return results.map((item: { keyword_data: DataForSEOKeywordResult }) => ({
-      keyword: item.keyword_data.keyword,
-      searchVolume: item.keyword_data.search_volume || 0,
-      keywordDifficulty: item.keyword_data.keyword_difficulty || 0,
-      cpc: item.keyword_data.cpc,
-      source: 'dataforseo' as const,
-    }));
+    return results.map((item) => {
+      const i = item as { keyword_data: DataForSEOKeywordResult };
+      return {
+        keyword: i.keyword_data.keyword,
+        searchVolume: i.keyword_data.search_volume || 0,
+        keywordDifficulty: i.keyword_data.keyword_difficulty || 0,
+        cpc: i.keyword_data.cpc,
+        source: 'dataforseo' as const,
+      };
+    });
   } catch (error) {
     console.error('DataForSEO related keywords error:', error);
     return [];
@@ -179,7 +188,7 @@ export async function checkBalance(credentials: DataForSEOCredentials): Promise<
   const auth = Buffer.from(`${credentials.login}:${credentials.password}`).toString('base64');
 
   try {
-    const response = await axios.get(
+    const response = await httpGet<string>(
       `${DATAFORSEO_BASE_URL}/appendix/user_data`,
       {
         headers: {
@@ -188,7 +197,9 @@ export async function checkBalance(credentials: DataForSEOCredentials): Promise<
       }
     );
 
-    return response.data?.tasks?.[0]?.result?.[0]?.money?.balance || 0;
+    const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as any)?.tasks?.[0]?.result?.[0]?.money?.balance || 0;
   } catch {
     return 0;
   }

@@ -1,9 +1,7 @@
 import * as cheerio from 'cheerio';
-import axios from 'axios';
+import { httpHead } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
-
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
 
 export interface LinkData {
   internal: { href: string; text: string; nofollow: boolean }[];
@@ -79,8 +77,7 @@ export async function analyzeLinks(
     const internalToCheck = internal.slice(0, 10);
     for (const link of internalToCheck) {
       try {
-        const response = await axios.head(link.href, {
-          headers: { 'User-Agent': USER_AGENT },
+        const response = await httpHead(link.href, {
           timeout: 5000,
           maxRedirects: 5,
           validateStatus: () => true,
@@ -97,8 +94,7 @@ export async function analyzeLinks(
     const externalToCheck = external.slice(0, 5);
     for (const link of externalToCheck) {
       try {
-        const response = await axios.head(link.href, {
-          headers: { 'User-Agent': USER_AGENT },
+        const response = await httpHead(link.href, {
           timeout: 5000,
           maxRedirects: 5,
           validateStatus: () => true,

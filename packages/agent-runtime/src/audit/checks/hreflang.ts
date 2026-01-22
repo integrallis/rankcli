@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import axios from 'axios';
+import { httpHead, httpGet } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -103,7 +103,7 @@ export async function analyzeHreflang(
     for (const entry of entries) {
       if (!entry.isSelfReference && entry.href) {
         try {
-          const response = await axios.head(entry.href, {
+          const response = await httpHead(entry.href, {
             timeout: 5000,
             maxRedirects: 0,
             validateStatus: () => true,
@@ -140,7 +140,7 @@ export async function analyzeHreflang(
     for (const entry of entries) {
       if (!entry.isSelfReference && entry.href && entry.statusCode === 200) {
         try {
-          const response = await axios.get(entry.href, { timeout: 5000 });
+          const response = await httpGet<string>(entry.href, { timeout: 5000 });
           const $target = cheerio.load(response.data);
           const hasReturnLink = $target(`link[rel="alternate"][hreflang][href*="${new URL(url).hostname}"]`).length > 0;
 

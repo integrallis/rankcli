@@ -2,10 +2,8 @@
 // Reference: "Technical SEO for Developers - 17 Tips to Rank Higher"
 // "Managing redirects... Broken links can absolutely tank your SEO numbers"
 
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
-
-const USER_AGENT = 'RankCLI/1.0 (+https://rankcli.dev)';
 
 export interface RedirectHop {
   url: string;
@@ -56,8 +54,8 @@ export async function traceRedirectChain(
     try {
       const startTime = Date.now();
 
-      const response = await axios.get(currentUrl, {
-        headers: { 'User-Agent': USER_AGENT },
+      const response = await httpGet<string>(currentUrl, {
+        
         timeout,
         maxRedirects: 0, // Don't auto-follow, we want to trace manually
         validateStatus: () => true, // Accept all status codes

@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -106,7 +106,7 @@ async function followCanonicalChain(
   if (chain.length >= maxDepth) return chain;
 
   try {
-    const response = await axios.get(url, {
+    const response = await httpGet<string>(url, {
       timeout: 5000,
       maxRedirects: 5,
       validateStatus: (status) => status < 400,

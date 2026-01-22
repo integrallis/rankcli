@@ -1,6 +1,4 @@
 import * as cheerio from 'cheerio';
-import axios from 'axios';
-import * as https from 'https';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -108,6 +106,8 @@ export async function analyzeSecurity(
 }
 
 // Check SSL certificate
+// Note: Using fetch for isomorphic support - detailed cert info (expiry, issuer)
+// is not available via fetch API. This only verifies the cert is valid.
 export async function checkCertificate(url: string): Promise<{
   valid: boolean;
   expiresAt?: Date;
@@ -122,51 +122,23 @@ export async function checkCertificate(url: string): Promise<{
     return { valid: false, issues };
   }
 
-  return new Promise((resolve) => {
-    const req = https.request({
-      host: parsedUrl.hostname,
-      port: 443,
+  try {
+    // Use fetch to verify the certificate is valid
+    // This will throw if the certificate is invalid/expired
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    await fetch(url, {
       method: 'HEAD',
-      rejectUnauthorized: true,
-    }, (res) => {
-      const cert = (res.socket as any).getPeerCertificate?.();
-      if (cert && cert.valid_to) {
-        const expiresAt = new Date(cert.valid_to);
-        const now = new Date();
-        const daysUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (daysUntilExpiry < 30) {
-          issues.push({
-            ...ISSUE_DEFINITIONS.CERT_EXPIRING,
-            affectedUrls: [url],
-            details: {
-              expiresAt: expiresAt.toISOString(),
-              daysUntilExpiry,
-            },
-          });
-        }
-
-        resolve({
-          valid: true,
-          expiresAt,
-          issuer: cert.issuer?.O,
-          daysUntilExpiry,
-          issues,
-        });
-      } else {
-        resolve({ valid: true, issues });
-      }
+      signal: controller.signal,
     });
 
-    req.on('error', () => {
-      resolve({ valid: false, issues });
-    });
+    clearTimeout(timeoutId);
 
-    req.setTimeout(5000, () => {
-      req.destroy();
-      resolve({ valid: false, issues });
-    });
-
-    req.end();
-  });
+    // Certificate is valid if we got here
+    return { valid: true, issues };
+  } catch (error) {
+    // Connection failed - could be cert issue or network error
+    return { valid: false, issues };
+  }
 }

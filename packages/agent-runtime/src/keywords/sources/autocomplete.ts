@@ -1,6 +1,6 @@
 // Google Autocomplete Keyword Scraper (Free)
 
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import type { KeywordData } from '../types.js';
 
 const AUTOCOMPLETE_URL = 'https://suggestqueries.google.com/complete/search';
@@ -17,7 +17,7 @@ export async function getAutocompleteSuggestions(
   const { language = 'en', country = 'us' } = options;
 
   try {
-    const response = await axios.get(AUTOCOMPLETE_URL, {
+    const response = await httpGet<string>(AUTOCOMPLETE_URL, {
       params: {
         client: 'firefox', // Returns JSON
         q: seedKeyword,
@@ -28,7 +28,9 @@ export async function getAutocompleteSuggestions(
     });
 
     // Response format: [query, [suggestions], ...]
-    const suggestions: string[] = response.data[1] || [];
+    // Parse JSON if string (fetch returns text by default for this endpoint)
+    const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const suggestions: string[] = (data as unknown[])[1] as string[] || [];
 
     return suggestions.map((suggestion) => ({
       keyword: suggestion,

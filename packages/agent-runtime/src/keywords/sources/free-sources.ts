@@ -1,7 +1,7 @@
 // Free Keyword Data Sources
 // Prioritize these over paid APIs
 
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { KeywordData } from '../types.js';
 
@@ -10,7 +10,7 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 // 1. Google "People Also Ask" Scraper
 export async function getPeopleAlsoAsk(query: string): Promise<string[]> {
   try {
-    const response = await axios.get('https://www.google.com/search', {
+    const response = await httpGet<string>('https://www.google.com/search', {
       params: { q: query },
       headers: { 'User-Agent': USER_AGENT },
       timeout: 10000,
@@ -44,7 +44,7 @@ export async function getPeopleAlsoAsk(query: string): Promise<string[]> {
 // 2. Google Related Searches Scraper
 export async function getRelatedSearches(query: string): Promise<string[]> {
   try {
-    const response = await axios.get('https://www.google.com/search', {
+    const response = await httpGet<string>('https://www.google.com/search', {
       params: { q: query },
       headers: { 'User-Agent': USER_AGENT },
       timeout: 10000,
@@ -73,7 +73,7 @@ export async function getRelatedSearches(query: string): Promise<string[]> {
 // 3. Wikipedia Topics for Long-Tail Ideas
 export async function getWikipediaTopics(query: string): Promise<string[]> {
   try {
-    const response = await axios.get('https://en.wikipedia.org/w/api.php', {
+    const response = await httpGet<string>('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'opensearch',
         search: query,
@@ -137,7 +137,7 @@ export function expandWithModifiers(keyword: string): string[] {
 // 6. Competitor Title Analyzer (from SERP)
 export async function analyzeCompetitorTitles(query: string): Promise<{ titles: string[]; keywords: string[] }> {
   try {
-    const response = await axios.get('https://www.google.com/search', {
+    const response = await httpGet<string>('https://www.google.com/search', {
       params: { q: query, num: 10 },
       headers: { 'User-Agent': USER_AGENT },
       timeout: 10000,

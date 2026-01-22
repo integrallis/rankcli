@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { httpHead } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -35,7 +35,7 @@ export async function analyzeRedirects(
     visitedUrls.add(currentUrl);
 
     try {
-      const response = await axios.head(currentUrl, {
+      const response = await httpHead(currentUrl, {
         timeout: 5000,
         maxRedirects: 0,
         validateStatus: () => true,
@@ -119,7 +119,7 @@ export async function checkInternalRedirects(
     const batch = internalLinks.slice(i, i + batchSize);
     const promises = batch.map(async (link) => {
       try {
-        const response = await axios.head(link, {
+        const response = await httpHead(link, {
           timeout: 5000,
           maxRedirects: 0,
           validateStatus: () => true,

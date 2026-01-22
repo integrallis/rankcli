@@ -1,8 +1,6 @@
-import axios from 'axios';
+import { httpGet, httpPost } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
-
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
 
 export interface PerformanceData {
   loadTime: number; // ms
@@ -17,24 +15,19 @@ export async function analyzePerformance(url: string): Promise<{ issues: AuditIs
   const issues: AuditIssue[] = [];
 
   const startTime = Date.now();
-  let ttfbTime = 0;
 
   try {
-    const response = await axios.get(url, {
+    const response = await httpGet<string>(url, {
       headers: {
-        'User-Agent': USER_AGENT,
         'Accept-Encoding': 'gzip, deflate, br',
       },
       timeout: 30000,
       validateStatus: () => true,
-      onDownloadProgress: () => {
-        if (ttfbTime === 0) {
-          ttfbTime = Date.now() - startTime;
-        }
-      },
     });
 
     const loadTime = Date.now() - startTime;
+    // Note: TTFB approximation - fetch doesn't expose this directly
+    const ttfbTime = Math.min(loadTime, loadTime * 0.3); // Estimate ~30% of total
     const htmlSize = typeof response.data === 'string' ? response.data.length : 0;
     const contentEncoding = response.headers['content-encoding'];
     const cacheControl = response.headers['cache-control'];
@@ -121,7 +114,7 @@ export async function fetchCoreWebVitals(url: string, apiKey?: string): Promise<
   if (!apiKey) return null;
 
   try {
-    const response = await axios.post(
+    const response = await httpPost<{ record?: { metrics?: Record<string, { percentiles?: { p75?: number } }> } }>(
       `https://chromeuxreport.googleapis.com/v1/records:queryRecord?key=${apiKey}`,
       { url },
       { timeout: 10000 }

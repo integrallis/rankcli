@@ -1,8 +1,6 @@
-import axios from 'axios';
+import { httpGet } from '../../utils/http.js';
 import type { AuditIssue, PageData } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
-
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
 
 export interface RobotsTxtResult {
   exists: boolean;
@@ -24,8 +22,7 @@ export async function checkRobotsTxt(baseUrl: string): Promise<{ issues: AuditIs
   const url = new URL('/robots.txt', baseUrl).href;
 
   try {
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': USER_AGENT },
+    const response = await httpGet<string>(url, {
       timeout: 10000,
       validateStatus: () => true,
     });
@@ -110,8 +107,7 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
 
   for (const sitemapUrl of sitemapUrls) {
     try {
-      const response = await axios.get(sitemapUrl, {
-        headers: { 'User-Agent': USER_AGENT },
+      const response = await httpGet<string>(sitemapUrl, {
         timeout: 10000,
         validateStatus: () => true,
       });
@@ -160,15 +156,14 @@ export async function checkRedirects(url: string): Promise<{ issues: AuditIssue[
 
   while (maxRedirects > 0) {
     try {
-      const response = await axios.get(currentUrl, {
-        headers: { 'User-Agent': USER_AGENT },
+      const response = await httpGet<string>(currentUrl, {
         timeout: 10000,
         maxRedirects: 0,
         validateStatus: () => true,
       });
 
       if (response.status >= 300 && response.status < 400) {
-        const location = response.headers['location'];
+        const location = response.headers.location;
         if (!location) break;
 
         const nextUrl = new URL(location, currentUrl).href;

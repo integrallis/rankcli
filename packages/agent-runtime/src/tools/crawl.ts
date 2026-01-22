@@ -1,16 +1,14 @@
-import axios from 'axios';
+import { httpGet } from '../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { CrawlResult, MetaData, HeadingStructure, ImageInfo, LinkInfo, SchemaData, ToolResult } from '../types.js';
-
-const USER_AGENT = 'SEO-Autopilot/0.1 (+https://seo-autopilot.dev)';
 
 export async function crawlUrl(params: { url: string }): Promise<ToolResult> {
   const { url } = params;
 
   try {
     const start = Date.now();
-    const response = await axios.get(url, {
-      headers: { 'User-Agent': USER_AGENT },
+    const response = await httpGet<string>(url, {
+      
       timeout: 30000,
       validateStatus: () => true,
     });
@@ -212,8 +210,8 @@ export async function checkRobots(params: { url: string }): Promise<ToolResult> 
     const baseUrl = new URL(params.url);
     const robotsUrl = `${baseUrl.protocol}//${baseUrl.host}/robots.txt`;
 
-    const response = await axios.get(robotsUrl, {
-      headers: { 'User-Agent': USER_AGENT },
+    const response = await httpGet<string>(robotsUrl, {
+      
       timeout: 10000,
       validateStatus: () => true,
     });
@@ -255,8 +253,8 @@ export async function checkSitemap(params: { url: string }): Promise<ToolResult>
 
     for (const sitemapUrl of sitemapUrls) {
       try {
-        const response = await axios.get(sitemapUrl, {
-          headers: { 'User-Agent': USER_AGENT },
+        const response = await httpGet<string>(sitemapUrl, {
+          
           timeout: 10000,
         });
 
