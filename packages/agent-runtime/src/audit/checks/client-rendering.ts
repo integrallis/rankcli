@@ -307,25 +307,35 @@ function generateRecommendations(
 
   if (renderingMethod === 'csr') {
     recommendations.push(
-      'Critical: Enable server-side rendering (SSR) or static site generation (SSG) for SEO'
+      'Critical: Pre-render your pages so crawlers see actual content in the HTML'
     );
 
     if (framework === 'React') {
       recommendations.push(
-        'Consider migrating to Next.js, Remix, or Gatsby for built-in SSR/SSG support'
+        'Quick fix: Add react-snap to pre-render pages at build time (npm install -D react-snap, add "postbuild": "react-snap" to scripts)'
+      );
+      recommendations.push(
+        'Alternative: Use Vike (vite-plugin-ssr) for SSR/SSG without changing frameworks'
       );
     } else if (framework === 'Vue') {
       recommendations.push(
-        'Consider using Nuxt.js for Vue SSR/SSG capabilities'
+        'Quick fix: Add prerender-spa-plugin to pre-render pages at build time'
+      );
+      recommendations.push(
+        'Alternative: Use Vike (vite-plugin-ssr) for SSR/SSG without changing frameworks'
       );
     } else if (framework === 'Angular Universal') {
       recommendations.push(
         'Enable Angular Universal for server-side rendering'
       );
+    } else {
+      recommendations.push(
+        'Quick fix: Use a pre-rendering tool like react-snap or prerender-spa-plugin'
+      );
     }
 
     recommendations.push(
-      'Google can render JavaScript, but SSR is more reliable and faster to index'
+      'Google can render JavaScript, but pre-rendered HTML is more reliable and faster to index'
     );
   }
 
@@ -357,6 +367,12 @@ export function analyzeClientRendering(
 
   // Critical: Client-side only rendering
   if (analysis.renderingMethod === 'csr' && analysis.confidence !== 'low') {
+    const howToFixByFramework = analysis.frameworkDetected === 'React'
+      ? 'Add react-snap to pre-render pages: npm install -D react-snap, then add "postbuild": "react-snap" to package.json scripts. No code changes needed.'
+      : analysis.frameworkDetected === 'Vue'
+      ? 'Add prerender-spa-plugin to pre-render pages at build time. Alternatively, use Vike for SSR/SSG.'
+      : 'Pre-render your pages using react-snap, prerender-spa-plugin, or similar build-time tools.';
+
     issues.push({
       code: 'CLIENT_SIDE_RENDERING',
       severity: 'error',
@@ -366,8 +382,7 @@ export function analyzeClientRendering(
         'This page appears to render content primarily via JavaScript. Search engines may not see your content.',
       impact:
         'Google can execute JavaScript but it\'s slower and less reliable. Content may not be indexed properly.',
-      howToFix:
-        'Implement server-side rendering (SSR) or static site generation (SSG). Use frameworks like Next.js, Nuxt, Remix, or Astro.',
+      howToFix: howToFixByFramework,
       affectedUrls: [url],
       details: {
         confidence: analysis.confidence,
@@ -416,8 +431,8 @@ export function analyzeClientRendering(
         'Single Page Applications without SSR have slower time-to-content for search crawlers.',
       howToFix:
         analysis.frameworkDetected === 'React'
-          ? 'Add SSR using Next.js, Remix, or implement custom SSR with ReactDOMServer.'
-          : 'Add SSR using Nuxt.js or implement custom SSR with @vue/server-renderer.',
+          ? 'Quick fix: Add react-snap (npm install -D react-snap) to pre-render at build time. Alternative: Use Vike for SSR/SSG.'
+          : 'Quick fix: Add prerender-spa-plugin to pre-render at build time. Alternative: Use Vike for SSR/SSG.',
       affectedUrls: [url],
       details: {
         framework: analysis.frameworkDetected,
