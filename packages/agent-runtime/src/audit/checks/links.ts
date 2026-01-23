@@ -9,6 +9,11 @@ export interface LinkData {
   totalLinks: number;
   brokenInternal: string[];
   brokenExternal: string[];
+  ratio: {
+    internal: number;
+    external: number;
+    internalToExternalRatio: number | null; // null if no external links
+  };
 }
 
 export async function analyzeLinks(
@@ -62,12 +67,67 @@ export async function analyzeLinks(
 
   const totalLinks = internal.length + external.length;
 
+  // Calculate link ratio
+  const internalCount = internal.length;
+  const externalCount = external.length;
+  const internalToExternalRatio = externalCount > 0 ? internalCount / externalCount : null;
+
   // Check for too many links
   if (totalLinks > 100) {
     issues.push({
       ...ISSUE_DEFINITIONS.TOO_MANY_LINKS,
       affectedUrls: [baseUrl],
-      details: { totalLinks, internal: internal.length, external: external.length },
+      details: { totalLinks, internal: internalCount, external: externalCount },
+    });
+  }
+
+  // Check for no internal links (bad for crawlability and user navigation)
+  if (internalCount === 0 && totalLinks > 0) {
+    issues.push({
+      code: 'LINKS_NO_INTERNAL',
+      severity: 'warning',
+      category: 'links',
+      title: 'No internal links found',
+      description: 'This page has no internal links to other pages on your site.',
+      impact: 'Internal links are crucial for SEO. They help search engines discover pages and distribute link equity throughout your site.',
+      howToFix: 'Add relevant internal links to related content, navigation, or related articles section.',
+      affectedUrls: [baseUrl],
+      details: { totalLinks, external: externalCount },
+    });
+  }
+
+  // Check for no external links (pages should reference external resources)
+  if (externalCount === 0 && totalLinks > 5) {
+    issues.push({
+      code: 'LINKS_NO_EXTERNAL',
+      severity: 'notice',
+      category: 'links',
+      title: 'No external links found',
+      description: 'This page has no links to external websites.',
+      impact: 'Linking to high-quality external sources can improve credibility and help search engines understand your content context.',
+      howToFix: 'Add links to authoritative external sources that support your content. This builds trust and provides value to readers.',
+      affectedUrls: [baseUrl],
+      details: { totalLinks, internal: internalCount },
+    });
+  }
+
+  // Check for poor internal-to-external ratio (too many external vs internal)
+  if (externalCount > internalCount && externalCount > 5 && internalCount < 3) {
+    issues.push({
+      code: 'LINKS_RATIO_POOR',
+      severity: 'warning',
+      category: 'links',
+      title: 'Poor internal-to-external link ratio',
+      description: `Page has ${externalCount} external links but only ${internalCount} internal links.`,
+      impact: 'A healthy page should have more internal links than external links. Too many external links can dilute page authority and may look spammy.',
+      howToFix: 'Add more relevant internal links to balance the ratio. Aim for at least 2-3 internal links for every external link.',
+      affectedUrls: [baseUrl],
+      details: {
+        internal: internalCount,
+        external: externalCount,
+        ratio: internalToExternalRatio ? `1:${(1/internalToExternalRatio).toFixed(1)}` : 'N/A',
+        recommendation: 'Aim for a ratio of at least 2:1 (internal:external)',
+      },
     });
   }
 
@@ -133,6 +193,11 @@ export async function analyzeLinks(
       totalLinks,
       brokenInternal,
       brokenExternal,
+      ratio: {
+        internal: internalCount,
+        external: externalCount,
+        internalToExternalRatio,
+      },
     }
   };
 }

@@ -16,7 +16,8 @@ export type IssueCategory =
   | 'international'
   | 'ai-readiness'
   | 'social'
-  | 'local-seo';
+  | 'local-seo'
+  | 'accessibility';
 
 export interface AuditIssue {
   code: string;
@@ -60,6 +61,7 @@ export interface HealthScore {
   aiReadiness: number;
   social: number;
   localSeo: number;
+  accessibility: number;
 }
 
 export interface AuditReport {
@@ -323,6 +325,15 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     description: 'Heading hierarchy skips levels (e.g., H1 to H3).',
     impact: 'May confuse screen readers and reduce content structure clarity.',
     howToFix: 'Maintain proper heading hierarchy (H1 > H2 > H3, etc.).',
+  },
+  H2_MISSING: {
+    code: 'H2_MISSING',
+    severity: 'warning',
+    category: 'on-page',
+    title: 'No H2 headings found',
+    description: 'No H2 tags were found on the page.',
+    impact: 'H2 headings help structure content and are important for SEO and readability.',
+    howToFix: 'Break your content into sections using H2 headings with relevant keywords.',
   },
 
   // ==================== CONTENT ====================
@@ -1700,5 +1711,168 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     description: 'The title tag and H1 heading have no overlapping keywords.',
     impact: 'Search engines may be confused about the primary topic of the page.',
     howToFix: 'Align title and H1 to target the same primary keyword or topic.',
+  },
+
+  // ==================== ASSET MINIFICATION ====================
+  CSS_NOT_MINIFIED: {
+    code: 'CSS_NOT_MINIFIED',
+    severity: 'warning',
+    category: 'performance',
+    title: 'CSS files not minified',
+    description: 'CSS files contain unnecessary whitespace, comments, or unoptimized code.',
+    impact: 'Unminified CSS increases file size and page load time.',
+    howToFix: 'Use a CSS minifier (cssnano, clean-css) or ensure build tools minify CSS in production.',
+  },
+  JS_NOT_MINIFIED: {
+    code: 'JS_NOT_MINIFIED',
+    severity: 'warning',
+    category: 'performance',
+    title: 'JavaScript files not minified',
+    description: 'JavaScript files contain unnecessary whitespace, comments, or long variable names.',
+    impact: 'Unminified JavaScript increases file size, parse time, and page load time.',
+    howToFix: 'Use a JS minifier (Terser, UglifyJS) or ensure build tools minify JS in production.',
+  },
+
+  // ==================== PAGE RESOURCES ====================
+  PAGE_RESOURCES_EXCESSIVE: {
+    code: 'PAGE_RESOURCES_EXCESSIVE',
+    severity: 'error',
+    category: 'performance',
+    title: 'Excessive number of page resources',
+    description: 'Page makes over 100 HTTP requests for resources.',
+    impact: 'Too many HTTP requests cause slow page loads due to connection overhead and browser limits.',
+    howToFix: 'Combine CSS/JS files, use image sprites, lazy-load resources, remove unused dependencies.',
+  },
+  PAGE_RESOURCES_HIGH: {
+    code: 'PAGE_RESOURCES_HIGH',
+    severity: 'warning',
+    category: 'performance',
+    title: 'High number of page resources',
+    description: 'Page makes over 50 HTTP requests for resources.',
+    impact: 'Many HTTP requests increase page load time, especially on mobile networks.',
+    howToFix: 'Bundle CSS/JS files, lazy-load images below the fold, consider critical CSS inlining.',
+  },
+  PAGE_RESOURCES_THIRD_PARTY_HIGH: {
+    code: 'PAGE_RESOURCES_THIRD_PARTY_HIGH',
+    severity: 'warning',
+    category: 'performance',
+    title: 'Many third-party resources',
+    description: 'Page loads many resources from third-party domains.',
+    impact: 'Third-party resources add latency and are outside your control.',
+    howToFix: 'Self-host critical third-party resources when possible. Use preconnect hints for remaining.',
+  },
+  PAGE_RESOURCES_MANY_IFRAMES: {
+    code: 'PAGE_RESOURCES_MANY_IFRAMES',
+    severity: 'warning',
+    category: 'performance',
+    title: 'Multiple iframes detected',
+    description: 'Page contains multiple iframes, each loading its own document.',
+    impact: 'Iframes significantly increase page weight and can block the main thread.',
+    howToFix: 'Lazy-load iframes below the fold. Consider native embeds or facade patterns.',
+  },
+
+  // ==================== RESPONSIVE CSS ====================
+  RESPONSIVE_NO_VIEWPORT: {
+    code: 'RESPONSIVE_NO_VIEWPORT',
+    severity: 'error',
+    category: 'mobile',
+    title: 'Missing viewport meta tag',
+    description: 'No viewport meta tag found for responsive design.',
+    impact: 'Without viewport meta, mobile browsers render at desktop width and scale down.',
+    howToFix: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to <head>.',
+  },
+  RESPONSIVE_NO_MEDIA_QUERIES: {
+    code: 'RESPONSIVE_NO_MEDIA_QUERIES',
+    severity: 'warning',
+    category: 'mobile',
+    title: 'No CSS media queries detected',
+    description: 'No @media queries found in stylesheets.',
+    impact: 'Without media queries, the site uses fixed layouts that do not adapt to screen sizes.',
+    howToFix: 'Add CSS media queries for different screen sizes. Use mobile-first approach.',
+  },
+  RESPONSIVE_NO_MOBILE_BREAKPOINT: {
+    code: 'RESPONSIVE_NO_MOBILE_BREAKPOINT',
+    severity: 'warning',
+    category: 'mobile',
+    title: 'No mobile breakpoints detected',
+    description: 'Media queries exist but none target mobile screen sizes.',
+    impact: 'Site may not be optimized for mobile devices, hurting majority of traffic.',
+    howToFix: 'Add media queries for mobile: @media (max-width: 768px) { ... }',
+  },
+
+  // ==================== LINKS RATIO ====================
+  LINKS_NO_INTERNAL: {
+    code: 'LINKS_NO_INTERNAL',
+    severity: 'warning',
+    category: 'links',
+    title: 'No internal links found',
+    description: 'Page has no internal links to other pages on the site.',
+    impact: 'Internal links help search engines discover pages and distribute link equity.',
+    howToFix: 'Add relevant internal links to related content or navigation.',
+  },
+  LINKS_NO_EXTERNAL: {
+    code: 'LINKS_NO_EXTERNAL',
+    severity: 'notice',
+    category: 'links',
+    title: 'No external links found',
+    description: 'Page has no links to external websites.',
+    impact: 'Linking to authoritative sources improves credibility and content context.',
+    howToFix: 'Add links to high-quality external sources that support your content.',
+  },
+  LINKS_RATIO_POOR: {
+    code: 'LINKS_RATIO_POOR',
+    severity: 'warning',
+    category: 'links',
+    title: 'Poor internal-to-external link ratio',
+    description: 'Page has more external links than internal links.',
+    impact: 'Too many external links can dilute page authority and may look spammy.',
+    howToFix: 'Add more internal links. Aim for at least 2 internal links per external link.',
+  },
+
+  // ==================== URL SAFETY (Local Hash Database) ====================
+  URL_SAFETY_KNOWN_THREAT: {
+    code: 'URL_SAFETY_KNOWN_THREAT',
+    severity: 'error',
+    category: 'security',
+    title: 'Website URL matches known threat database',
+    description: 'Your website URL matches entries in the local threat database.',
+    impact: 'Browsers and security tools may block access to your site. Search engines may remove you from results.',
+    howToFix: 'Scan your site for malware, remove any malicious content, and request removal from threat databases.',
+  },
+  URL_SAFETY_EXTERNAL_THREAT: {
+    code: 'URL_SAFETY_EXTERNAL_THREAT',
+    severity: 'error',
+    category: 'security',
+    title: 'External links to known malicious URLs',
+    description: 'External links point to URLs flagged in threat databases.',
+    impact: 'Linking to malicious sites harms visitors and damages your reputation and rankings.',
+    howToFix: 'Remove all links to flagged URLs immediately.',
+  },
+  URL_SAFETY_SUSPICIOUS_DOMAIN: {
+    code: 'URL_SAFETY_SUSPICIOUS_DOMAIN',
+    severity: 'warning',
+    category: 'security',
+    title: 'Website URL has suspicious characteristics',
+    description: 'Your URL shows patterns commonly associated with phishing or malicious sites.',
+    impact: 'Users and security tools may distrust your site.',
+    howToFix: 'Use a trustworthy domain structure. Avoid patterns that mimic other brands or use suspicious TLDs.',
+  },
+  URL_SAFETY_SUSPICIOUS_EXTERNAL: {
+    code: 'URL_SAFETY_SUSPICIOUS_EXTERNAL',
+    severity: 'warning',
+    category: 'security',
+    title: 'External links with suspicious characteristics',
+    description: 'External links show patterns associated with phishing or malicious sites.',
+    impact: 'Linking to suspicious sites can harm visitors and rankings.',
+    howToFix: 'Review and remove or replace suspicious external links.',
+  },
+  URL_SAFETY_SHORTENERS: {
+    code: 'URL_SAFETY_SHORTENERS',
+    severity: 'notice',
+    category: 'security',
+    title: 'External links use URL shorteners',
+    description: 'External links use URL shorteners, hiding the actual destination.',
+    impact: 'URL shorteners reduce trust and SEO link value.',
+    howToFix: 'Replace shortened URLs with direct links to the destination.',
   },
 };

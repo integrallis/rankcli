@@ -58,6 +58,9 @@ export { analyzeNavBoostSignals } from './checks/navboost-signals.js';
 export { analyzeEntitySEO } from './checks/entity-seo.js';
 export { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 
+// URL Safety (local hash database - Google Safe Browsing style)
+export { analyzeUrlSafety, urlSafetyDatabase } from './checks/url-safety.js';
+
 // Fix generators
 export * from './fixes/index.js';
 

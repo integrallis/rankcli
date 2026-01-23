@@ -149,6 +149,22 @@ export function analyzeOnPage(html: string, url: string): { issues: AuditIssue[]
     });
   }
 
+  // Check for missing H2 tags (important for content structure)
+  const h2Count = headings.filter(h => h.level === 2).length;
+  if (h2Count === 0 && wordCount > 100) {
+    // Only warn if there's enough content to warrant H2 headings
+    issues.push({
+      code: 'H2_MISSING',
+      severity: 'warning',
+      category: 'on-page',
+      title: 'No H2 headings found',
+      description: 'No H2 tags were found on the page. H2 headings help structure content and improve readability.',
+      impact: 'Without H2 headings, search engines and users may find it harder to understand content structure. H2s are important for featuring in search results.',
+      howToFix: 'Break your content into logical sections using H2 headings. Include relevant keywords naturally in your H2 tags.',
+      affectedUrls: [url],
+    });
+  }
+
   // Check heading hierarchy
   let previousLevel = 0;
   for (const heading of headings) {

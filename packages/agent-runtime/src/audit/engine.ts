@@ -62,6 +62,21 @@ import { analyzeAnswerConciseness } from './checks/answer-conciseness.js';
 import { analyzeBrandMentionOptimization } from './checks/brand-mention-optimization.js';
 import { analyzeAICitationWorthiness } from './checks/ai-citation-worthiness.js';
 import { analyzeReviewEcosystem } from './checks/review-ecosystem.js';
+// Competitor-parity checks (from missing-checks.md analysis)
+import { validateRobotsTxt } from './checks/robots-validation.js';
+import { analyzeLlmsTxt } from './checks/llms-txt.js';
+import { analyzeHtmlCompliance } from './checks/html-compliance.js';
+import { analyzeCanonicalDomain } from './checks/canonical-domain.js';
+import { analyzeCachingHeaders } from './checks/caching-headers.js';
+import { analyzeDomSize } from './checks/dom-size.js';
+import { analyzeImageDimensions } from './checks/image-dimensions.js';
+import { analyzeColorContrast } from './checks/color-contrast.js';
+// New checks from Rank Math analysis
+import { analyzeAssetMinification } from './checks/asset-minification.js';
+import { analyzePageResources } from './checks/page-resources.js';
+import { analyzeResponsiveCss } from './checks/responsive-css.js';
+import { analyzeDirectoryListing } from './checks/directory-listing.js';
+import { analyzeUrlSafety } from './checks/url-safety.js';
 
 export interface AuditOptions {
   url: string;
@@ -161,6 +176,14 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const brandMentionResult = analyzeBrandMentionOptimization(html, url);
   const citationWorthinessResult = analyzeAICitationWorthiness(html, url);
   const reviewEcosystemResult = analyzeReviewEcosystem(html, url);
+  // Competitor-parity checks (sync)
+  const domSizeResult = analyzeDomSize(html, url);
+  const imageDimensionsResult = analyzeImageDimensions(html, url);
+  const colorContrastResult = analyzeColorContrast(html, url);
+  // New Rank Math parity checks (sync)
+  const pageResourcesResult = analyzePageResources(html, url);
+  // URL Safety check (local hash database - like Google Safe Browsing)
+  const urlSafetyResult = analyzeUrlSafety(url);
 
   // Pagination depends on onPageData.canonical
   const paginationResult = analyzePagination(html, url, onPageResult.data.canonical);
@@ -204,6 +227,11 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...brandMentionResult.issues,
     ...citationWorthinessResult.issues,
     ...reviewEcosystemResult.issues,
+    ...domSizeResult.issues,
+    ...imageDimensionsResult.issues,
+    ...colorContrastResult.issues,
+    ...pageResourcesResult.issues,
+    ...urlSafetyResult.issues,
     ...paginationResult.issues,
   );
 
@@ -222,13 +250,18 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // ========== PHASE 3: ASYNC CHECKS (PARALLEL) ==========
   console.log('🔗 Phase 3: Running async checks (parallel)...');
 
-  // Helper to safely run async checks with error handling
+  // Helper to safely run async checks with error handling and timeout
   const safeAsync = async <T>(
     name: string,
     fn: () => Promise<{ issues: AuditIssue[]; data: T }>,
+    timeoutMs: number = 10000, // 10 second default timeout per check
   ): Promise<AuditIssue[]> => {
     try {
-      const result = await fn();
+      const resultPromise = fn();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs)
+      );
+      const result = await Promise.race([resultPromise, timeoutPromise]);
       return result.issues;
     } catch (err) {
       console.error(`${name} failed:`, err);
@@ -240,9 +273,14 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const safeAsyncIssues = async (
     name: string,
     fn: () => Promise<AuditIssue[]>,
+    timeoutMs: number = 10000,
   ): Promise<AuditIssue[]> => {
     try {
-      return await fn();
+      const resultPromise = fn();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs)
+      );
+      return await Promise.race([resultPromise, timeoutPromise]);
     } catch (err) {
       console.error(`${name} failed:`, err);
       return [];
@@ -279,6 +317,16 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     safeAsync('Site Maturity', () => analyzeSiteMaturity(html, url)),
     safeAsync('Redirect Chain', () => analyzeRedirectChain(url)),
     safeAsync('Bing Optimization', () => analyzeBingOptimization(html, url)),
+    // Competitor-parity checks (async)
+    safeAsync('Robots Validation', () => validateRobotsTxt(url)),
+    safeAsync('LLMs.txt', () => analyzeLlmsTxt(url)),
+    safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)),
+    safeAsync('Caching Headers', () => analyzeCachingHeaders(url, headers)),
+    safeAsync('HTML Compliance', () => analyzeHtmlCompliance(html, url, headers)),
+    // New Rank Math parity checks (async)
+    safeAsync('Asset Minification', () => analyzeAssetMinification(html, url)),
+    safeAsync('Responsive CSS', () => analyzeResponsiveCss(html, url)),
+    safeAsync('Directory Listing', () => analyzeDirectoryListing(url)),
     // Core Web Vitals (optional)
     cruxApiKey
       ? safeAsyncIssues('Core Web Vitals', async () => {
@@ -350,7 +398,7 @@ function createReport(url: string, domain: string, issues: AuditIssue[], pages: 
   const notices = issues.filter(i => i.severity === 'notice').length;
 
   // Calculate passed checks (rough estimate based on possible checks)
-  const totalPossibleChecks = 280; // Approximate number of checks (expanded with NavBoost, Entity SEO, QDF)
+  const totalPossibleChecks = 310; // Approximate number of checks (expanded with Rank Math parity + URL safety checks)
   const passed = Math.max(0, totalPossibleChecks - errors - warnings);
 
   return {
@@ -396,6 +444,7 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
     'ai-readiness': 0,
     'social': 0,
     'local-seo': 0,
+    'accessibility': 0,
   };
 
   for (const issue of issues) {
@@ -414,19 +463,21 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
   const aiReadiness = Math.max(0, 100 - categoryDeductions['ai-readiness'] * 3);
   const social = Math.max(0, 100 - categoryDeductions.social * 2);
   const localSeo = Math.max(0, 100 - categoryDeductions['local-seo'] * 2);
+  const accessibility = Math.max(0, 100 - categoryDeductions.accessibility * 4);
 
   // Overall score is weighted average
   const overall = Math.round(
-    (crawlability * 0.12 +
-      indexability * 0.12 +
-      onPage * 0.18 +
-      content * 0.08 +
-      links * 0.08 +
-      performance * 0.12 +
-      security * 0.12 +
+    (crawlability * 0.11 +
+      indexability * 0.11 +
+      onPage * 0.16 +
+      content * 0.07 +
+      links * 0.07 +
+      performance * 0.11 +
+      security * 0.11 +
       aiReadiness * 0.06 +
-      social * 0.06 +
-      localSeo * 0.06)
+      social * 0.05 +
+      localSeo * 0.05 +
+      accessibility * 0.10)
   );
 
   return {
@@ -441,6 +492,7 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
     aiReadiness,
     social,
     localSeo,
+    accessibility,
   };
 }
 
@@ -474,6 +526,7 @@ export function formatReport(report: AuditReport): string {
   lines.push(`    AI Readiness:  ${report.healthScore.aiReadiness}/100`);
   lines.push(`    Social:        ${report.healthScore.social}/100`);
   lines.push(`    Local SEO:     ${report.healthScore.localSeo}/100`);
+  lines.push(`    Accessibility: ${report.healthScore.accessibility}/100`);
   lines.push('');
 
   // Summary

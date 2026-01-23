@@ -41,6 +41,9 @@ export { analyzeModernImages } from './checks/modern-images.js';
 export { detectTechnologies } from './checks/tech-detection.js';
 export { analyzeKeywords } from './checks/keyword-analysis.js';
 
+// URL Safety (Google Safe Browsing-style local hash database)
+export { urlSafetyDatabase, analyzeUrlSafety } from './checks/url-safety.js';
+
 // Advanced SEO checks
 export { analyzeTrackerBloat } from './checks/tracker-bloat.js';
 export { analyzeClientRendering } from './checks/client-rendering.js';
