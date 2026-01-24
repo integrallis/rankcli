@@ -57,3 +57,6 @@ export * from './reports/index.js';
 
 // GEO (Generative Engine Optimization) tracking
 export * from './geo/index.js';
+
+// WASM Adapter (sync audit for embedded execution)
+export { runSyncAudit } from './wasm-adapter.js';

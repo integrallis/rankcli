@@ -58,3 +58,9 @@ export { analyzeFunnelIntent } from './checks/funnel-intent.js';
 export { analyzeNavBoostSignals } from './checks/navboost-signals.js';
 export { analyzeEntitySEO } from './checks/entity-seo.js';
 export { analyzeFreshnessSignals } from './checks/freshness-signals.js';
+
+// Page discovery (multi-page crawling)
+export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';
+export { discoverRoutesFromRepo, detectFramework, routesToUrls } from './discovery/repo-routes.js';
+export type { DiscoveredPage } from './discovery/link-crawler.js';
+export type { RouteInfo } from './discovery/repo-routes.js';

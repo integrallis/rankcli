@@ -61,6 +61,12 @@ export { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 // URL Safety (local hash database - Google Safe Browsing style)
 export { analyzeUrlSafety, urlSafetyDatabase } from './checks/url-safety.js';
 
+// Page discovery (multi-page crawling)
+export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';
+export { discoverRoutesFromRepo, detectFramework, routesToUrls } from './discovery/repo-routes.js';
+export type { DiscoveredPage } from './discovery/link-crawler.js';
+export type { RouteInfo } from './discovery/repo-routes.js';
+
 // Fix generators
 export * from './fixes/index.js';
 

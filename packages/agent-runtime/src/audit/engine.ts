@@ -85,12 +85,25 @@ export interface AuditOptions {
   checkCanonicalChain?: boolean;
   maxPages?: number;
   cruxApiKey?: string;
+  /**
+   * Maximum number of checks to run. Used for tier enforcement:
+   * - 50: Free unregistered users (core checks only)
+   * - 100: Free registered users (core + some premium checks)
+   * - 280+: Paid users (all checks)
+   */
+  checksLimit?: number;
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
-  const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey } = options;
+  const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280 } = options;
   const allIssues: AuditIssue[] = [];
   const pages: PageAudit[] = [];
+
+  // Determine tier based on checksLimit
+  // Free unregistered: 50, Free registered: 100, Paid: 280+
+  const tier = checksLimit <= 50 ? 'free' : checksLimit <= 100 ? 'registered' : 'paid';
+  const runPremiumChecks = tier === 'paid';
+  const runExtendedChecks = tier !== 'free'; // registered + paid
 
   const parsedUrl = new URL(url);
   const domain = parsedUrl.hostname;
@@ -134,59 +147,61 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const headers = fetchResult.headers;
 
   // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
-  console.log('📝 Phase 2: Running synchronous HTML checks (parallel)...');
+  console.log(`📝 Phase 2: Running synchronous HTML checks (tier: ${tier}, limit: ${checksLimit})...`);
 
-  // These are all synchronous functions that only need html/url
+  // ===== CORE CHECKS (all tiers) =====
   const onPageResult = analyzeOnPage(html, url);
   const structuredDataResult = analyzeStructuredData(html, url);
   const mobileResult = analyzeMobile(html, url);
   const mobileResourceIssues = checkMobileResources(html, url);
   const socialResult = analyzeSocialMeta(html, url);
   const soft404Result = detectSoft404(html, url, 200);
-  const anchorResult = analyzeAnchorText(html, url);
   const serpResult = analyzeSERPPreview(html, url);
-  const localSeoResult = analyzeLocalSEO(html, url);
   const domResult = analyzeDOMStructure(html, url);
-  const modernImageResult = analyzeModernImages(html, url);
   const techResult = detectTechnologies(html, url, headers);
   const keywordResult = analyzeKeywords(html, url);
-  const snippetResult = analyzeFeaturedSnippet(html, url);
-  const linkGraphResult = analyzeInternalLinkGraph(html, url);
-  const resourceHintResult = analyzeResourceHints(html, url);
-  const eeatResult = analyzeEEATSignals(html, url);
-  const contentScienceResult = analyzeContentScience(html, url);
-  const cannibalizationResult = analyzeKeywordCannibalizationSinglePage(html, url);
-  const trackerResult = analyzeTrackerBloat(html, url);
-  const csrResult = analyzeClientRendering(html, url);
-  const responsiveImgResult = analyzeResponsiveImages(html, url);
-  const conversionResult = analyzeConversionElements(html, url);
-  const keywordPlacementResult = analyzeKeywordPlacement(html, url);
-  const clusterResult = analyzeTopicalClusters(html, url);
-  const platformResult = analyzePlatformPresence(html, url);
-  const toolResult = analyzeInteractiveTools(html, url);
-  const funnelResult = analyzeFunnelIntent(html, url);
-  const navboostResult = analyzeNavBoostSignals(html, url);
-  const entityResult = analyzeEntitySEO(html, url);
-  const qdfFreshnessResult = analyzeFreshnessSignals(html, url);
-  // AI Search Optimization (2026)
-  const aiContentStructureResult = analyzeAIContentStructure(html, url);
-  const citationQualityResult = analyzeCitationQuality(html, url);
-  const answerConcisenessResult = analyzeAnswerConciseness(html, url);
-  // AI SEO Skills (brand narrative, citation worthiness, review ecosystem)
-  const brandMentionResult = analyzeBrandMentionOptimization(html, url);
-  const citationWorthinessResult = analyzeAICitationWorthiness(html, url);
-  const reviewEcosystemResult = analyzeReviewEcosystem(html, url);
-  // Competitor-parity checks (sync)
-  const domSizeResult = analyzeDomSize(html, url);
-  const imageDimensionsResult = analyzeImageDimensions(html, url);
-  const colorContrastResult = analyzeColorContrast(html, url);
-  // New Rank Math parity checks (sync)
-  const pageResourcesResult = analyzePageResources(html, url);
-  // URL Safety check (local hash database - like Google Safe Browsing)
-  const urlSafetyResult = analyzeUrlSafety(url);
-
   // Pagination depends on onPageData.canonical
   const paginationResult = analyzePagination(html, url, onPageResult.data.canonical);
+  // URL Safety check (local hash database - like Google Safe Browsing)
+  const urlSafetyResult = analyzeUrlSafety(url);
+  // Competitor-parity checks (sync) - important for all users
+  const domSizeResult = analyzeDomSize(html, url);
+  const imageDimensionsResult = analyzeImageDimensions(html, url);
+
+  // ===== EXTENDED CHECKS (registered + paid tiers) =====
+  const anchorResult = runExtendedChecks ? analyzeAnchorText(html, url) : { issues: [], data: {} };
+  const localSeoResult = runExtendedChecks ? analyzeLocalSEO(html, url) : { issues: [], data: {} };
+  const modernImageResult = runExtendedChecks ? analyzeModernImages(html, url) : { issues: [], data: {} };
+  const resourceHintResult = runExtendedChecks ? analyzeResourceHints(html, url) : { issues: [], data: {} };
+  const trackerResult = runExtendedChecks ? analyzeTrackerBloat(html, url) : { issues: [], data: {} };
+  const csrResult = runExtendedChecks ? analyzeClientRendering(html, url) : { issues: [], data: {} };
+  const responsiveImgResult = runExtendedChecks ? analyzeResponsiveImages(html, url) : { issues: [], data: {} };
+  const colorContrastResult = runExtendedChecks ? analyzeColorContrast(html, url) : { issues: [], data: {} };
+  const pageResourcesResult = runExtendedChecks ? analyzePageResources(html, url) : { issues: [], data: {} };
+
+  // ===== PREMIUM CHECKS (paid tier only) =====
+  const snippetResult = runPremiumChecks ? analyzeFeaturedSnippet(html, url) : { issues: [], data: {} };
+  const linkGraphResult = runPremiumChecks ? analyzeInternalLinkGraph(html, url) : { issues: [], data: {} };
+  const eeatResult = runPremiumChecks ? analyzeEEATSignals(html, url) : { issues: [], data: {} };
+  const contentScienceResult = runPremiumChecks ? analyzeContentScience(html, url) : { issues: [], data: {} };
+  const cannibalizationResult = runPremiumChecks ? analyzeKeywordCannibalizationSinglePage(html, url) : { issues: [], data: {} };
+  const conversionResult = runPremiumChecks ? analyzeConversionElements(html, url) : { issues: [], data: {} };
+  const keywordPlacementResult = runPremiumChecks ? analyzeKeywordPlacement(html, url) : { issues: [], data: {} };
+  const clusterResult = runPremiumChecks ? analyzeTopicalClusters(html, url) : { issues: [], data: {} };
+  const platformResult = runPremiumChecks ? analyzePlatformPresence(html, url) : { issues: [], data: {} };
+  const toolResult = runPremiumChecks ? analyzeInteractiveTools(html, url) : { issues: [], data: {} };
+  const funnelResult = runPremiumChecks ? analyzeFunnelIntent(html, url) : { issues: [], data: {} };
+  const navboostResult = runPremiumChecks ? analyzeNavBoostSignals(html, url) : { issues: [], data: {} };
+  const entityResult = runPremiumChecks ? analyzeEntitySEO(html, url) : { issues: [], data: {} };
+  const qdfFreshnessResult = runPremiumChecks ? analyzeFreshnessSignals(html, url) : { issues: [], data: {} };
+  // AI Search Optimization (2026) - Premium only
+  const aiContentStructureResult = runPremiumChecks ? analyzeAIContentStructure(html, url) : { issues: [], data: {} };
+  const citationQualityResult = runPremiumChecks ? analyzeCitationQuality(html, url) : { issues: [], data: {} };
+  const answerConcisenessResult = runPremiumChecks ? analyzeAnswerConciseness(html, url) : { issues: [], data: {} };
+  // AI SEO Skills - Premium only
+  const brandMentionResult = runPremiumChecks ? analyzeBrandMentionOptimization(html, url) : { issues: [], data: {} };
+  const citationWorthinessResult = runPremiumChecks ? analyzeAICitationWorthiness(html, url) : { issues: [], data: {} };
+  const reviewEcosystemResult = runPremiumChecks ? analyzeReviewEcosystem(html, url) : { issues: [], data: {} };
 
   // Collect all sync check issues
   allIssues.push(
@@ -299,71 +314,80 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
       return [] as AuditIssue[];
     });
 
-  // Run all async checks in parallel
-  const asyncResults = await Promise.all([
-    safeAsync('Links', () => analyzeLinks(html, url, checkBrokenLinks)),
-    safeAsync('Images', () => analyzeImages(html, url, checkBrokenLinks)),
-    performancePromise,
-    safeAsync('Security', () => analyzeSecurity(html, url, headers)),
-    safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues),
-    safeAsync('Hreflang', () => analyzeHreflang(html, url, { validateUrls: checkHreflangUrls })),
-    safeAsync('Canonical Advanced', () => analyzeCanonicalAdvanced(html, url, { checkChain: checkCanonicalChain })),
-    safeAsync('Redirects', () => analyzeRedirects(url)),
-    safeAsync('AI Readiness', () => runAIReadinessChecks(url, html)),
-    safeAsync('Security Headers', () => analyzeSecurityHeaders(url)),
-    safeAsync('Content Freshness', () => analyzeContentFreshness(url, html)),
-    safeAsync('Additional Checks', () => runAdditionalChecks(url, html)),
-    safeAsync('IndexNow', () => analyzeIndexNow(html, url, headers)),
-    safeAsync('Site Maturity', () => analyzeSiteMaturity(html, url)),
-    safeAsync('Redirect Chain', () => analyzeRedirectChain(url)),
-    safeAsync('Bing Optimization', () => analyzeBingOptimization(html, url)),
-    // Competitor-parity checks (async)
-    safeAsync('Robots Validation', () => validateRobotsTxt(url)),
-    safeAsync('LLMs.txt', () => analyzeLlmsTxt(url)),
-    safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)),
-    safeAsync('Caching Headers', () => analyzeCachingHeaders(url, headers)),
-    safeAsync('HTML Compliance', () => analyzeHtmlCompliance(html, url, headers)),
-    // New Rank Math parity checks (async)
-    safeAsync('Asset Minification', () => analyzeAssetMinification(html, url)),
-    safeAsync('Responsive CSS', () => analyzeResponsiveCss(html, url)),
-    safeAsync('Directory Listing', () => analyzeDirectoryListing(url)),
-    // Core Web Vitals (optional)
-    cruxApiKey
-      ? safeAsyncIssues('Core Web Vitals', async () => {
-          const cwv = await fetchCoreWebVitals(url, cruxApiKey);
-          const issues: AuditIssue[] = [];
-          if (cwv) {
-            if (cwv.lcp?.rating === 'poor') {
-              issues.push({
-                code: 'LCP_POOR',
-                severity: 'error',
-                category: 'performance',
-                title: 'Poor Largest Contentful Paint (LCP)',
-                description: `LCP is ${cwv.lcp.value}ms (should be under 2500ms)`,
-                impact: 'Direct Core Web Vitals ranking factor.',
-                howToFix: 'Optimize hero images, preload critical resources, improve server response time.',
-                affectedUrls: [url],
-                details: { lcp: cwv.lcp },
-              });
-            }
-            if (cwv.cls?.rating === 'poor') {
-              issues.push({
-                code: 'CLS_POOR',
-                severity: 'error',
-                category: 'performance',
-                title: 'Poor Cumulative Layout Shift (CLS)',
-                description: `CLS is ${cwv.cls.value} (should be under 0.1)`,
-                impact: 'Direct Core Web Vitals ranking factor.',
-                howToFix: 'Set image dimensions, avoid inserting content above existing content.',
-                affectedUrls: [url],
-                details: { cls: cwv.cls },
-              });
-            }
+  // Run all async checks in parallel (respecting tier limits)
+  const asyncChecks: Promise<AuditIssue[]>[] = [];
+
+  // ===== CORE ASYNC CHECKS (all tiers) =====
+  asyncChecks.push(safeAsync('Links', () => analyzeLinks(html, url, checkBrokenLinks)));
+  asyncChecks.push(safeAsync('Images', () => analyzeImages(html, url, checkBrokenLinks)));
+  asyncChecks.push(performancePromise);
+  asyncChecks.push(safeAsync('Security', () => analyzeSecurity(html, url, headers)));
+  asyncChecks.push(safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues));
+  asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
+  asyncChecks.push(safeAsync('Robots Validation', () => validateRobotsTxt(url)));
+  asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
+
+  // ===== EXTENDED ASYNC CHECKS (registered + paid tiers) =====
+  if (runExtendedChecks) {
+    asyncChecks.push(safeAsync('Hreflang', () => analyzeHreflang(html, url, { validateUrls: checkHreflangUrls })));
+    asyncChecks.push(safeAsync('Canonical Advanced', () => analyzeCanonicalAdvanced(html, url, { checkChain: checkCanonicalChain })));
+    asyncChecks.push(safeAsync('Security Headers', () => analyzeSecurityHeaders(url)));
+    asyncChecks.push(safeAsync('Caching Headers', () => analyzeCachingHeaders(url, headers)));
+    asyncChecks.push(safeAsync('HTML Compliance', () => analyzeHtmlCompliance(html, url, headers)));
+    asyncChecks.push(safeAsync('Redirect Chain', () => analyzeRedirectChain(url)));
+    asyncChecks.push(safeAsync('Asset Minification', () => analyzeAssetMinification(html, url)));
+    asyncChecks.push(safeAsync('Responsive CSS', () => analyzeResponsiveCss(html, url)));
+    asyncChecks.push(safeAsync('Directory Listing', () => analyzeDirectoryListing(url)));
+  }
+
+  // ===== PREMIUM ASYNC CHECKS (paid tier only) =====
+  if (runPremiumChecks) {
+    asyncChecks.push(safeAsync('AI Readiness', () => runAIReadinessChecks(url, html)));
+    asyncChecks.push(safeAsync('Content Freshness', () => analyzeContentFreshness(url, html)));
+    asyncChecks.push(safeAsync('Additional Checks', () => runAdditionalChecks(url, html)));
+    asyncChecks.push(safeAsync('IndexNow', () => analyzeIndexNow(html, url, headers)));
+    asyncChecks.push(safeAsync('Site Maturity', () => analyzeSiteMaturity(html, url)));
+    asyncChecks.push(safeAsync('Bing Optimization', () => analyzeBingOptimization(html, url)));
+    asyncChecks.push(safeAsync('LLMs.txt', () => analyzeLlmsTxt(url)));
+    // Core Web Vitals (optional, premium only)
+    if (cruxApiKey) {
+      asyncChecks.push(safeAsyncIssues('Core Web Vitals', async () => {
+        const cwv = await fetchCoreWebVitals(url, cruxApiKey);
+        const issues: AuditIssue[] = [];
+        if (cwv) {
+          if (cwv.lcp?.rating === 'poor') {
+            issues.push({
+              code: 'LCP_POOR',
+              severity: 'error',
+              category: 'performance',
+              title: 'Poor Largest Contentful Paint (LCP)',
+              description: `LCP is ${cwv.lcp.value}ms (should be under 2500ms)`,
+              impact: 'Direct Core Web Vitals ranking factor.',
+              howToFix: 'Optimize hero images, preload critical resources, improve server response time.',
+              affectedUrls: [url],
+              details: { lcp: cwv.lcp },
+            });
           }
-          return issues;
-        })
-      : Promise.resolve([]),
-  ]);
+          if (cwv.cls?.rating === 'poor') {
+            issues.push({
+              code: 'CLS_POOR',
+              severity: 'error',
+              category: 'performance',
+              title: 'Poor Cumulative Layout Shift (CLS)',
+              description: `CLS is ${cwv.cls.value} (should be under 0.1)`,
+              impact: 'Direct Core Web Vitals ranking factor.',
+              howToFix: 'Set image dimensions, avoid inserting content above existing content.',
+              affectedUrls: [url],
+              details: { cls: cwv.cls },
+            });
+          }
+        }
+        return issues;
+      }));
+    }
+  }
+
+  const asyncResults = await Promise.all(asyncChecks);
 
   // Collect all async issues
   for (const issues of asyncResults) {
