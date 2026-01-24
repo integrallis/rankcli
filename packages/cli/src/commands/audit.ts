@@ -1,17 +1,323 @@
-import { runFullAudit, formatReport, type AuditReport } from '@rankcli/agent-runtime';
+import { runFullAudit, formatReport, discoverPagesFromLinks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
+import ora from 'ora';
+import chalk from 'chalk';
+import { isLoggedIn, getAuthenticatedClient, getUserInfo, WEB_APP_URL } from '../lib/config.js';
 
 interface AuditOptions {
   url?: string;
   output?: string;
   checkLinks?: boolean;
+  maxPages?: string;
+  ai?: boolean;
+  aiProvider?: string;
+  aiKey?: string;
+}
+
+interface AIAnalysis {
+  contentScore: number;
+  suggestions: string[];
+  prioritizedFixes: Array<{ code: string; priority: number; rationale: string }>;
+}
+
+/**
+ * Fetch HTML content from a URL
+ */
+async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'RankCLI-Bot/1.0 (+https://rankcli.dev/bot)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run AI analysis on the audit results
+ */
+async function runAIAnalysis(
+  url: string,
+  issues: AuditIssue[],
+  provider: string,
+  apiKey: string
+): Promise<AIAnalysis | null> {
+  const isAnthropic = provider === 'anthropic';
+  const apiUrl = isAnthropic
+    ? 'https://api.anthropic.com/v1/messages'
+    : 'https://api.openai.com/v1/chat/completions';
+
+  const prompt = `Analyze these SEO audit results and provide prioritized recommendations:
+
+URL: ${url}
+
+Issues found:
+${issues.map(i => `- [${i.severity.toUpperCase()}] ${i.code}: ${i.title}`).join('\n')}
+
+Return JSON with:
+{
+  "contentScore": <0-100 overall content quality>,
+  "suggestions": [<3-5 high-impact suggestions>],
+  "prioritizedFixes": [
+    {"code": "<issue code>", "priority": <1-5>, "rationale": "<why fix this first>"}
+  ]
+}`;
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    let body: string;
+
+    if (isAnthropic) {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      body = JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      });
+    } else {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      body = JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are an SEO expert. Respond with valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 1500,
+        response_format: { type: 'json_object' },
+      });
+    }
+
+    const response = await fetch(apiUrl, { method: 'POST', headers, body });
+
+    if (!response.ok) {
+      console.error(chalk.yellow(`AI analysis failed: ${response.status}`));
+      return null;
+    }
+
+    const data = await response.json();
+    const content = isAnthropic
+      ? data.content?.[0]?.text
+      : data.choices?.[0]?.message?.content;
+
+    if (!content) return null;
+
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    return JSON.parse(jsonMatch[0]) as AIAnalysis;
+  } catch (error) {
+    console.error(chalk.yellow(`AI analysis error: ${error}`));
+    return null;
+  }
+}
+
+/**
+ * Merge issues from multiple pages, aggregating affected URLs
+ */
+function mergeIssues(issueArrays: AuditIssue[][]): AuditIssue[] {
+  const issueMap = new Map<string, AuditIssue>();
+
+  for (const issues of issueArrays) {
+    for (const issue of issues) {
+      const existing = issueMap.get(issue.code);
+      if (existing) {
+        const urls = new Set([...(existing.affectedUrls || []), ...(issue.affectedUrls || [])]);
+        existing.affectedUrls = Array.from(urls);
+      } else {
+        issueMap.set(issue.code, { ...issue });
+      }
+    }
+  }
+
+  return Array.from(issueMap.values());
+}
+
+// Sync results to database for logged in users
+async function syncToCloud(
+  url: string,
+  report: AuditReport,
+  mergedIssues: AuditIssue[],
+  pagesAudited: number,
+  aiAnalysis: AIAnalysis | null
+): Promise<{ projectId: string; auditId: string } | null> {
+  const supabase = await getAuthenticatedClient();
+  if (!supabase) return null;
+
+  const { userId, sitesLimit } = getUserInfo();
+  if (!userId) return null;
+
+  try {
+    // Parse URL to get domain
+    const parsedUrl = new URL(url);
+    const domain = parsedUrl.hostname;
+
+    // Check if project exists for this URL
+    const { data: existingProject } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('domain', domain)
+      .eq('is_active', true)
+      .single();
+
+    let projectId: string;
+
+    if (existingProject) {
+      projectId = existingProject.id;
+    } else {
+      // Check project limit
+      const { count } = await supabase
+        .from('projects')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (count !== null && count >= sitesLimit) {
+        console.log(chalk.yellow(`\n⚠️  Project limit reached (${count}/${sitesLimit})`));
+        console.log(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
+        return null;
+      }
+
+      // Create new project
+      const { data: newProject, error: projectError } = await supabase
+        .from('projects')
+        .insert({
+          user_id: userId,
+          name: domain,
+          url: url,
+          domain: domain,
+        })
+        .select('id')
+        .single();
+
+      if (projectError || !newProject) {
+        console.error(chalk.dim('Failed to create project'));
+        return null;
+      }
+
+      projectId = newProject.id;
+    }
+
+    // Create audit record
+    const score = report.healthScore?.overall || 0;
+    const healthScores = {
+      overall: score,
+      crawlability: report.healthScore?.crawlability || 0,
+      onPage: report.healthScore?.onPage || 0,
+      content: report.healthScore?.content || 0,
+      performance: report.healthScore?.performance || 0,
+      security: report.healthScore?.security || 0,
+    };
+
+    const { data: audit, error: auditError } = await supabase
+      .from('audits')
+      .insert({
+        project_id: projectId,
+        triggered_by: 'cli',
+        triggered_by_user: userId,
+        status: 'completed',
+        score,
+        pages_crawled: pagesAudited,
+        issues_found: mergedIssues.length,
+        checks_run: mergedIssues.length > 0 ? 200 : 0, // Approximate
+        health_scores: healthScores,
+        completed_at: new Date().toISOString(),
+        summary: {
+          errors: mergedIssues.filter(i => i.severity === 'error').length,
+          warnings: mergedIssues.filter(i => i.severity === 'warning').length,
+          notices: mergedIssues.filter(i => i.severity === 'notice').length,
+          pagesAudited,
+          source: 'cli',
+        },
+        ai_analysis: aiAnalysis,
+      })
+      .select('id')
+      .single();
+
+    if (auditError || !audit) {
+      console.error(chalk.dim('Failed to save audit'));
+      return null;
+    }
+
+    // Save issues
+    if (mergedIssues.length > 0) {
+      const issueRecords = mergedIssues.map(issue => ({
+        audit_id: audit.id,
+        project_id: projectId,
+        code: issue.code,
+        severity: issue.severity,
+        category: issue.category,
+        title: issue.title,
+        description: issue.description || '',
+        impact: issue.impact || '',
+        how_to_fix: issue.howToFix || '',
+        affected_urls: issue.affectedUrls || [],
+        details: issue.details || {},
+        status: 'open',
+      }));
+
+      await supabase.from('audit_issues').insert(issueRecords);
+    }
+
+    // Update project last audit info
+    await supabase
+      .from('projects')
+      .update({
+        last_audit_at: new Date().toISOString(),
+        last_audit_score: score,
+      })
+      .eq('id', projectId);
+
+    return { projectId, auditId: audit.id };
+  } catch (error) {
+    console.error(chalk.dim('Cloud sync failed'));
+    return null;
+  }
 }
 
 export async function audit(options: AuditOptions): Promise<void> {
   const url = options.url;
+  const maxPages = parseInt(options.maxPages || '5', 10);
+  const enableAI = options.ai || false;
+  const aiProvider = options.aiProvider || 'openai';
+  const aiKey = options.aiKey || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+
+  // Check login status
+  const loggedIn = isLoggedIn();
 
   if (!url) {
     console.log('\n⚠️  Please provide a URL to audit:');
-    console.log('   seo audit --url https://your-site.com\n');
+    console.log('   rankcli audit --url https://your-site.com');
+    console.log('\nOptions:');
+    console.log('   --max-pages <n>     Max pages to crawl (default: 5)');
+    console.log('   --ai                Enable AI analysis');
+    console.log('   --ai-provider <p>   AI provider: openai or anthropic');
+    console.log('   --ai-key <key>      API key (or set OPENAI_API_KEY/ANTHROPIC_API_KEY)');
+    console.log('   --output json       Output as JSON');
+    if (!loggedIn) {
+      console.log(chalk.dim('\nTip: Log in to sync results to the web dashboard:'));
+      console.log(chalk.dim('   rankcli login'));
+    }
+    console.log('');
     return;
   }
 
@@ -23,16 +329,196 @@ export async function audit(options: AuditOptions): Promise<void> {
     return;
   }
 
+  const startTime = Date.now();
+
   try {
-    const report = await runFullAudit({
-      url,
-      checkBrokenLinks: options.checkLinks || false,
-    });
+    // ===== PHASE 1: Discover pages =====
+    const discoverySpinner = ora('Discovering pages...').start();
+    let pagesToAudit: string[] = [url];
+
+    const homepageHtml = await fetchHtml(url, 10000);
+    if (homepageHtml) {
+      const discovered = discoverPagesFromLinks(url, homepageHtml, maxPages - 1);
+      const additionalPages = discovered.map(p => p.url).filter(u => u !== url);
+      pagesToAudit = [url, ...additionalPages];
+      discoverySpinner.succeed(`Discovered ${pagesToAudit.length} pages to audit`);
+    } else {
+      discoverySpinner.warn('Could not fetch homepage, auditing URL only');
+    }
+
+    // ===== PHASE 2: Audit pages in parallel =====
+    const auditSpinner = ora(`Auditing ${pagesToAudit.length} pages in parallel...`).start();
+
+    const auditPage = async (pageUrl: string, index: number): Promise<{
+      report: AuditReport | null;
+      url: string;
+    }> => {
+      try {
+        const report = await runFullAudit({
+          url: pageUrl,
+          maxPages: 1,
+          checkBrokenLinks: options.checkLinks || false,
+        });
+        auditSpinner.text = `Auditing pages... (${index + 1}/${pagesToAudit.length} complete)`;
+        return { report, url: pageUrl };
+      } catch (error) {
+        return { report: null, url: pageUrl };
+      }
+    };
+
+    const parallelStart = Date.now();
+    const auditResults = await Promise.allSettled(
+      pagesToAudit.map((pageUrl, index) => auditPage(pageUrl, index))
+    );
+    const parallelTime = Date.now() - parallelStart;
+
+    // Collect results
+    const allIssues: AuditIssue[][] = [];
+    let primaryReport: AuditReport | null = null;
+    let successCount = 0;
+
+    for (let i = 0; i < auditResults.length; i++) {
+      const result = auditResults[i];
+      if (result.status === 'fulfilled' && result.value.report) {
+        allIssues.push(result.value.report.issues);
+        if (i === 0) {
+          primaryReport = result.value.report;
+        }
+        successCount++;
+      }
+    }
+
+    if (!primaryReport) {
+      auditSpinner.fail('Audit failed - could not analyze any pages');
+      return;
+    }
+
+    auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
+
+    // Merge issues from all pages
+    const mergedIssues = mergeIssues(allIssues);
+
+    // ===== PHASE 3: AI Analysis (optional) =====
+    let aiAnalysis: AIAnalysis | null = null;
+
+    if (enableAI && aiKey) {
+      const aiSpinner = ora(`Running AI analysis (${aiProvider})...`).start();
+      aiAnalysis = await runAIAnalysis(url, mergedIssues, aiProvider, aiKey);
+      if (aiAnalysis) {
+        aiSpinner.succeed('AI analysis complete');
+      } else {
+        aiSpinner.warn('AI analysis failed or returned no results');
+      }
+    } else if (enableAI && !aiKey) {
+      console.log(chalk.yellow('\n⚠️  AI analysis requested but no API key provided'));
+      console.log(chalk.dim('   Set OPENAI_API_KEY or ANTHROPIC_API_KEY, or use --ai-key'));
+    }
+
+    // ===== PHASE 4: Output results =====
+    const totalTime = Date.now() - startTime;
 
     if (options.output === 'json') {
-      console.log(JSON.stringify(report, null, 2));
+      const jsonOutput = {
+        url,
+        score: primaryReport.healthScore?.overall || 0,
+        pagesAudited: successCount,
+        totalTime,
+        issues: mergedIssues,
+        healthScores: primaryReport.healthScore,
+        aiAnalysis,
+      };
+      console.log(JSON.stringify(jsonOutput, null, 2));
     } else {
-      console.log(formatReport(report));
+      // Console output
+      console.log('\n' + chalk.bold('═'.repeat(60)));
+      console.log(chalk.bold.cyan(`  SEO AUDIT REPORT: ${url}`));
+      console.log(chalk.bold('═'.repeat(60)));
+
+      // Score
+      const score = primaryReport.healthScore?.overall || 0;
+      const scoreColor = score >= 80 ? chalk.green : score >= 60 ? chalk.yellow : chalk.red;
+      console.log(`\n  ${chalk.bold('Score:')} ${scoreColor.bold(score + '/100')}`);
+
+      // Stats
+      console.log(`  ${chalk.bold('Pages audited:')} ${successCount}`);
+      console.log(`  ${chalk.bold('Issues found:')} ${mergedIssues.length}`);
+      console.log(`  ${chalk.bold('Time:')} ${totalTime}ms`);
+
+      // Health scores
+      if (primaryReport.healthScore) {
+        console.log('\n' + chalk.bold('  Health Scores:'));
+        const hs = primaryReport.healthScore;
+        const bar = (score: number) => {
+          const filled = Math.round(score / 5);
+          const empty = 20 - filled;
+          const color = score >= 80 ? chalk.green : score >= 60 ? chalk.yellow : chalk.red;
+          return color('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
+        };
+        console.log(`    Crawlability:  ${bar(hs.crawlability || 0)} ${hs.crawlability || 0}%`);
+        console.log(`    On-Page:       ${bar(hs.onPage || 0)} ${hs.onPage || 0}%`);
+        console.log(`    Content:       ${bar(hs.content || 0)} ${hs.content || 0}%`);
+        console.log(`    Performance:   ${bar(hs.performance || 0)} ${hs.performance || 0}%`);
+        console.log(`    Security:      ${bar(hs.security || 0)} ${hs.security || 0}%`);
+      }
+
+      // Issues by severity
+      const errors = mergedIssues.filter(i => i.severity === 'error');
+      const warnings = mergedIssues.filter(i => i.severity === 'warning');
+      const notices = mergedIssues.filter(i => i.severity === 'notice');
+
+      console.log('\n' + chalk.bold('  Issues by Severity:'));
+      console.log(`    ${chalk.red('●')} Errors:   ${errors.length}`);
+      console.log(`    ${chalk.yellow('●')} Warnings: ${warnings.length}`);
+      console.log(`    ${chalk.blue('●')} Notices:  ${notices.length}`);
+
+      // Top issues
+      console.log('\n' + chalk.bold('  Top Issues:'));
+      const topIssues = [...errors, ...warnings, ...notices].slice(0, 10);
+      topIssues.forEach((issue, i) => {
+        const icon = issue.severity === 'error' ? chalk.red('✗') :
+                     issue.severity === 'warning' ? chalk.yellow('!') : chalk.blue('i');
+        console.log(`    ${i + 1}. ${icon} ${issue.title}`);
+        if (issue.affectedUrls && issue.affectedUrls.length > 1) {
+          console.log(chalk.dim(`       Affects ${issue.affectedUrls.length} pages`));
+        }
+      });
+
+      // AI Analysis
+      if (aiAnalysis) {
+        console.log('\n' + chalk.bold('  AI Analysis:'));
+        console.log(`    Content Score: ${aiAnalysis.contentScore}/100`);
+        console.log('\n    ' + chalk.bold('Suggestions:'));
+        aiAnalysis.suggestions.forEach((s, i) => {
+          console.log(`    ${i + 1}. ${s}`);
+        });
+
+        if (aiAnalysis.prioritizedFixes?.length > 0) {
+          console.log('\n    ' + chalk.bold('Priority Fixes:'));
+          aiAnalysis.prioritizedFixes.slice(0, 5).forEach((fix, i) => {
+            console.log(`    ${i + 1}. [P${fix.priority}] ${fix.code}`);
+            console.log(chalk.dim(`       ${fix.rationale}`));
+          });
+        }
+      }
+
+      console.log('\n' + chalk.bold('═'.repeat(60)));
+
+      // Sync to cloud if logged in
+      if (loggedIn) {
+        const syncSpinner = ora('Syncing to cloud...').start();
+        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis);
+
+        if (syncResult) {
+          syncSpinner.succeed('Results synced to cloud');
+          console.log(chalk.cyan(`\n  View and manage issues in the web dashboard:`));
+          console.log(chalk.bold(`  ${WEB_APP_URL}/dashboard/projects/${syncResult.projectId}\n`));
+        } else {
+          syncSpinner.warn('Could not sync to cloud');
+        }
+      } else {
+        console.log(chalk.dim('\n  Tip: Log in to sync results and manage issues in the web dashboard:'));
+        console.log(chalk.dim('       rankcli login\n'));
+      }
     }
 
   } catch (error) {

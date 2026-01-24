@@ -1,21 +1,48 @@
 {
-  "name": "@rankcli/cli",
+  "name": "rankcli",
   "version": "0.0.1",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "bin": {
     "rankcli": "./dist/index.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./engine": {
+      "types": "./dist/wasm-engine.d.ts",
+      "import": "./dist/wasm-engine.mjs",
+      "require": "./dist/wasm-engine.js"
+    }
+  },
+  "files": [
+    "dist",
+    "wasm/*.wasm",
+    "wasm/*.js",
+    "wasm/*.d.ts"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "build": "npm run build:checks && npm run build:wasm && npm run build:js",
+    "build:js": "tsup src/index.ts src/wasm-engine.ts --format cjs,esm --dts",
+    "build:checks": "cd ../agent-runtime && pnpm build:wasm",
+    "build:wasm": "cd native && wasm-pack build --target nodejs --release && cp -r pkg ../wasm",
+    "build:wasm:dev": "cd native && wasm-pack build --target nodejs --dev && mkdir -p ../wasm && cp -r pkg/* ../wasm/",
+    "prebuild:wasm": "mkdir -p wasm",
     "start": "node dist/index.js",
     "lint": "eslint src/",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:wasm": "node test-wasm.js"
   },
   "dependencies": {
     "@rankcli/agent-runtime": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
     "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "conf": "^12.0.0",

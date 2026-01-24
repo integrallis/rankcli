@@ -8,13 +8,32 @@ import { apply } from './commands/apply.js';
 import { keywords, keywordsQuick, keywordsCompetitor } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
 import { setup, showGSCInstructions } from './commands/setup.js';
+import { login, logout, whoami } from './commands/auth.js';
 
 const program = new Command();
 
 program
-  .name('seo')
-  .description('SEO Autopilot - Developer-centric SEO automation')
+  .name('rankcli')
+  .description('RankCLI - Ship code, get ranked. SEO meets CI/CD.')
   .version('0.0.1');
+
+// Auth commands
+program
+  .command('login')
+  .description('Log in to your RankCLI account')
+  .option('-e, --email <email>', 'Email address')
+  .option('-b, --browser', 'Open browser for login')
+  .action(login);
+
+program
+  .command('logout')
+  .description('Log out of your RankCLI account')
+  .action(logout);
+
+program
+  .command('whoami')
+  .description('Show current logged in user')
+  .action(whoami);
 
 program
   .command('init')
@@ -34,6 +53,10 @@ program
   .option('-u, --url <url>', 'URL to audit')
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
+  .option('--max-pages <n>', 'Max pages to crawl (default: 5)')
+  .option('--ai', 'Enable AI analysis')
+  .option('--ai-provider <provider>', 'AI provider: openai or anthropic')
+  .option('--ai-key <key>', 'API key (or set OPENAI_API_KEY/ANTHROPIC_API_KEY)')
   .action(audit);
 
 program
