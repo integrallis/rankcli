@@ -10,14 +10,18 @@ import {
   formatCompetitorReport,
   groupKeywordsByTopic,
   formatTopicReport,
+  runAIKeywordResearch,
   type SiteProfile,
   type KeywordResearchOptions,
+  type PlanTier,
 } from '@rankcli/agent-runtime';
 
 interface KeywordsOptions {
   url?: string;
   seed?: string;
   auto?: boolean;
+  ai?: boolean;
+  local?: boolean;
 }
 
 export async function keywords(options: KeywordsOptions): Promise<void> {
@@ -222,6 +226,208 @@ export async function keywordsQuick(url: string, providedSeeds?: string): Promis
   } catch (error) {
     console.log(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
   }
+}
+
+// RankCLI cloud endpoint
+const SUPABASE_URL = 'https://eqzlmjbvrtrglknphdai.supabase.co';
+
+// AI-powered keyword research mode
+export async function keywordsAI(
+  url: string,
+  options: {
+    forceLocal?: boolean;
+    openaiApiKey?: string;
+  } = {}
+): Promise<void> {
+  console.log('\n🤖 AI-Powered Keyword Research\n');
+  console.log('This uses GPT-4 to analyze your site and generate keyword recommendations');
+  console.log('with competitive analysis and free tool ideas.\n');
+
+  const openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
+
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    url = parsed.href;
+
+    console.log(`📍 Analyzing: ${url}`);
+    console.log('');
+
+    // Try cloud first (unless --local flag)
+    if (!options.forceLocal) {
+      console.log('🔗 Connecting to RankCLI cloud...');
+
+      try {
+        // TODO: Get auth token from stored credentials (rankcli login)
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-keywords`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Auth header would go here if user is logged in
+          },
+          body: JSON.stringify({
+            url,
+            mode: 'analyze',
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+
+          if (result.tier === 'free' && result.teaser) {
+            // Show teaser for free tier
+            console.log('\n' + '─'.repeat(60));
+            console.log('🔒 FREE TIER - Limited Preview');
+            console.log('─'.repeat(60));
+            console.log(`Found ${result.teaser.totalKeywordsFound} keywords`);
+            console.log(`Top keywords: ${result.teaser.topKeywords.join(', ')}`);
+            console.log(`\n${result.teaser.upgradeMessage}`);
+            console.log('\n💡 Run "rankcli login" to access your paid plan features.\n');
+            return;
+          }
+
+          displayAIKeywordResults(result);
+          return;
+        } else {
+          const errorText = await response.text();
+          console.log(`⚠️  Cloud request failed, running locally...\n`);
+        }
+      } catch (err) {
+        console.log('⚠️  Cloud unavailable, running locally...\n');
+      }
+    }
+
+    // Run locally using agent-runtime
+    if (!openaiApiKey) {
+      console.log('❌ OpenAI API key required for local processing.');
+      console.log('   Set OPENAI_API_KEY environment variable, or use "rankcli login" for cloud processing.\n');
+      return;
+    }
+
+    console.log('🔬 Running local AI analysis (this may take a minute)...\n');
+
+    const result = await runAIKeywordResearch({
+      url,
+      tier: 'solo',
+      openaiApiKey,
+      enableEnhancedToolIdeas: true,
+      competitiveSearchKeys: {
+        braveApiKey: process.env.BRAVE_API_KEY,
+        serperApiKey: process.env.SERPER_API_KEY,
+        githubToken: process.env.GITHUB_TOKEN,
+      },
+    });
+
+    displayAIKeywordResults(result);
+
+  } catch (error) {
+    console.log(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+  }
+}
+
+function displayAIKeywordResults(result: any): void {
+  // Display site summary
+  if (result.siteSummary) {
+    console.log('─'.repeat(60));
+    console.log('📋 SITE ANALYSIS');
+    console.log('─'.repeat(60));
+    console.log(`Product: ${result.siteSummary.productName || 'Unknown'}`);
+    console.log(`Industry: ${result.siteSummary.industry || 'Unknown'}`);
+    console.log(`Target: ${result.siteSummary.targetAudience || 'Unknown'}`);
+    if (result.siteSummary.tagline) {
+      console.log(`Tagline: ${result.siteSummary.tagline}`);
+    }
+    console.log('');
+  }
+
+  // Display confidence
+  if (result.uncertainty) {
+    const confidence = Math.round(result.uncertainty.overallConfidence * 100);
+    const emoji = confidence >= 70 ? '✅' : confidence >= 50 ? '⚠️' : '❌';
+    console.log(`${emoji} Confidence: ${confidence}%`);
+    if (result.uncertainty.explanation) {
+      console.log(`   ${result.uncertainty.explanation}`);
+    }
+    console.log('');
+  }
+
+  // Display keyword recommendations
+  if (result.recommendations && result.recommendations.length > 0) {
+    console.log('─'.repeat(60));
+    console.log('🎯 KEYWORD RECOMMENDATIONS');
+    console.log('─'.repeat(60));
+
+    for (const rec of result.recommendations.slice(0, 15)) {
+      const actionEmoji = {
+        'create-page': '📄',
+        'build-tool': '🛠️',
+        'optimize-existing': '📈',
+        'needs-input': '❓',
+        'skip': '⏭️',
+      }[rec.action] || '•';
+
+      console.log(`\n${actionEmoji} ${rec.keyword}`);
+      console.log(`   Action: ${rec.action.replace('-', ' ')}`);
+      console.log(`   Volume: ${rec.searchVolume || 'unknown'} | Difficulty: ${rec.difficulty || 'unknown'}`);
+      console.log(`   Impact: ${rec.impact || 'unknown'} | Effort: ${rec.effort || 'unknown'}`);
+      if (rec.rationale) {
+        console.log(`   ${rec.rationale}`);
+      }
+    }
+    console.log('');
+  }
+
+  // Display free tool ideas
+  if (result.freeToolIdeas && result.freeToolIdeas.length > 0) {
+    console.log('─'.repeat(60));
+    console.log('🛠️  FREE TOOL IDEAS (Engineering as Marketing)');
+    console.log('─'.repeat(60));
+
+    for (const tool of result.freeToolIdeas.slice(0, 5)) {
+      console.log(`\n💡 ${tool.toolName || tool.toolName}`);
+      console.log(`   ${tool.description || tool.toolDescription || ''}`);
+
+      if (tool.inputFormat && tool.outputFormat) {
+        console.log(`   📥 Input: ${tool.inputFormat}`);
+        console.log(`   📤 Output: ${tool.outputFormat}`);
+      }
+
+      if (tool.productTieIn) {
+        console.log(`   🔗 Tie-in: ${tool.productTieIn}`);
+      }
+
+      if (tool.competitorAnalysis) {
+        console.log(`   🏆 Existing: ${tool.competitorAnalysis.existingTools?.join(', ') || 'None found'}`);
+        console.log(`   ✨ Advantage: ${tool.competitorAnalysis.ourAdvantage || 'N/A'}`);
+      }
+
+      if (tool.implementationHints) {
+        console.log(`   ⏱️  Est. time: ${tool.implementationHints.estimatedHours || 'Unknown'} hours`);
+        if (tool.implementationHints.suggestedLibraries?.length > 0) {
+          console.log(`   📦 Libraries: ${tool.implementationHints.suggestedLibraries.join(', ')}`);
+        }
+      }
+
+      if (tool.feasibilityScore) {
+        const score = typeof tool.feasibilityScore === 'object'
+          ? tool.feasibilityScore.overallScore
+          : tool.feasibilityScore;
+        console.log(`   📊 Feasibility: ${score}/5`);
+      }
+
+      console.log(`   🎯 Keyword: ${tool.targetKeyword || tool.keyword}`);
+      console.log(`   📈 Volume: ${tool.searchVolume || 'unknown'} | Difficulty: ${tool.difficulty || 'unknown'}`);
+    }
+    console.log('');
+  }
+
+  // Suggestions
+  console.log('─'.repeat(60));
+  console.log('💡 NEXT STEPS');
+  console.log('─'.repeat(60));
+  console.log('1. Start with quick wins (low difficulty, high impact keywords)');
+  console.log('2. Build 1-2 free tools to capture search traffic');
+  console.log('3. Create content pages targeting "Create Page" keywords');
+  console.log('4. Re-run with --wizard to improve accuracy if needed\n');
 }
 
 // Competitor analysis mode - SpyFu Kombat-style gap analysis

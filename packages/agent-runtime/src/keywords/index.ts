@@ -129,3 +129,23 @@ export {
   type TopicClusterResult,
   type ContentRecommendation,
 } from './topic-grouping.js';
+
+// Competitive Search (free APIs: Brave, Serper, GitHub, npm)
+export {
+  searchCompetitors,
+  searchFormatConverters,
+  searchHackerNews,
+  type CompetitiveSearchResult,
+  type CompetitorTool,
+  type CompetitiveSearchOptions,
+} from './sources/competitive-search.js';
+
+// LLM Judge for Tool Feasibility
+export {
+  evaluateToolFeasibility,
+  enhanceToolIdea,
+  evaluateAndEnhanceToolIdeas,
+  type ToolFeasibilityScore,
+  type EnhancedToolIdea,
+  type LLMJudgeOptions,
+} from './llm-judge.js';

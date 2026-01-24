@@ -5,7 +5,7 @@ import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
-import { keywords, keywordsQuick, keywordsCompetitor } from './commands/keywords.js';
+import { keywords, keywordsQuick, keywordsCompetitor, keywordsAI } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
 import { setup, showGSCInstructions } from './commands/setup.js';
 import { login, logout, whoami } from './commands/auth.js';
@@ -74,10 +74,19 @@ program
   .option('-s, --seed <keywords>', 'Seed keywords (comma-separated)')
   .option('--auto', 'Auto-extract seed keywords from your page')
   .option('--quick', 'Quick mode - skip questions, use defaults')
+  .option('--ai', 'Use GPT-4 for enhanced analysis with free tool ideas')
+  .option('--local', 'Force local processing (skip cloud worker)')
   .option('--competitor', 'Competitor gap analysis mode (SpyFu Kombat-style)')
   .option('-c, --competitors <domains>', 'Competitor domains (comma-separated)')
   .action(async (options) => {
-    if (options.competitor && options.url && options.seed) {
+    if (options.ai && options.url) {
+      // AI-powered keyword research with enhanced tool ideas
+      // Auto-detect: use cloud worker if available, otherwise run locally
+      await keywordsAI(options.url, {
+        forceLocal: options.local,
+        openaiApiKey: process.env.OPENAI_API_KEY,
+      });
+    } else if (options.competitor && options.url && options.seed) {
       // Competitor gap analysis mode
       const seeds = options.seed.split(',').map((s: string) => s.trim());
       const competitors = options.competitors

@@ -26,6 +26,19 @@ import { getExpandedSuggestions, enrichKeywordsWithEstimates } from './sources/a
 import { getAllFreeKeywordIdeas, applyEstimates } from './sources/free-sources.js';
 import type { KeywordData, SiteProfile } from './types.js';
 import { prioritizeKeywords } from './prioritizer.js';
+import {
+  searchCompetitors,
+  searchFormatConverters,
+  searchHackerNews,
+  type CompetitiveSearchResult,
+  type CompetitorTool,
+  type CompetitiveSearchOptions,
+} from './sources/competitive-search.js';
+import {
+  evaluateAndEnhanceToolIdeas,
+  type EnhancedToolIdea,
+  type LLMJudgeOptions,
+} from './llm-judge.js';
 
 export type PlanTier = 'free' | 'solo' | 'pro' | 'agency';
 
@@ -43,6 +56,14 @@ export interface AIKeywordResearchOptions {
   };
   wizardResponses?: Array<{ id: string; answer: string }>;
   ciMode?: boolean;
+  /** API keys for competitive search (optional but recommended) */
+  competitiveSearchKeys?: {
+    braveApiKey?: string;
+    serperApiKey?: string;
+    githubToken?: string;
+  };
+  /** Enable enhanced tool ideas with LLM judge (default: true for paid tiers) */
+  enableEnhancedToolIdeas?: boolean;
 }
 
 export interface FreeKeywordResult {
@@ -113,6 +134,32 @@ export interface FreeToolIdea {
   volume: number;
   difficulty: number;
   priority: number;
+  /** Enhanced fields from LLM judge */
+  inputFormat?: string;
+  outputFormat?: string;
+  productTieIn?: string;
+  ctaText?: string;
+  deepLinkPattern?: string;
+  competitors?: {
+    hasFreeAlternative: boolean;
+    topCompetitor?: string;
+    ourAdvantage: string;
+  };
+  implementationHints?: {
+    suggestedLibraries: string[];
+    estimatedComplexity: 'trivial' | 'simple' | 'moderate' | 'complex';
+    canUseExistingOSS: boolean;
+    ossLibrary?: string;
+  };
+  feasibilityScore?: {
+    feasibility: number;
+    specificity: number;
+    productFit: number;
+    marketOpportunity: number;
+    overallScore: number;
+    passes: boolean;
+    reasoning: string;
+  };
 }
 
 export interface CompetitiveInsight {
@@ -253,7 +300,8 @@ async function runPaidKeywordResearch(
   crawlResult: SiteCrawlResult,
   options: AIKeywordResearchOptions
 ): Promise<PaidKeywordResult> {
-  const { openaiApiKey, userContext, wizardResponses, ciMode } = options;
+  const { openaiApiKey, userContext, wizardResponses, ciMode, competitiveSearchKeys } = options;
+  const enableEnhancedToolIdeas = options.enableEnhancedToolIdeas !== false; // Default true
 
   console.log('🚀 Running full AI analysis...');
 
@@ -315,8 +363,23 @@ async function runPaidKeywordResearch(
     nlpAnalysis
   );
 
-  // Step 6: Generate free tool ideas
-  const freeToolIdeas = generateFreeToolIdeas(opportunities, siteSummary);
+  // Step 6: Generate free tool ideas with competitive research and LLM judge
+  let freeToolIdeas: FreeToolIdea[];
+
+  if (enableEnhancedToolIdeas && openaiApiKey) {
+    console.log('🔬 Running enhanced tool idea analysis with competitive research...');
+    freeToolIdeas = await generateEnhancedFreeToolIdeas(
+      opportunities,
+      siteSummary,
+      {
+        openaiApiKey,
+        ...competitiveSearchKeys,
+      }
+    );
+  } else {
+    // Fallback to basic tool idea generation
+    freeToolIdeas = generateBasicFreeToolIdeas(opportunities, siteSummary);
+  }
 
   // Step 7: Create keyword clusters
   const clusters = createKeywordClusters(opportunities, nlpAnalysis);
@@ -464,9 +527,127 @@ function scoreKeywordOpportunities(
 }
 
 /**
- * Generate free tool ideas (Bhanu's strategy)
+ * Generate free tool ideas with competitive research and LLM judge (enhanced version)
  */
-function generateFreeToolIdeas(
+async function generateEnhancedFreeToolIdeas(
+  opportunities: KeywordOpportunity[],
+  summary: SiteSummary,
+  options: {
+    openaiApiKey: string;
+    braveApiKey?: string;
+    serperApiKey?: string;
+    githubToken?: string;
+  }
+): Promise<FreeToolIdea[]> {
+  // Filter for tool-worthy keywords (low difficulty, decent volume)
+  const toolKeywords = opportunities.filter(
+    (kw) =>
+      kw.difficulty < 30 && // Slightly more lenient
+      kw.volume >= 300 && // Slightly lower threshold
+      (kw.keyword.includes('generator') ||
+        kw.keyword.includes('tool') ||
+        kw.keyword.includes('maker') ||
+        kw.keyword.includes('builder') ||
+        kw.keyword.includes('converter') ||
+        kw.keyword.includes('calculator') ||
+        kw.keyword.includes('checker') ||
+        kw.keyword.includes('validator') ||
+        kw.keyword.includes('formatter') ||
+        kw.keyword.includes('free') ||
+        kw.intent === 'informational')
+  );
+
+  // Prepare basic tool ideas for enhancement
+  const basicIdeas = toolKeywords.slice(0, 15).map((kw) => ({
+    keyword: kw.keyword,
+    toolName: generateToolName(kw.keyword),
+    toolDescription: generateToolDescription(kw.keyword, summary),
+    volume: kw.volume,
+    difficulty: kw.difficulty,
+  }));
+
+  // Create competitive search function with caching
+  const competitiveCache = new Map<string, CompetitiveSearchResult>();
+
+  const getCompetitiveData = async (keyword: string): Promise<CompetitiveSearchResult | null> => {
+    // Check cache
+    if (competitiveCache.has(keyword)) {
+      return competitiveCache.get(keyword)!;
+    }
+
+    try {
+      const result = await searchCompetitors(keyword, {
+        braveApiKey: options.braveApiKey,
+        serperApiKey: options.serperApiKey,
+        githubToken: options.githubToken,
+        maxResults: 5,
+      });
+      competitiveCache.set(keyword, result);
+      return result;
+    } catch (error) {
+      console.warn(`Competitive search failed for "${keyword}":`, error);
+      return null;
+    }
+  };
+
+  // Evaluate and enhance tool ideas using LLM judge
+  const enhancedIdeas = await evaluateAndEnhanceToolIdeas(
+    basicIdeas,
+    summary,
+    getCompetitiveData,
+    { openaiApiKey: options.openaiApiKey }
+  );
+
+  // Convert enhanced ideas to FreeToolIdea format
+  return enhancedIdeas.map((enhanced) => ({
+    keyword: enhanced.keyword,
+    toolName: enhanced.toolName,
+    toolDescription: enhanced.description,
+    estimatedEffort: complexityToEffort(enhanced.implementationHints.estimatedComplexity),
+    ctaConnection: enhanced.ctaText,
+    volume: enhanced.volume,
+    difficulty: enhanced.difficulty,
+    priority: enhanced.priority,
+    inputFormat: enhanced.inputFormat,
+    outputFormat: enhanced.outputFormat,
+    productTieIn: enhanced.productTieIn,
+    ctaText: enhanced.ctaText,
+    deepLinkPattern: enhanced.deepLinkPattern,
+    competitors: enhanced.competitors,
+    implementationHints: enhanced.implementationHints,
+    feasibilityScore: {
+      feasibility: enhanced.feasibilityScore.feasibility,
+      specificity: enhanced.feasibilityScore.specificity,
+      productFit: enhanced.feasibilityScore.productFit,
+      marketOpportunity: enhanced.feasibilityScore.marketOpportunity,
+      overallScore: enhanced.feasibilityScore.overallScore,
+      passes: enhanced.feasibilityScore.passes,
+      reasoning: enhanced.feasibilityScore.reasoning,
+    },
+  }));
+}
+
+/**
+ * Convert complexity to effort level
+ */
+function complexityToEffort(complexity: 'trivial' | 'simple' | 'moderate' | 'complex'): 'low' | 'medium' | 'high' {
+  switch (complexity) {
+    case 'trivial':
+    case 'simple':
+      return 'low';
+    case 'moderate':
+      return 'medium';
+    case 'complex':
+      return 'high';
+    default:
+      return 'medium';
+  }
+}
+
+/**
+ * Generate free tool ideas (basic version - fallback)
+ */
+function generateBasicFreeToolIdeas(
   opportunities: KeywordOpportunity[],
   summary: SiteSummary
 ): FreeToolIdea[] {
