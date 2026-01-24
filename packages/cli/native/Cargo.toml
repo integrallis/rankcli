@@ -1,0 +1,39 @@
+[package]
+name = "rankcli-audit-engine"
+version = "0.1.0"
+edition = "2021"
+description = "RankCLI audit engine - WASM build with embedded encrypted checks"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# WASM bindings for Node.js interop
+wasm-bindgen = "0.2"
+
+# Encryption (AES-256-GCM)
+aes-gcm = "0.10"
+
+# Random number generation for WASM
+getrandom = { version = "0.2", features = ["js"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Console logging in WASM
+web-sys = { version = "0.3", features = ["console"] }
+
+[build-dependencies]
+aes-gcm = "0.10"
+base64 = "0.21"
+rand = "0.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
