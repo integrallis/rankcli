@@ -77,6 +77,7 @@ import { analyzePageResources } from './checks/page-resources.js';
 import { analyzeResponsiveCss } from './checks/responsive-css.js';
 import { analyzeDirectoryListing } from './checks/directory-listing.js';
 import { analyzeUrlSafety } from './checks/url-safety.js';
+import { analyzeTrackingVerification } from './checks/tracking-verification.js';
 
 export interface AuditOptions {
   url: string;
@@ -167,6 +168,8 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // Competitor-parity checks (sync) - important for all users
   const domSizeResult = analyzeDomSize(html, url);
   const imageDimensionsResult = analyzeImageDimensions(html, url);
+  // Tracking & verification checks (GA4, GSC, Bing, Schema.org)
+  const trackingResult = analyzeTrackingVerification(html, url);
 
   // ===== EXTENDED CHECKS (registered + paid tiers) =====
   const anchorResult = runExtendedChecks ? analyzeAnchorText(html, url) : { issues: [], data: {} };
@@ -248,6 +251,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...pageResourcesResult.issues,
     ...urlSafetyResult.issues,
     ...paginationResult.issues,
+    ...trackingResult.issues,
   );
 
   // Suggest schema types if none found
