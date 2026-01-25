@@ -10,7 +10,42 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { AuditCheck, AuditIssue, PageContext } from '../types.js';
+import type { AuditIssue } from '../types.js';
+
+// =============================================================================
+// Local Check Types (for compatibility with check runner)
+// =============================================================================
+interface PageContext {
+  url: string;
+  html: string;
+  $: cheerio.CheerioAPI;
+}
+
+interface CheckResult {
+  id: string;
+  checkId: string;
+  type: string;
+  category: string;
+  title: string;
+  description: string;
+  affectedElement?: string;
+  recommendation: string;
+  impact: string;
+  effort: string;
+  learnMoreUrl?: string;
+  autoFixable?: boolean;
+  fixCode?: string;
+}
+
+interface AuditCheck {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  severity: string;
+  impact: string;
+  check(context: PageContext): Promise<CheckResult | null>;
+}
 
 // =============================================================================
 // Tracking Data Interface
@@ -109,7 +144,7 @@ export function analyzeTrackingVerification(
     issues.push({
       code: 'GA4_MISSING',
       severity: 'warning',
-      category: 'tracking',
+      category: 'on-page',
       title: 'Google Analytics 4 not detected',
       description:
         'No GA4 tracking code found. GA4 is essential for measuring organic traffic and conversions.',
@@ -117,7 +152,6 @@ export function analyzeTrackingVerification(
       howToFix:
         'Add GA4 tracking code to your site. Get your measurement ID from analytics.google.com.',
       affectedUrls: [url],
-      learnMoreUrl: 'https://support.google.com/analytics/answer/9304153',
     });
   }
 
@@ -126,7 +160,7 @@ export function analyzeTrackingVerification(
     issues.push({
       code: 'GSC_VERIFICATION_MISSING',
       severity: 'warning',
-      category: 'tracking',
+      category: 'on-page',
       title: 'Google Search Console verification not found',
       description:
         'No GSC verification meta tag detected. GSC provides essential data about your search performance.',
@@ -134,7 +168,6 @@ export function analyzeTrackingVerification(
       howToFix:
         'Add your GSC verification meta tag to the <head> section. Get it from search.google.com/search-console.',
       affectedUrls: [url],
-      learnMoreUrl: 'https://support.google.com/webmasters/answer/9008080',
     });
   }
 
@@ -142,8 +175,8 @@ export function analyzeTrackingVerification(
   if (!hasBingVerification) {
     issues.push({
       code: 'BING_VERIFICATION_MISSING',
-      severity: 'info',
-      category: 'tracking',
+      severity: 'notice',
+      category: 'on-page',
       title: 'Bing Webmaster Tools verification not found',
       description:
         'No Bing verification meta tag detected. Bing/Yahoo account for 5-8% of search traffic.',
@@ -151,8 +184,6 @@ export function analyzeTrackingVerification(
       howToFix:
         'Add Bing Webmaster Tools verification for insights on Bing/Yahoo traffic. Get it from bing.com/webmasters.',
       affectedUrls: [url],
-      learnMoreUrl:
-        'https://www.bing.com/webmasters/help/how-to-verify-ownership-of-your-site-afcfefc6',
     });
   }
 
@@ -160,8 +191,8 @@ export function analyzeTrackingVerification(
   if (!hasGtm) {
     issues.push({
       code: 'GTM_MISSING',
-      severity: 'info',
-      category: 'tracking',
+      severity: 'notice',
+      category: 'on-page',
       title: 'Google Tag Manager not detected',
       description:
         'GTM not found. While not required, GTM makes it easier to manage tracking tags without code changes.',
@@ -169,20 +200,18 @@ export function analyzeTrackingVerification(
       howToFix:
         'Consider using GTM for easier tag management. It allows marketing to add tags without developer help.',
       affectedUrls: [url],
-      learnMoreUrl: 'https://tagmanager.google.com/',
     });
   } else if (!hasGtmNoscript) {
     issues.push({
       code: 'GTM_NOSCRIPT_MISSING',
-      severity: 'info',
-      category: 'tracking',
+      severity: 'notice',
+      category: 'on-page',
       title: 'GTM noscript fallback missing',
       description:
         'GTM is installed but the noscript fallback is missing. This is needed for users with JavaScript disabled.',
       impact: 'Users with JS disabled won\'t be tracked.',
       howToFix: 'Add the GTM noscript tag immediately after the opening <body> tag.',
       affectedUrls: [url],
-      learnMoreUrl: 'https://developers.google.com/tag-manager/quickstart',
     });
   }
 
@@ -191,7 +220,7 @@ export function analyzeTrackingVerification(
     issues.push({
       code: 'SCHEMA_ORG_MISSING',
       severity: 'warning',
-      category: 'content',
+      category: 'structured-data',
       title: 'No structured data found',
       description:
         'No Schema.org structured data detected. Structured data helps search engines understand your content and can enable rich snippets.',
@@ -199,13 +228,12 @@ export function analyzeTrackingVerification(
       howToFix:
         'Add JSON-LD structured data for your content type (Organization, Product, Article, etc.).',
       affectedUrls: [url],
-      learnMoreUrl: 'https://developers.google.com/search/docs/appearance/structured-data',
     });
   } else if (hasJsonLd && !hasValidJson) {
     issues.push({
       code: 'SCHEMA_ORG_INVALID',
       severity: 'error',
-      category: 'content',
+      category: 'structured-data',
       title: 'Invalid JSON-LD structured data',
       description:
         'One or more JSON-LD scripts contain invalid JSON. This will prevent search engines from parsing your structured data.',
@@ -213,7 +241,6 @@ export function analyzeTrackingVerification(
       howToFix:
         'Fix the JSON syntax errors in your structured data. Use the Rich Results Test to validate.',
       affectedUrls: [url],
-      learnMoreUrl: 'https://search.google.com/test/rich-results',
     });
   }
 
@@ -227,12 +254,12 @@ export const ga4TrackingCheck: AuditCheck = {
   id: 'ga4-tracking',
   name: 'Google Analytics 4 Tracking',
   description: 'Checks if GA4 tracking code is properly installed',
-  category: 'tracking',
+  category: 'on-page',
   severity: 'warning',
   impact: 'medium',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
-    const { $, html } = context;
+  async check(context: PageContext): Promise<CheckResult | null> {
+    const { html } = context;
 
     // Look for GA4 patterns
     const ga4Patterns = [
@@ -254,7 +281,7 @@ export const ga4TrackingCheck: AuditCheck = {
         id: 'ga4-tracking',
         checkId: 'ga4-tracking',
         type: 'warning',
-        category: 'tracking',
+        category: 'on-page',
         title: 'Google Analytics 4 not detected',
         description:
           'No GA4 tracking code found. GA4 is essential for measuring organic traffic and conversions.',
@@ -287,11 +314,11 @@ export const gscVerificationCheck: AuditCheck = {
   id: 'gsc-verification',
   name: 'Google Search Console Verification',
   description: 'Checks if GSC verification meta tag is present',
-  category: 'tracking',
+  category: 'on-page',
   severity: 'warning',
   impact: 'high',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
+  async check(context: PageContext): Promise<CheckResult | null> {
     const { $ } = context;
 
     // Check for GSC verification meta tag
@@ -305,7 +332,7 @@ export const gscVerificationCheck: AuditCheck = {
         id: 'gsc-verification',
         checkId: 'gsc-verification',
         type: 'warning',
-        category: 'tracking',
+        category: 'on-page',
         title: 'Google Search Console verification not found',
         description:
           'No GSC verification meta tag detected. GSC provides essential data about your search performance.',
@@ -332,11 +359,11 @@ export const bingVerificationCheck: AuditCheck = {
   id: 'bing-verification',
   name: 'Bing Webmaster Tools Verification',
   description: 'Checks if Bing Webmaster Tools verification is present',
-  category: 'tracking',
-  severity: 'info',
+  category: 'on-page',
+  severity: 'notice',
   impact: 'low',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
+  async check(context: PageContext): Promise<CheckResult | null> {
     const { $ } = context;
 
     // Check for Bing verification meta tag
@@ -348,8 +375,8 @@ export const bingVerificationCheck: AuditCheck = {
       return {
         id: 'bing-verification',
         checkId: 'bing-verification',
-        type: 'info',
-        category: 'tracking',
+        type: 'notice',
+        category: 'on-page',
         title: 'Bing Webmaster Tools verification not found',
         description:
           'No Bing verification meta tag detected. Bing/Yahoo account for 5-8% of search traffic.',
@@ -376,11 +403,11 @@ export const gtmCheck: AuditCheck = {
   id: 'gtm-installed',
   name: 'Google Tag Manager',
   description: 'Checks if GTM is installed for flexible tag management',
-  category: 'tracking',
-  severity: 'info',
+  category: 'on-page',
+  severity: 'notice',
   impact: 'low',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
+  async check(context: PageContext): Promise<CheckResult | null> {
     const { html } = context;
 
     // Check for GTM
@@ -395,8 +422,8 @@ export const gtmCheck: AuditCheck = {
       return {
         id: 'gtm-installed',
         checkId: 'gtm-installed',
-        type: 'info',
-        category: 'tracking',
+        type: 'notice',
+        category: 'on-page',
         title: 'Google Tag Manager not detected',
         description:
           'GTM not found. While not required, GTM makes it easier to manage tracking tags without code changes.',
@@ -425,8 +452,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       return {
         id: 'gtm-noscript-missing',
         checkId: 'gtm-installed',
-        type: 'info',
-        category: 'tracking',
+        type: 'notice',
+        category: 'on-page',
         title: 'GTM noscript fallback missing',
         description:
           'GTM is installed but the noscript fallback is missing. This is needed for users with JavaScript disabled.',
@@ -449,12 +476,12 @@ export const schemaOrgCheck: AuditCheck = {
   id: 'schema-org',
   name: 'Schema.org Structured Data',
   description: 'Checks for structured data markup',
-  category: 'content',
+  category: 'structured-data',
   severity: 'warning',
   impact: 'medium',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
-    const { $, html } = context;
+  async check(context: PageContext): Promise<CheckResult | null> {
+    const { $ } = context;
 
     // Check for JSON-LD
     const jsonLdScripts = $('script[type="application/ld+json"]');
@@ -471,7 +498,7 @@ export const schemaOrgCheck: AuditCheck = {
         id: 'schema-org-missing',
         checkId: 'schema-org',
         type: 'warning',
-        category: 'content',
+        category: 'structured-data',
         title: 'No structured data found',
         description:
           'No Schema.org structured data detected. Structured data helps search engines understand your content and can enable rich snippets.',
@@ -518,7 +545,7 @@ export const schemaOrgCheck: AuditCheck = {
           id: 'schema-org-invalid',
           checkId: 'schema-org',
           type: 'error',
-          category: 'content',
+          category: 'structured-data',
           title: 'Invalid JSON-LD structured data',
           description:
             'One or more JSON-LD scripts contain invalid JSON. This will prevent search engines from parsing your structured data.',
@@ -543,11 +570,11 @@ export const sitemapReferenceCheck: AuditCheck = {
   id: 'sitemap-reference',
   name: 'Sitemap Reference',
   description: 'Checks if sitemap is referenced for search engines',
-  category: 'technical',
+  category: 'crawlability',
   severity: 'warning',
   impact: 'medium',
 
-  async check(context: PageContext): Promise<AuditIssue | null> {
+  async check(context: PageContext): Promise<CheckResult | null> {
     const { url } = context;
 
     // Only check on homepage
@@ -573,7 +600,7 @@ export const sitemapReferenceCheck: AuditCheck = {
             id: 'sitemap-not-in-robots',
             checkId: 'sitemap-reference',
             type: 'warning',
-            category: 'technical',
+            category: 'crawlability',
             title: 'Sitemap not referenced in robots.txt',
             description:
               'Your robots.txt does not reference a sitemap. Adding a sitemap reference helps search engines discover all your pages.',
