@@ -9,6 +9,7 @@ export interface LinkData {
   totalLinks: number;
   brokenInternal: string[];
   brokenExternal: string[];
+  jsOnlyNavigation: { element: string; text: string; reason: string }[];
   ratio: {
     internal: number;
     external: number;
@@ -29,6 +30,7 @@ export async function analyzeLinks(
   const external: LinkData['external'] = [];
   const brokenInternal: string[] = [];
   const brokenExternal: string[] = [];
+  const jsOnlyNavigation: LinkData['jsOnlyNavigation'] = [];
 
   // Extract all links
   $('a[href]').each((_, el) => {
@@ -66,6 +68,73 @@ export async function analyzeLinks(
   });
 
   const totalLinks = internal.length + external.length;
+
+  // Check for JavaScript-only navigation
+  // Look for elements with onClick that appear to be navigation
+  const navPatterns = /navigate|router|history\.push|location\.href|window\.location|goto|redirect/i;
+  const navTextPatterns = /^(home|about|contact|pricing|blog|docs|features|products?|services?|sign\s*up|log\s*in|register|dashboard|account|settings|help|faq|support|menu|nav)$/i;
+
+  // Check buttons and other elements with onClick
+  $('button[onclick], div[onclick], span[onclick], li[onclick]').each((_, el) => {
+    const $el = $(el);
+    const onclick = $el.attr('onclick') || '';
+    const text = $el.text().trim().substring(0, 50);
+
+    // Check if onClick contains navigation-like code
+    if (navPatterns.test(onclick) || navTextPatterns.test(text)) {
+      jsOnlyNavigation.push({
+        element: el.tagName.toLowerCase(),
+        text: text || '(no text)',
+        reason: 'Element uses onClick for navigation instead of <a href>',
+      });
+    }
+  });
+
+  // Check <a> tags with non-functional href but onClick (common anti-pattern)
+  $('a[onclick]').each((_, el) => {
+    const $el = $(el);
+    const href = $el.attr('href') || '';
+    const onclick = $el.attr('onclick') || '';
+    const text = $el.text().trim().substring(0, 50);
+
+    // href="#" or "javascript:" with onClick is a red flag
+    if ((href === '#' || href === '' || href.startsWith('javascript:')) && onclick) {
+      jsOnlyNavigation.push({
+        element: 'a',
+        text: text || '(no text)',
+        reason: `Link has href="${href}" with onClick - crawlers cannot follow this`,
+      });
+    }
+  });
+
+  // Check for React/Vue patterns in inline scripts (data-* attributes often used)
+  $('[data-href], [data-to], [data-link], [data-route]').each((_, el) => {
+    const $el = $(el);
+    const tagName = el.tagName.toLowerCase();
+    const text = $el.text().trim().substring(0, 50);
+
+    // If it's not an <a> tag with a real href, it's JS-only navigation
+    if (tagName !== 'a' || !$el.attr('href') || $el.attr('href') === '#') {
+      jsOnlyNavigation.push({
+        element: tagName,
+        text: text || '(no text)',
+        reason: 'Uses data attribute for routing instead of real href',
+      });
+    }
+  });
+
+  // Report JS-only navigation issues (deduplicated, limit to 10)
+  if (jsOnlyNavigation.length > 0) {
+    const uniqueNav = jsOnlyNavigation.slice(0, 10);
+    issues.push({
+      ...ISSUE_DEFINITIONS.JS_ONLY_NAVIGATION,
+      affectedUrls: [baseUrl],
+      details: {
+        count: jsOnlyNavigation.length,
+        examples: uniqueNav,
+      },
+    });
+  }
 
   // Calculate link ratio
   const internalCount = internal.length;
@@ -193,6 +262,7 @@ export async function analyzeLinks(
       totalLinks,
       brokenInternal,
       brokenExternal,
+      jsOnlyNavigation,
       ratio: {
         internal: internalCount,
         external: externalCount,

@@ -385,6 +385,15 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     impact: 'Poor user experience and potential trust issues.',
     howToFix: 'Update or remove the broken external link.',
   },
+  JS_ONLY_NAVIGATION: {
+    code: 'JS_ONLY_NAVIGATION',
+    severity: 'warning',
+    category: 'links',
+    title: 'JavaScript-only navigation detected',
+    description: 'Navigation elements use onClick handlers without proper <a href> links.',
+    impact: 'Search engine crawlers cannot follow JavaScript-only navigation. These links are invisible to crawlers, preventing page discovery and indexing.',
+    howToFix: 'Replace onClick navigation with proper <a href> or <Link> components. In React, use react-router Link instead of navigate() in onClick handlers. Ensure all navigation renders as real anchor tags with href attributes.',
+  },
   TOO_MANY_LINKS: {
     code: 'TOO_MANY_LINKS',
     severity: 'notice',
