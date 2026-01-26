@@ -1,0 +1,175 @@
+# Nuxt SEO Recipe
+# Nuxt has excellent SEO capabilities, similar to Next.js for Vue
+
+framework: nuxt
+display_name: Nuxt
+category: meta-framework
+base_framework: vue
+ssr_default: true
+
+seo_strengths:
+  - "Universal rendering (SSR) by default"
+  - "Static site generation support"
+  - "Built-in useSeoMeta composable"
+  - "Automatic code splitting"
+  - "File-based routing"
+  - "NuxtImage for image optimization"
+
+checks:
+  - code: NUXT_NO_USESEOMETA
+    severity: warning
+    title: "Not using useSeoMeta composable"
+    description: "Nuxt 3 has built-in SEO meta composables that are cleaner than useHead."
+    howToFix: |
+      Use useSeoMeta for SEO tags:
+
+      ```vue
+      <script setup>
+      useSeoMeta({
+        title: 'Page Title',
+        description: 'Page description',
+        ogTitle: 'OG Title',
+        ogDescription: 'OG Description',
+        ogImage: '/og-image.jpg',
+        twitterCard: 'summary_large_image',
+      });
+      </script>
+      ```
+
+  - code: NUXT_USEFETCH_CLIENT_ONLY
+    severity: warning
+    title: "Data fetching only on client side"
+    description: "Using onMounted for data fetching bypasses SSR benefits."
+    howToFix: |
+      Use useFetch or useAsyncData instead:
+
+      ```vue
+      <script setup>
+      // Bad - client only
+      const data = ref(null);
+      onMounted(async () => {
+        data.value = await $fetch('/api/data');
+      });
+
+      // Good - SSR friendly
+      const { data } = await useFetch('/api/data');
+      </script>
+      ```
+
+  - code: NUXT_NO_NUXT_IMAGE
+    severity: warning
+    title: "Not using NuxtImage for images"
+    description: "@nuxt/image provides automatic optimization and responsive images."
+    howToFix: |
+      Install and use NuxtImage:
+
+      ```bash
+      npx nuxi module add image
+      ```
+
+      ```vue
+      <template>
+        <NuxtImg
+          src="/hero.jpg"
+          alt="Hero"
+          width="1200"
+          height="630"
+          preload
+        />
+      </template>
+      ```
+
+  - code: NUXT_NO_ROBOTS
+    severity: warning
+    title: "Missing robots.txt configuration"
+    description: "Use @nuxtjs/robots module for robots.txt."
+    howToFix: |
+      Install and configure robots module:
+
+      ```bash
+      npm install @nuxtjs/robots
+      ```
+
+      ```ts
+      // nuxt.config.ts
+      export default defineNuxtConfig({
+        modules: ['@nuxtjs/robots'],
+        robots: {
+          rules: [
+            { UserAgent: '*', Allow: '/' },
+            { UserAgent: '*', Disallow: '/api/' },
+          ],
+          sitemap: 'https://yoursite.com/sitemap.xml',
+        },
+      });
+      ```
+
+  - code: NUXT_NO_SITEMAP
+    severity: warning
+    title: "Missing sitemap configuration"
+    description: "Use @nuxtjs/sitemap module for automatic sitemap."
+    howToFix: |
+      Install sitemap module:
+
+      ```bash
+      npm install @nuxtjs/sitemap
+      ```
+
+      ```ts
+      // nuxt.config.ts
+      export default defineNuxtConfig({
+        modules: ['@nuxtjs/sitemap'],
+        sitemap: {
+          hostname: 'https://yoursite.com',
+        },
+      });
+      ```
+
+  - code: NUXT_SPA_MODE
+    severity: error
+    title: "Nuxt running in SPA mode"
+    description: "SPA mode disables SSR, losing SEO benefits."
+    howToFix: |
+      Remove ssr: false from nuxt.config.ts:
+
+      ```ts
+      export default defineNuxtConfig({
+        // Remove this line
+        // ssr: false,
+      });
+      ```
+
+      If you need client-only components, use <ClientOnly>:
+      ```vue
+      <ClientOnly>
+        <BrowserOnlyWidget />
+      </ClientOnly>
+      ```
+
+  - code: NUXT_NO_PRERENDER
+    severity: notice
+    title: "Static pages not pre-rendered"
+    description: "Static pages could be pre-rendered for better performance."
+    howToFix: |
+      Enable route prerendering in nuxt.config.ts:
+
+      ```ts
+      export default defineNuxtConfig({
+        routeRules: {
+          '/about': { prerender: true },
+          '/blog/**': { prerender: true },
+        },
+      });
+      ```
+
+      Or generate a fully static site:
+      ```bash
+      nuxt generate
+      ```
+
+performance_tips:
+  - "Use useLazyFetch for non-critical data"
+  - "Add preload prop to NuxtImg for LCP images"
+  - "Use Nuxt DevTools to identify performance issues"
+  - "Configure image provider for CDN delivery"
+  - "Use route rules for caching strategies"

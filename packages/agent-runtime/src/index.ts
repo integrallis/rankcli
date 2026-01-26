@@ -58,5 +58,9 @@ export * from './reports/index.js';
 // GEO (Generative Engine Optimization) tracking
 export * from './geo/index.js';
 
+// Framework Detection & SEO Recipes
+// Note: Export as namespace to avoid conflict with tools/detectFramework
+export * as frameworks from './frameworks/index.js';
+
 // WASM Adapter (sync audit for embedded execution)
 export { runSyncAudit } from './wasm-adapter.js';

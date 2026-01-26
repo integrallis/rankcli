@@ -1,0 +1,180 @@
+# Django SEO Recipe
+# Django is the most popular Python web framework
+
+framework: django
+display_name: Django
+category: server-rendered
+ssr_default: true
+
+seo_strengths:
+  - "Server-rendered HTML by default"
+  - "Built-in sitemap framework"
+  - "Admin interface for content management"
+  - "Mature ecosystem"
+
+checks:
+  - code: DJANGO_NO_SITEMAP
+    severity: warning
+    title: "Django sitemap framework not configured"
+    description: "Django has a built-in sitemap framework that should be used."
+    howToFix: |
+      Add sitemap to your project:
+
+      ```python
+      # settings.py
+      INSTALLED_APPS = [
+          'django.contrib.sitemaps',
+      ]
+
+      # sitemaps.py
+      from django.contrib.sitemaps import Sitemap
+      from .models import Post
+
+      class PostSitemap(Sitemap):
+          changefreq = "weekly"
+          priority = 0.8
+
+          def items(self):
+              return Post.objects.filter(published=True)
+
+          def lastmod(self, obj):
+              return obj.updated_at
+
+      # urls.py
+      from django.contrib.sitemaps.views import sitemap
+      from .sitemaps import PostSitemap
+
+      sitemaps = {'posts': PostSitemap}
+
+      urlpatterns = [
+          path('sitemap.xml', sitemap, {'sitemaps': sitemaps}),
+      ]
+      ```
+
+  - code: DJANGO_NO_META_FRAMEWORK
+    severity: warning
+    title: "No SEO meta framework detected"
+    description: "Use django-meta for consistent meta tag management."
+    howToFix: |
+      Install django-meta:
+
+      ```bash
+      pip install django-meta
+      ```
+
+      ```python
+      # settings.py
+      INSTALLED_APPS = ['meta']
+
+      META_SITE_PROTOCOL = 'https'
+      META_USE_OG_PROPERTIES = True
+      META_USE_TWITTER_PROPERTIES = True
+      ```
+
+      ```python
+      # In views or models
+      from meta.views import MetadataMixin
+
+      class PostDetailView(MetadataMixin, DetailView):
+          def get_meta_title(self):
+              return self.object.title
+
+          def get_meta_description(self):
+              return self.object.excerpt
+      ```
+
+  - code: DJANGO_DEBUG_TRUE
+    severity: error
+    title: "DEBUG mode appears enabled"
+    description: "DEBUG=True in production exposes sensitive information and hurts performance."
+    howToFix: |
+      Ensure DEBUG is False in production:
+
+      ```python
+      # settings.py
+      DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+      ```
+
+      Or use django-environ:
+      ```python
+      import environ
+      env = environ.Env(DEBUG=(bool, False))
+      DEBUG = env('DEBUG')
+      ```
+
+  - code: DJANGO_NO_CACHE
+    severity: warning
+    title: "Caching not configured"
+    description: "Django without caching is slower than it should be."
+    howToFix: |
+      Configure caching in settings.py:
+
+      ```python
+      # Redis (recommended)
+      CACHES = {
+          'default': {
+              'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+              'LOCATION': 'redis://127.0.0.1:6379',
+          }
+      }
+
+      # Use cache in views
+      from django.views.decorators.cache import cache_page
+
+      @cache_page(60 * 15)  # 15 minutes
+      def my_view(request):
+          ...
+      ```
+
+  - code: DJANGO_NO_GZIP
+    severity: notice
+    title: "GZip middleware not enabled"
+    description: "Enable GZip compression for faster page loads."
+    howToFix: |
+      Add GZip middleware:
+
+      ```python
+      # settings.py
+      MIDDLEWARE = [
+          'django.middleware.gzip.GZipMiddleware',
+          # ... other middleware
+      ]
+      ```
+
+  - code: DJANGO_NO_WHITENOISE
+    severity: notice
+    title: "Static files not optimized"
+    description: "Use WhiteNoise for efficient static file serving."
+    howToFix: |
+      Install and configure WhiteNoise:
+
+      ```bash
+      pip install whitenoise
+      ```
+
+      ```python
+      # settings.py
+      MIDDLEWARE = [
+          'django.middleware.security.SecurityMiddleware',
+          'whitenoise.middleware.WhiteNoiseMiddleware',
+          # ...
+      ]
+
+      STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+      ```
+
+performance_tips:
+  - "Use select_related/prefetch_related for queries"
+  - "Enable template caching in production"
+  - "Use django-debug-toolbar in development"
+  - "Configure database connection pooling"
+  - "Use async views for I/O-bound operations (Django 4.1+)"
+
+recommended_packages:
+  seo:
+    - "django-meta - Meta tag management"
+    - "django-robots - robots.txt management"
+  performance:
+    - "django-redis - Redis caching"
+    - "whitenoise - Static file serving"
+    - "django-debug-toolbar - Development profiling"

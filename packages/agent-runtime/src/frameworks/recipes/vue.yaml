@@ -1,0 +1,137 @@
+# Vue.js SEO Recipe
+# Similar challenges to React for client-side rendered apps
+
+framework: vue
+display_name: Vue.js
+category: spa
+ssr_default: false
+
+seo_challenges:
+  - "Client-side rendering sends empty HTML to crawlers"
+  - "Vue Router requires proper server configuration"
+  - "Async components delay content rendering"
+  - "No built-in meta tag management"
+
+checks:
+  - code: VUE_CSR_DETECTED
+    severity: error
+    title: "Client-side rendered Vue app detected"
+    description: "Vue apps without SSR send empty HTML to crawlers."
+    impact: "Your content may not be indexed by search engines"
+    howToFix: |
+      Option 1: Migrate to Nuxt for automatic SSR/SSG
+      Option 2: Add SSR with @vue/server-renderer
+      Option 3: Use prerendering with prerender-spa-plugin
+
+      For Nuxt migration, most Vue components work directly.
+
+  - code: VUE_NO_META_MANAGEMENT
+    severity: error
+    title: "No meta tag management library"
+    description: "Title and meta description are not dynamically managed."
+    howToFix: |
+      Install @vueuse/head or vue-meta:
+
+      ```bash
+      npm install @vueuse/head
+      ```
+
+      ```ts
+      // main.ts
+      import { createHead } from '@vueuse/head';
+      const head = createHead();
+      app.use(head);
+      ```
+
+      ```vue
+      <script setup>
+      import { useHead } from '@vueuse/head';
+
+      useHead({
+        title: 'Page Title',
+        meta: [
+          { name: 'description', content: 'Page description' },
+        ],
+      });
+      </script>
+      ```
+
+  - code: VUE_ROUTER_HISTORY_MODE
+    severity: warning
+    title: "Vue Router not in history mode"
+    description: "Hash mode (#/) creates ugly URLs and SEO issues."
+    howToFix: |
+      Use createWebHistory instead of createWebHashHistory:
+
+      ```ts
+      import { createRouter, createWebHistory } from 'vue-router';
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [...],
+      });
+      ```
+
+      Then configure your server to return index.html for all routes.
+
+  - code: VUE_ASYNC_COMPONENT_NO_LOADING
+    severity: warning
+    title: "Async components without loading state"
+    description: "Async components can cause CLS when they pop in."
+    howToFix: |
+      Provide a loading component:
+
+      ```ts
+      import { defineAsyncComponent } from 'vue';
+
+      const AsyncComp = defineAsyncComponent({
+        loader: () => import('./HeavyComponent.vue'),
+        loadingComponent: LoadingSpinner,
+        delay: 200,
+      });
+      ```
+
+  - code: VUE_NO_KEY_ON_LIST
+    severity: notice
+    title: "v-for without :key attribute"
+    description: "Missing keys can cause rendering issues and affect SEO crawling."
+    howToFix: |
+      Always use :key with v-for:
+
+      ```vue
+      <div v-for="item in items" :key="item.id">
+        {{ item.name }}
+      </div>
+      ```
+
+  - code: VUE_TRANSITION_CLS
+    severity: notice
+    title: "Transitions may cause layout shifts"
+    description: "CSS transitions that change element size cause CLS."
+    howToFix: |
+      Use transform instead of width/height changes:
+
+      ```css
+      /* Bad - causes CLS */
+      .fade-enter-active { height: 0 to 100px; }
+
+      /* Good - no CLS */
+      .fade-enter-active { transform: scaleY(0) to scaleY(1); }
+      ```
+
+performance_tips:
+  - "Use Vite for faster development and optimized builds"
+  - "Lazy load routes with dynamic imports"
+  - "Use v-once for static content"
+  - "Use v-memo for expensive list items"
+  - "Consider Nuxt for SSR/SSG"
+
+migration_paths:
+  nuxt:
+    effort: low
+    benefits:
+      - "Automatic SSR/SSG"
+      - "File-based routing"
+      - "Auto-imports"
+      - "Built-in SEO utilities"
+    guide: "https://nuxt.com/docs/migration/overview"

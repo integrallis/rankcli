@@ -1,0 +1,154 @@
+# SvelteKit SEO Recipe
+# SvelteKit has excellent SSR and SSG support with minimal overhead
+
+framework: sveltekit
+display_name: SvelteKit
+category: meta-framework
+base_framework: svelte
+ssr_default: true
+
+seo_strengths:
+  - "SSR by default"
+  - "Excellent performance (small runtime)"
+  - "Built-in prerendering"
+  - "File-based routing"
+  - "Form actions for progressive enhancement"
+
+checks:
+  - code: SVELTEKIT_NO_LOAD_FUNCTION
+    severity: warning
+    title: "Page without load function"
+    description: "Data fetching in +page.svelte bypasses SSR. Use +page.server.ts or +page.ts."
+    howToFix: |
+      Move data fetching to a load function:
+
+      ```ts
+      // src/routes/products/+page.server.ts
+      export async function load({ fetch }) {
+        const products = await fetch('/api/products').then(r => r.json());
+        return { products };
+      }
+      ```
+
+      ```svelte
+      <!-- src/routes/products/+page.svelte -->
+      <script>
+        export let data;
+      </script>
+
+      {#each data.products as product}
+        <div>{product.name}</div>
+      {/each}
+      ```
+
+  - code: SVELTEKIT_NO_LAYOUT_HEAD
+    severity: warning
+    title: "Missing svelte:head in layout"
+    description: "Common meta tags should be in a layout for consistency."
+    howToFix: |
+      Add svelte:head to your layout:
+
+      ```svelte
+      <!-- src/routes/+layout.svelte -->
+      <script>
+        import { page } from '$app/stores';
+      </script>
+
+      <svelte:head>
+        <title>{$page.data.title ?? 'Your Site'}</title>
+        <meta name="description" content={$page.data.description ?? 'Default description'} />
+        <link rel="canonical" href={$page.url.href} />
+      </svelte:head>
+
+      <slot />
+      ```
+
+  - code: SVELTEKIT_NO_PRERENDER
+    severity: notice
+    title: "Static pages not prerendered"
+    description: "Static pages should be prerendered for best performance."
+    howToFix: |
+      Add prerender to static pages:
+
+      ```ts
+      // src/routes/about/+page.ts
+      export const prerender = true;
+      ```
+
+      Or set default in svelte.config.js:
+      ```js
+      kit: {
+        prerender: {
+          default: true
+        }
+      }
+      ```
+
+  - code: SVELTEKIT_NO_TRAILING_SLASH
+    severity: notice
+    title: "Inconsistent trailing slash handling"
+    description: "Configure trailing slash to avoid duplicate content."
+    howToFix: |
+      Set in svelte.config.js:
+
+      ```js
+      kit: {
+        trailingSlash: 'never' // or 'always'
+      }
+      ```
+
+  - code: SVELTEKIT_ENHANCED_IMAGE
+    severity: notice
+    title: "Not using enhanced images"
+    description: "SvelteKit supports enhanced images with @sveltejs/enhanced-img."
+    howToFix: |
+      Install enhanced images:
+
+      ```bash
+      npm install @sveltejs/enhanced-img
+      ```
+
+      ```svelte
+      <script>
+        import { Image } from '@sveltejs/enhanced-img';
+        import heroImage from '$lib/images/hero.jpg';
+      </script>
+
+      <Image src={heroImage} alt="Hero" />
+      ```
+
+  - code: SVELTEKIT_NO_SITEMAP
+    severity: warning
+    title: "Missing sitemap"
+    description: "Use svelte-sitemap or generate manually."
+    howToFix: |
+      Option 1: Use svelte-sitemap
+      ```bash
+      npm install svelte-sitemap
+      npx svelte-sitemap --domain https://yoursite.com
+      ```
+
+      Option 2: Create src/routes/sitemap.xml/+server.ts:
+      ```ts
+      export async function GET() {
+        const pages = ['/', '/about', '/products'];
+        const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            ${pages.map(page => `
+              <url>
+                <loc>https://yoursite.com${page}</loc>
+              </url>
+            `).join('')}
+          </urlset>`;
+        return new Response(sitemap, {
+          headers: { 'Content-Type': 'application/xml' }
+        });
+      }
+      ```
+
+performance_tips:
+  - "Use load functions for SSR data"
+  - "Prerender static pages"
+  - "Use streaming for slow data sources"
+  - "Leverage Svelte's small runtime"
+  - "Use form actions for progressive enhancement"

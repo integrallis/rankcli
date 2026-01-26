@@ -1,0 +1,202 @@
+# React SEO Recipe
+# Client-side rendering frameworks are notoriously problematic for SEO
+
+framework: react
+display_name: React
+category: spa
+ssr_default: false
+
+seo_challenges:
+  - "Client-side rendering means empty HTML for crawlers"
+  - "Dynamic content invisible to search engines"
+  - "Slow First Contentful Paint"
+  - "No server-side meta tag generation"
+  - "JavaScript-dependent routing breaks crawlability"
+
+checks:
+  # Critical - these will severely hurt SEO
+  - code: REACT_CSR_DETECTED
+    severity: error
+    title: "Client-side rendered React app detected"
+    description: "React apps without SSR send empty HTML to crawlers. Search engines may not index your content."
+    impact: "Critical - your content is likely invisible to Google"
+    howToFix: |
+      Option 1: Migrate to Next.js for automatic SSR/SSG
+      Option 2: Add prerendering with react-snap or prerender.io
+      Option 3: Use react-helmet-async with a prerender service
+    detection:
+      html_patterns:
+        - '<div id="root"></div>'
+        - '<div id="app"></div>'
+      missing_content: true  # Body has minimal text content
+
+  - code: REACT_NO_SSR_META
+    severity: error
+    title: "Meta tags not server-rendered"
+    description: "Title and meta description are set client-side and won't be seen by crawlers."
+    impact: "Search results will show wrong or missing title/description"
+    howToFix: |
+      For Vite/CRA: Use a prerender plugin or migrate to Next.js
+
+      Quick fix with vite-plugin-ssr:
+      ```tsx
+      // pages/+Head.tsx
+      export function Head() {
+        return <>
+          <title>Your Title</title>
+          <meta name="description" content="Your description" />
+        </>
+      }
+      ```
+    detection:
+      title_in_js: true
+      title_not_in_html: true
+
+  - code: REACT_HYDRATION_MISMATCH
+    severity: warning
+    title: "Hydration mismatch detected"
+    description: "Server HTML differs from client render, causing flicker and potential SEO issues."
+    impact: "Can cause content to briefly disappear, confusing crawlers"
+    howToFix: |
+      Common causes:
+      1. Using Date.now() or Math.random() in render
+      2. Browser-only APIs like window.localStorage
+      3. Different data on server vs client
+
+      Fix: Use useEffect for browser-only code:
+      ```tsx
+      const [mounted, setMounted] = useState(false);
+      useEffect(() => setMounted(true), []);
+      if (!mounted) return null; // or skeleton
+      ```
+
+  # Warnings - important but not critical
+  - code: REACT_HELMET_NOT_ASYNC
+    severity: warning
+    title: "Using react-helmet instead of react-helmet-async"
+    description: "react-helmet has memory leaks and doesn't work properly with SSR."
+    howToFix: |
+      Replace react-helmet with react-helmet-async:
+      ```bash
+      npm uninstall react-helmet
+      npm install react-helmet-async
+      ```
+
+      Update imports:
+      ```tsx
+      // Before
+      import { Helmet } from 'react-helmet';
+
+      // After
+      import { Helmet, HelmetProvider } from 'react-helmet-async';
+
+      // Wrap app in provider
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
+      ```
+
+  - code: REACT_ROUTER_NO_SSR
+    severity: warning
+    title: "React Router without server-side support"
+    description: "Client-side routing breaks when crawlers access URLs directly."
+    howToFix: |
+      Ensure your server returns the same HTML for all routes.
+
+      For static hosting (Netlify, Vercel):
+      Add a redirect rule to serve index.html for all routes.
+
+      netlify.toml:
+      ```toml
+      [[redirects]]
+        from = "/*"
+        to = "/index.html"
+        status = 200
+      ```
+
+  - code: REACT_NO_PRERENDER
+    severity: warning
+    title: "No prerendering configured"
+    description: "Static pages could be prerendered for better SEO and performance."
+    howToFix: |
+      Add react-snap for build-time prerendering:
+      ```bash
+      npm install react-snap
+      ```
+
+      package.json:
+      ```json
+      {
+        "scripts": {
+          "postbuild": "react-snap"
+        },
+        "reactSnap": {
+          "source": "build"
+        }
+      }
+      ```
+
+  # Performance-related
+  - code: REACT_BUNDLE_TOO_LARGE
+    severity: warning
+    title: "React bundle too large"
+    description: "Large JavaScript bundles delay interactivity and hurt Core Web Vitals."
+    howToFix: |
+      1. Use React.lazy() for code splitting:
+      ```tsx
+      const HeavyComponent = React.lazy(() => import('./HeavyComponent'));
+
+      <Suspense fallback={<Loading />}>
+        <HeavyComponent />
+      </Suspense>
+      ```
+
+      2. Analyze bundle with source-map-explorer:
+      ```bash
+      npm install source-map-explorer
+      npx source-map-explorer build/static/js/*.js
+      ```
+
+  - code: REACT_NO_SUSPENSE
+    severity: notice
+    title: "Not using Suspense for data fetching"
+    description: "Without Suspense, content pops in causing layout shifts (CLS)."
+    howToFix: |
+      Use Suspense with a data fetching library:
+      ```tsx
+      <Suspense fallback={<Skeleton />}>
+        <DataComponent />
+      </Suspense>
+      ```
+
+performance_tips:
+  - "Use React.memo() for expensive components"
+  - "Lazy load routes with React.lazy()"
+  - "Use useMemo/useCallback to prevent unnecessary rerenders"
+  - "Consider using Preact for smaller bundle size"
+  - "Use production builds (NODE_ENV=production)"
+
+migration_paths:
+  nextjs:
+    effort: medium
+    benefits:
+      - "Automatic SSR/SSG"
+      - "Built-in Image optimization"
+      - "File-based routing"
+      - "API routes"
+    guide: "https://nextjs.org/docs/migrating/from-create-react-app"
+
+  remix:
+    effort: medium
+    benefits:
+      - "Nested routing with data loading"
+      - "Progressive enhancement"
+      - "Better error boundaries"
+    guide: "https://remix.run/docs/en/main/guides/migrating-react-router-app"
+
+  vite-ssr:
+    effort: low
+    benefits:
+      - "Keep existing code"
+      - "Add SSR incrementally"
+    guide: "https://vite-plugin-ssr.com/"

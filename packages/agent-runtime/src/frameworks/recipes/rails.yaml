@@ -1,0 +1,188 @@
+# Ruby on Rails SEO Recipe
+# Rails is server-rendered by default, excellent for SEO
+
+framework: rails
+display_name: Ruby on Rails
+category: server-rendered
+ssr_default: true
+
+seo_strengths:
+  - "Server-rendered HTML by default"
+  - "Turbo for fast navigation without SPA"
+  - "Strong conventions reduce mistakes"
+  - "Mature gem ecosystem"
+
+checks:
+  - code: RAILS_NO_META_TAGS_GEM
+    severity: warning
+    title: "Not using meta-tags gem"
+    description: "The meta-tags gem provides a clean API for SEO tags."
+    howToFix: |
+      Add meta-tags to Gemfile:
+
+      ```ruby
+      gem 'meta-tags'
+      ```
+
+      Run `bundle install`, then:
+
+      ```ruby
+      # app/views/layouts/application.html.erb
+      <head>
+        <%= display_meta_tags site: 'Your Site' %>
+      </head>
+      ```
+
+      ```ruby
+      # In controllers or views
+      set_meta_tags title: 'Page Title',
+                    description: 'Page description',
+                    keywords: 'seo, rails'
+      ```
+
+  - code: RAILS_NO_SITEMAP_GEM
+    severity: warning
+    title: "Not using sitemap_generator gem"
+    description: "sitemap_generator creates SEO-friendly sitemaps automatically."
+    howToFix: |
+      Add to Gemfile:
+
+      ```ruby
+      gem 'sitemap_generator'
+      ```
+
+      Generate config:
+      ```bash
+      rails sitemap:install
+      ```
+
+      Configure config/sitemap.rb:
+      ```ruby
+      SitemapGenerator::Sitemap.default_host = "https://yoursite.com"
+
+      SitemapGenerator::Sitemap.create do
+        add '/about', changefreq: 'monthly'
+        Product.find_each do |product|
+          add product_path(product), lastmod: product.updated_at
+        end
+      end
+      ```
+
+      Generate: `rails sitemap:refresh`
+
+  - code: RAILS_NO_CANONICAL
+    severity: warning
+    title: "Missing canonical URLs"
+    description: "Rails apps with multiple URLs for same content need canonicals."
+    howToFix: |
+      Add canonical tag in layout:
+
+      ```erb
+      <!-- Using meta-tags gem -->
+      <%= display_meta_tags canonical: request.original_url %>
+
+      <!-- Or manually -->
+      <link rel="canonical" href="<%= request.original_url.split('?').first %>" />
+      ```
+
+  - code: RAILS_TURBO_BREAKS_CRAWLERS
+    severity: notice
+    title: "Turbo may affect JavaScript-dependent crawlers"
+    description: "Turbo Drive updates pages via JavaScript, which some crawlers may miss."
+    howToFix: |
+      For SEO-critical pages, ensure content is in initial HTML.
+
+      For dynamic content, add data-turbo="false":
+      ```erb
+      <%= link_to 'Critical Page', critical_path, data: { turbo: false } %>
+      ```
+
+      Or disable for specific pages:
+      ```erb
+      <meta name="turbo-visit-control" content="reload">
+      ```
+
+  - code: RAILS_NO_JSON_LD
+    severity: notice
+    title: "No structured data detected"
+    description: "Add JSON-LD for rich snippets."
+    howToFix: |
+      Create a helper:
+
+      ```ruby
+      # app/helpers/seo_helper.rb
+      module SeoHelper
+        def json_ld(data)
+          content_tag :script, data.to_json.html_safe,
+                      type: 'application/ld+json'
+        end
+      end
+      ```
+
+      Use in views:
+      ```erb
+      <%= json_ld({
+        "@context" => "https://schema.org",
+        "@type" => "Product",
+        "name" => @product.name,
+        "description" => @product.description
+      }) %>
+      ```
+
+  - code: RAILS_SLOW_QUERIES
+    severity: warning
+    title: "N+1 queries may slow pages"
+    description: "Slow pages hurt SEO. Use includes/eager_load."
+    howToFix: |
+      Use bullet gem to detect N+1:
+
+      ```ruby
+      # Gemfile
+      gem 'bullet', group: 'development'
+      ```
+
+      Fix with includes:
+      ```ruby
+      # Before (N+1)
+      @posts = Post.all
+      @posts.each { |p| p.author.name }
+
+      # After (2 queries)
+      @posts = Post.includes(:author).all
+      ```
+
+  - code: RAILS_NO_CACHING
+    severity: notice
+    title: "Page caching not configured"
+    description: "Rails caching can dramatically improve response times."
+    howToFix: |
+      Enable caching in production:
+
+      ```ruby
+      # config/environments/production.rb
+      config.action_controller.perform_caching = true
+      config.cache_store = :redis_cache_store, { url: ENV['REDIS_URL'] }
+      ```
+
+      Use fragment caching:
+      ```erb
+      <% cache @product do %>
+        <%= render @product %>
+      <% end %>
+      ```
+
+performance_tips:
+  - "Use Russian doll caching for nested views"
+  - "Enable asset fingerprinting and CDN"
+  - "Use Turbo for SPA-like experience"
+  - "Profile with rack-mini-profiler"
+  - "Use Postgres for full-text search instead of LIKE"
+
+recommended_gems:
+  seo:
+    - "meta-tags - SEO tag management"
+    - "sitemap_generator - XML sitemaps"
+  performance:
+    - "bullet - N+1 detection"
+    - "rack-mini-profiler - Performance profiling"
+    - "bootsnap - Faster boot times"

@@ -1,0 +1,137 @@
+# Laravel SEO Recipe
+# Laravel is the most popular PHP framework
+
+framework: laravel
+display_name: Laravel
+category: server-rendered
+ssr_default: true
+
+seo_strengths:
+  - "Server-rendered HTML by default"
+  - "Blade templates for clean SEO markup"
+  - "Route caching for fast responses"
+  - "Built-in CSRF and security"
+
+checks:
+  - code: LARAVEL_NO_META_PACKAGE
+    severity: warning
+    title: "No SEO package detected"
+    description: "Laravel benefits from an SEO package like artesaos/seotools."
+    howToFix: |
+      Install artesaos/seotools:
+
+      ```bash
+      composer require artesaos/seotools
+      ```
+
+      ```php
+      // In controller
+      use Artesaos\SEOTools\Facades\SEOMeta;
+
+      SEOMeta::setTitle('Page Title');
+      SEOMeta::setDescription('Description');
+
+      // In Blade
+      {!! SEOMeta::generate() !!}
+      ```
+
+  - code: LARAVEL_NO_SITEMAP
+    severity: warning
+    title: "No sitemap package detected"
+    description: "Use spatie/laravel-sitemap for automatic sitemaps."
+    howToFix: |
+      ```bash
+      composer require spatie/laravel-sitemap
+      ```
+
+      ```php
+      // Generate sitemap
+      use Spatie\Sitemap\SitemapGenerator;
+
+      SitemapGenerator::create('https://yoursite.com')
+          ->writeToFile(public_path('sitemap.xml'));
+
+      // Or build manually
+      use Spatie\Sitemap\Sitemap;
+      use Spatie\Sitemap\Tags\Url;
+
+      Sitemap::create()
+          ->add(Url::create('/')->setPriority(1.0))
+          ->add(Url::create('/about'))
+          ->writeToFile(public_path('sitemap.xml'));
+      ```
+
+  - code: LARAVEL_INERTIA_NO_SSR
+    severity: error
+    title: "Inertia.js without SSR"
+    description: "Inertia apps are client-rendered by default, losing SEO benefits."
+    howToFix: |
+      Enable Inertia SSR:
+
+      ```bash
+      php artisan inertia:start-ssr
+      ```
+
+      Configure in config/inertia.php:
+      ```php
+      'ssr' => [
+          'enabled' => true,
+          'url' => 'http://127.0.0.1:13714',
+      ],
+      ```
+
+  - code: LARAVEL_NO_RESPONSE_CACHE
+    severity: notice
+    title: "Response caching not configured"
+    description: "Cache full responses for better performance."
+    howToFix: |
+      Install spatie/laravel-responsecache:
+
+      ```bash
+      composer require spatie/laravel-responsecache
+      ```
+
+      Add middleware:
+      ```php
+      // app/Http/Kernel.php
+      protected $middlewareGroups = [
+          'web' => [
+              \Spatie\ResponseCache\Middlewares\CacheResponse::class,
+          ],
+      ];
+      ```
+
+  - code: LARAVEL_LIVEWIRE_SEO
+    severity: warning
+    title: "Livewire components may affect SEO"
+    description: "Livewire content loads via JavaScript after initial page load."
+    howToFix: |
+      For SEO-critical content, use wire:init to load immediately:
+
+      ```blade
+      <div wire:init="loadData">
+          @if($data)
+              {{-- Content --}}
+          @else
+              {{-- Loading skeleton --}}
+          @endif
+      </div>
+      ```
+
+      Or use Alpine.js for client-only interactions.
+
+performance_tips:
+  - "Enable route caching: php artisan route:cache"
+  - "Enable config caching: php artisan config:cache"
+  - "Use query caching with remember()"
+  - "Optimize autoloader: composer dump-autoload -o"
+  - "Use Laravel Octane for high performance"
+
+recommended_packages:
+  seo:
+    - "artesaos/seotools - Meta tag management"
+    - "spatie/laravel-sitemap - Sitemap generation"
+    - "spatie/schema-org - Structured data"
+  performance:
+    - "spatie/laravel-responsecache - Full page caching"
+    - "barryvdh/laravel-debugbar - Development profiling"

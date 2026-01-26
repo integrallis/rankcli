@@ -1,0 +1,268 @@
+# Next.js SEO Recipe
+# Next.js has excellent SEO by default, but there are still common mistakes
+
+framework: nextjs
+display_name: Next.js
+category: meta-framework
+base_framework: react
+ssr_default: true
+
+seo_strengths:
+  - "Server-side rendering by default"
+  - "Static site generation support"
+  - "Built-in Image component with optimization"
+  - "Automatic code splitting"
+  - "File-based routing"
+  - "Built-in metadata API (App Router)"
+
+checks:
+  # App Router specific
+  - code: NEXTJS_NO_METADATA_API
+    severity: warning
+    title: "Not using Next.js Metadata API"
+    description: "Next.js 13+ has a built-in Metadata API that's better than react-helmet."
+    howToFix: |
+      Use the Metadata API in your layout or page:
+
+      ```tsx
+      // app/page.tsx
+      import { Metadata } from 'next';
+
+      export const metadata: Metadata = {
+        title: 'Page Title',
+        description: 'Page description',
+        openGraph: {
+          title: 'OG Title',
+          description: 'OG Description',
+          images: ['/og-image.jpg'],
+        },
+      };
+
+      // For dynamic metadata
+      export async function generateMetadata({ params }): Promise<Metadata> {
+        const product = await getProduct(params.id);
+        return {
+          title: product.name,
+          description: product.description,
+        };
+      }
+      ```
+    app_router_only: true
+
+  - code: NEXTJS_GENERATESTATICPARAMS_MISSING
+    severity: warning
+    title: "Dynamic routes without generateStaticParams"
+    description: "Dynamic routes like [id] should pre-generate static pages for SEO."
+    howToFix: |
+      Add generateStaticParams to pre-render dynamic pages:
+
+      ```tsx
+      // app/products/[id]/page.tsx
+      export async function generateStaticParams() {
+        const products = await getProducts();
+        return products.map((product) => ({
+          id: product.id.toString(),
+        }));
+      }
+      ```
+    app_router_only: true
+
+  # Pages Router specific
+  - code: NEXTJS_NO_GETSTATICPROPS
+    severity: warning
+    title: "Pages without getStaticProps/getServerSideProps"
+    description: "Pages fetching data client-side miss SEO benefits of SSR/SSG."
+    howToFix: |
+      Move data fetching to getStaticProps (for static) or getServerSideProps (for dynamic):
+
+      ```tsx
+      // pages/products.tsx
+      export async function getStaticProps() {
+        const products = await fetchProducts();
+        return {
+          props: { products },
+          revalidate: 3600, // ISR: regenerate every hour
+        };
+      }
+      ```
+    pages_router_only: true
+
+  # Common issues
+  - code: NEXTJS_IMAGE_NOT_USED
+    severity: warning
+    title: "Using <img> instead of next/image"
+    description: "The next/image component provides automatic optimization, lazy loading, and prevents CLS."
+    howToFix: |
+      Replace <img> with next/image:
+
+      ```tsx
+      import Image from 'next/image';
+
+      // Before
+      <img src="/hero.jpg" alt="Hero" />
+
+      // After
+      <Image
+        src="/hero.jpg"
+        alt="Hero"
+        width={1200}
+        height={630}
+        priority // for above-the-fold images
+      />
+      ```
+
+  - code: NEXTJS_NO_PRIORITY_IMAGE
+    severity: notice
+    title: "LCP image missing priority prop"
+    description: "The largest image above the fold should have priority={true} for faster LCP."
+    howToFix: |
+      Add priority to your hero/LCP image:
+
+      ```tsx
+      <Image
+        src="/hero.jpg"
+        alt="Hero"
+        width={1200}
+        height={630}
+        priority
+      />
+      ```
+
+  - code: NEXTJS_LINK_NO_PREFETCH
+    severity: notice
+    title: "Link without prefetch consideration"
+    description: "Next.js prefetches all links by default, which can waste bandwidth."
+    howToFix: |
+      Disable prefetch for less important links:
+
+      ```tsx
+      <Link href="/terms" prefetch={false}>
+        Terms of Service
+      </Link>
+      ```
+
+  - code: NEXTJS_NO_ROBOTS_TXT
+    severity: warning
+    title: "Missing robots.txt configuration"
+    description: "Next.js can generate robots.txt automatically."
+    howToFix: |
+      App Router - create app/robots.ts:
+      ```tsx
+      import { MetadataRoute } from 'next';
+
+      export default function robots(): MetadataRoute.Robots {
+        return {
+          rules: {
+            userAgent: '*',
+            allow: '/',
+            disallow: '/api/',
+          },
+          sitemap: 'https://yoursite.com/sitemap.xml',
+        };
+      }
+      ```
+
+      Pages Router - create public/robots.txt or use next-sitemap package.
+
+  - code: NEXTJS_NO_SITEMAP
+    severity: warning
+    title: "Missing sitemap configuration"
+    description: "Next.js can generate sitemaps automatically."
+    howToFix: |
+      App Router - create app/sitemap.ts:
+      ```tsx
+      import { MetadataRoute } from 'next';
+
+      export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+        const products = await getProducts();
+
+        return [
+          { url: 'https://yoursite.com', lastModified: new Date() },
+          { url: 'https://yoursite.com/about', lastModified: new Date() },
+          ...products.map((product) => ({
+            url: `https://yoursite.com/products/${product.id}`,
+            lastModified: product.updatedAt,
+          })),
+        ];
+      }
+      ```
+
+  - code: NEXTJS_USE_CLIENT_OVERUSE
+    severity: warning
+    title: "Overusing 'use client' directive"
+    description: "Too many client components reduces SSR benefits."
+    howToFix: |
+      Keep 'use client' at the leaf level:
+
+      ```tsx
+      // Bad - entire page is client-rendered
+      'use client';
+      export default function Page() { ... }
+
+      // Good - only interactive parts are client
+      // page.tsx (Server Component)
+      import ClientButton from './ClientButton';
+      export default function Page() {
+        return <div>
+          <h1>Server rendered content</h1>
+          <ClientButton /> {/* Only this is client */}
+        </div>
+      }
+      ```
+
+  - code: NEXTJS_FONT_NOT_OPTIMIZED
+    severity: notice
+    title: "Not using next/font for fonts"
+    description: "next/font automatically optimizes fonts and prevents CLS."
+    howToFix: |
+      Use next/font for Google Fonts or local fonts:
+
+      ```tsx
+      import { Inter } from 'next/font/google';
+
+      const inter = Inter({ subsets: ['latin'] });
+
+      export default function RootLayout({ children }) {
+        return (
+          <html lang="en" className={inter.className}>
+            <body>{children}</body>
+          </html>
+        );
+      }
+      ```
+
+  - code: NEXTJS_NO_TRAILING_SLASH_CONFIG
+    severity: notice
+    title: "Inconsistent trailing slash handling"
+    description: "Inconsistent URLs can cause duplicate content issues."
+    howToFix: |
+      Configure trailingSlash in next.config.js:
+
+      ```js
+      module.exports = {
+        trailingSlash: true, // or false
+      };
+      ```
+
+performance_tips:
+  - "Use React Server Components for static content"
+  - "Add priority to LCP images"
+  - "Use next/font for fonts"
+  - "Enable ISR for frequently updated pages"
+  - "Use Route Handlers instead of API routes for server-only logic"
+
+structured_data:
+  - type: "JSON-LD in metadata"
+    example: |
+      ```tsx
+      export const metadata: Metadata = {
+        other: {
+          'script:ld+json': JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: 'Your Company',
+            url: 'https://yoursite.com',
+          }),
+        },
+      };
+      ```

@@ -126,7 +126,7 @@ describe('analyzeTrackingVerification', () => {
 
       const noscriptIssue = issues.find((i) => i.code === 'GTM_NOSCRIPT_MISSING');
       expect(noscriptIssue).toBeDefined();
-      expect(noscriptIssue?.severity).toBe('info');
+      expect(noscriptIssue?.severity).toBe('notice');
     });
 
     it('reports missing GTM as informational', () => {
@@ -138,7 +138,7 @@ describe('analyzeTrackingVerification', () => {
 
       const gtmIssue = issues.find((i) => i.code === 'GTM_MISSING');
       expect(gtmIssue).toBeDefined();
-      expect(gtmIssue?.severity).toBe('info');
+      expect(gtmIssue?.severity).toBe('notice');
     });
   });
 
@@ -207,7 +207,7 @@ describe('analyzeTrackingVerification', () => {
       expect(bingIssue).toBeUndefined();
     });
 
-    it('reports missing Bing verification as info', () => {
+    it('reports missing Bing verification as notice', () => {
       const html = `<html><head></head></html>`;
 
       const { data, issues } = analyzeTrackingVerification(html, testUrl);
@@ -216,7 +216,7 @@ describe('analyzeTrackingVerification', () => {
 
       const bingIssue = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
       expect(bingIssue).toBeDefined();
-      expect(bingIssue?.severity).toBe('info');
+      expect(bingIssue?.severity).toBe('notice');
     });
   });
 

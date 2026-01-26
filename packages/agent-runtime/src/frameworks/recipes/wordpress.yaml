@@ -1,0 +1,209 @@
+# WordPress SEO Recipe
+# WordPress powers 40%+ of the web - SEO is well-supported with plugins
+
+framework: wordpress
+display_name: WordPress
+category: cms
+ssr_default: true  # PHP renders on server
+
+seo_strengths:
+  - "Server-rendered HTML by default"
+  - "Mature SEO plugin ecosystem"
+  - "Built-in canonical URL support"
+  - "Sitemap generation via plugins"
+  - "Structured data plugins available"
+
+seo_challenges:
+  - "Plugin bloat can slow performance"
+  - "Default themes often lack optimization"
+  - "Image optimization requires plugins"
+  - "Caching needed for performance"
+
+checks:
+  - code: WORDPRESS_NO_SEO_PLUGIN
+    severity: warning
+    title: "No SEO plugin detected"
+    description: "WordPress benefits greatly from an SEO plugin like Yoast or Rank Math."
+    howToFix: |
+      Install an SEO plugin:
+
+      **Yoast SEO** (most popular):
+      1. Go to Plugins > Add New
+      2. Search "Yoast SEO"
+      3. Install and activate
+
+      **Rank Math** (feature-rich free tier):
+      1. Go to Plugins > Add New
+      2. Search "Rank Math"
+      3. Install and activate
+
+      Both provide:
+      - Meta title/description management
+      - XML sitemap generation
+      - Schema markup
+      - Content analysis
+
+  - code: WORDPRESS_OUTDATED
+    severity: error
+    title: "WordPress core is outdated"
+    description: "Running outdated WordPress is a security risk and may have SEO bugs."
+    howToFix: |
+      Update WordPress:
+      1. Backup your site first
+      2. Go to Dashboard > Updates
+      3. Click "Update Now"
+
+      Enable auto-updates in wp-config.php:
+      ```php
+      define('WP_AUTO_UPDATE_CORE', true);
+      ```
+
+  - code: WORDPRESS_NO_CACHING
+    severity: warning
+    title: "No caching plugin detected"
+    description: "WordPress without caching is slow, hurting Core Web Vitals."
+    howToFix: |
+      Install a caching plugin:
+
+      **WP Super Cache** (simple):
+      - Easy setup, good for most sites
+
+      **W3 Total Cache** (advanced):
+      - More features, steeper learning curve
+
+      **LiteSpeed Cache** (if on LiteSpeed server):
+      - Best performance on compatible hosts
+
+  - code: WORDPRESS_LARGE_IMAGES
+    severity: warning
+    title: "Images not optimized"
+    description: "Large images slow down WordPress significantly."
+    howToFix: |
+      Install an image optimization plugin:
+
+      **ShortPixel** or **Smush**:
+      - Compresses existing images
+      - Optimizes on upload
+      - WebP conversion
+
+      Or use Cloudflare Polish for automatic optimization.
+
+  - code: WORDPRESS_TOO_MANY_PLUGINS
+    severity: warning
+    title: "Too many plugins installed"
+    description: "Each plugin adds overhead. Many sites have 30+ plugins when 10-15 suffice."
+    howToFix: |
+      Audit your plugins:
+      1. Go to Plugins > Installed Plugins
+      2. Deactivate plugins not in use
+      3. Delete deactivated plugins
+      4. Consider consolidating (one SEO plugin, one security plugin)
+
+      Aim for under 20 plugins.
+
+  - code: WORDPRESS_NO_LAZY_LOAD
+    severity: notice
+    title: "Native lazy loading not enabled"
+    description: "WordPress 5.5+ has native lazy loading, but themes may disable it."
+    howToFix: |
+      Check if lazy loading is enabled:
+      ```php
+      // In functions.php, remove if present:
+      add_filter('wp_lazy_loading_enabled', '__return_false');
+      ```
+
+      For older WordPress, add:
+      ```php
+      add_filter('wp_lazy_loading_enabled', '__return_true');
+      ```
+
+  - code: WORDPRESS_NO_WEBP
+    severity: notice
+    title: "Not serving WebP images"
+    description: "WebP images are 25-35% smaller than JPEG."
+    howToFix: |
+      Use a plugin that serves WebP:
+
+      1. **ShortPixel**: Auto-converts and serves WebP
+      2. **WebP Express**: Converts and configures server
+
+      Or use Cloudflare with Polish enabled for automatic WebP.
+
+  - code: WORDPRESS_NO_PRELOAD_HINTS
+    severity: notice
+    title: "Missing resource hints"
+    description: "Preload hints can speed up critical resources."
+    howToFix: |
+      Add to your theme's functions.php:
+
+      ```php
+      function add_resource_hints() {
+        // Preload critical font
+        echo '<link rel="preload" href="/wp-content/themes/yourtheme/fonts/main.woff2" as="font" type="font/woff2" crossorigin>';
+
+        // Preconnect to external domains
+        echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
+      }
+      add_action('wp_head', 'add_resource_hints', 1);
+      ```
+
+  - code: WORDPRESS_BLOCKING_SCRIPTS
+    severity: warning
+    title: "Render-blocking scripts detected"
+    description: "JavaScript in <head> blocks rendering."
+    howToFix: |
+      Use a plugin like **Autoptimize** or **Asset CleanUp** to:
+      - Defer JavaScript
+      - Inline critical CSS
+      - Combine files
+
+      Or add defer manually in functions.php:
+      ```php
+      function defer_scripts($tag, $handle) {
+        if (is_admin()) return $tag;
+        return str_replace(' src', ' defer src', $tag);
+      }
+      add_filter('script_loader_tag', 'defer_scripts', 10, 2);
+      ```
+
+  - code: WORDPRESS_NO_SCHEMA
+    severity: warning
+    title: "No structured data detected"
+    description: "Schema markup helps with rich snippets."
+    howToFix: |
+      **If using Yoast/Rank Math**: Schema is included.
+
+      **Manual schema** in theme:
+      ```php
+      function add_organization_schema() {
+        if (is_front_page()) {
+          echo '<script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Your Company",
+            "url": "' . home_url() . '"
+          }
+          </script>';
+        }
+      }
+      add_action('wp_footer', 'add_organization_schema');
+      ```
+
+performance_tips:
+  - "Use a quality managed WordPress host (WP Engine, Kinsta)"
+  - "Enable object caching (Redis/Memcached)"
+  - "Use a CDN (Cloudflare, Fastly)"
+  - "Keep plugins under 20"
+  - "Choose a lightweight theme (GeneratePress, Astra)"
+  - "Disable unnecessary features (emojis, embeds)"
+
+recommended_plugins:
+  seo:
+    - "Yoast SEO or Rank Math"
+  performance:
+    - "WP Super Cache or LiteSpeed Cache"
+    - "ShortPixel or Smush (images)"
+    - "Autoptimize (JS/CSS)"
+  security:
+    - "Wordfence or Sucuri"

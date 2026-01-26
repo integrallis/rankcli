@@ -1,0 +1,171 @@
+# Angular SEO Recipe
+# Angular has SSR support via Angular Universal
+
+framework: angular
+display_name: Angular
+category: spa
+ssr_default: false
+
+seo_challenges:
+  - "Client-side rendering by default"
+  - "Heavy initial bundle size"
+  - "Complex SSR setup (Angular Universal)"
+  - "Zone.js can cause performance issues"
+
+checks:
+  - code: ANGULAR_NO_UNIVERSAL
+    severity: error
+    title: "Angular app without Universal (SSR)"
+    description: "Client-side Angular apps send empty HTML to crawlers."
+    impact: "Your content may not be indexed by search engines"
+    howToFix: |
+      Add Angular Universal for SSR:
+
+      ```bash
+      ng add @angular/ssr
+      ```
+
+      This adds server-side rendering to your Angular app.
+
+  - code: ANGULAR_NO_TITLE_SERVICE
+    severity: error
+    title: "Not using Title/Meta services"
+    description: "Angular has built-in services for managing title and meta tags."
+    howToFix: |
+      Use Title and Meta services:
+
+      ```ts
+      import { Title, Meta } from '@angular/platform-browser';
+
+      @Component({...})
+      export class ProductComponent {
+        constructor(
+          private title: Title,
+          private meta: Meta
+        ) {}
+
+        ngOnInit() {
+          this.title.setTitle('Product Name | Your Site');
+          this.meta.updateTag({ name: 'description', content: 'Product description' });
+          this.meta.updateTag({ property: 'og:title', content: 'Product Name' });
+        }
+      }
+      ```
+
+  - code: ANGULAR_LAZY_LOAD_MISSING
+    severity: warning
+    title: "Routes not lazy loaded"
+    description: "Loading all modules upfront increases initial bundle size."
+    howToFix: |
+      Use lazy loading for routes:
+
+      ```ts
+      const routes: Routes = [
+        {
+          path: 'products',
+          loadChildren: () => import('./products/products.module')
+            .then(m => m.ProductsModule)
+        },
+        // Or with standalone components
+        {
+          path: 'about',
+          loadComponent: () => import('./about/about.component')
+            .then(m => m.AboutComponent)
+        }
+      ];
+      ```
+
+  - code: ANGULAR_PRERENDER_MISSING
+    severity: warning
+    title: "Static routes not prerendered"
+    description: "Static pages should be prerendered at build time."
+    howToFix: |
+      Configure prerendering in angular.json:
+
+      ```json
+      {
+        "projects": {
+          "your-app": {
+            "architect": {
+              "prerender": {
+                "options": {
+                  "routes": ["/", "/about", "/contact"]
+                }
+              }
+            }
+          }
+        }
+      }
+      ```
+
+      Run: `ng run your-app:prerender`
+
+  - code: ANGULAR_CHANGE_DETECTION
+    severity: notice
+    title: "Using default change detection"
+    description: "OnPush change detection improves performance significantly."
+    howToFix: |
+      Use OnPush for components:
+
+      ```ts
+      @Component({
+        selector: 'app-product',
+        changeDetection: ChangeDetectionStrategy.OnPush,
+        template: `...`
+      })
+      export class ProductComponent {}
+      ```
+
+  - code: ANGULAR_LARGE_BUNDLE
+    severity: warning
+    title: "Large initial bundle detected"
+    description: "Bundle over 500KB significantly hurts performance."
+    howToFix: |
+      1. Enable build optimizer:
+      ```json
+      // angular.json
+      "optimization": true,
+      "buildOptimizer": true
+      ```
+
+      2. Analyze bundle:
+      ```bash
+      ng build --stats-json
+      npx webpack-bundle-analyzer dist/your-app/stats.json
+      ```
+
+      3. Remove unused dependencies
+
+  - code: ANGULAR_NO_IMAGE_DIRECTIVE
+    severity: notice
+    title: "Not using NgOptimizedImage"
+    description: "Angular 15+ has built-in image optimization."
+    howToFix: |
+      Use NgOptimizedImage directive:
+
+      ```ts
+      import { NgOptimizedImage } from '@angular/common';
+
+      @Component({
+        imports: [NgOptimizedImage],
+        template: `
+          <img ngSrc="/hero.jpg" width="1200" height="630" priority />
+        `
+      })
+      ```
+
+performance_tips:
+  - "Use standalone components to reduce bundle"
+  - "Enable OnPush change detection"
+  - "Lazy load routes"
+  - "Use trackBy with ngFor"
+  - "Prerender static pages"
+
+migration_paths:
+  analog:
+    effort: medium
+    benefits:
+      - "File-based routing"
+      - "Full SSR support"
+      - "Vite-powered builds"
+    guide: "https://analogjs.org/docs/introduction"

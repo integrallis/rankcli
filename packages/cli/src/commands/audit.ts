@@ -1,6 +1,8 @@
-import { runFullAudit, formatReport, discoverPagesFromLinks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
+import { runFullAudit, formatReport, discoverPagesFromLinks, frameworks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
+
+const { detectFramework, getFrameworkDisplayName, getFrameworkIssues } = frameworks;
 import { isLoggedIn, getAuthenticatedClient, getUserInfo, WEB_APP_URL } from '../lib/config.js';
 
 interface AuditOptions {
@@ -112,10 +114,10 @@ Return JSON with:
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     const content = isAnthropic
-      ? data.content?.[0]?.text
-      : data.choices?.[0]?.message?.content;
+      ? (data.content as Array<{ text?: string }>)?.[0]?.text
+      : (data.choices as Array<{ message?: { content?: string } }>)?.[0]?.message?.content;
 
     if (!content) return null;
 
@@ -191,8 +193,9 @@ async function syncToCloud(
         .eq('user_id', userId)
         .eq('is_active', true);
 
-      if (count !== null && count >= sitesLimit) {
-        console.log(chalk.yellow(`\n⚠️  Project limit reached (${count}/${sitesLimit})`));
+      const limit = sitesLimit ?? 1;
+      if (count !== null && count >= limit) {
+        console.log(chalk.yellow(`\n⚠️  Project limit reached (${count}/${limit})`));
         console.log(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
         return null;
       }
@@ -337,11 +340,20 @@ export async function audit(options: AuditOptions): Promise<void> {
     let pagesToAudit: string[] = [url];
 
     const homepageHtml = await fetchHtml(url, 10000);
+    let detectedFramework = detectFramework({});
+
     if (homepageHtml) {
+      // Detect framework from HTML
+      detectedFramework = detectFramework({ html: homepageHtml });
+
       const discovered = discoverPagesFromLinks(url, homepageHtml, maxPages - 1);
       const additionalPages = discovered.map(p => p.url).filter(u => u !== url);
       pagesToAudit = [url, ...additionalPages];
-      discoverySpinner.succeed(`Discovered ${pagesToAudit.length} pages to audit`);
+
+      const frameworkLabel = detectedFramework.framework !== 'unknown'
+        ? ` (${getFrameworkDisplayName(detectedFramework.framework)})`
+        : '';
+      discoverySpinner.succeed(`Discovered ${pagesToAudit.length} pages to audit${frameworkLabel}`);
     } else {
       discoverySpinner.warn('Could not fetch homepage, auditing URL only');
     }
@@ -396,7 +408,19 @@ export async function audit(options: AuditOptions): Promise<void> {
     auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
 
     // Merge issues from all pages
-    const mergedIssues = mergeIssues(allIssues);
+    let mergedIssues = mergeIssues(allIssues);
+
+    // ===== PHASE 2.5: Add framework-specific issues =====
+    if (detectedFramework.framework !== 'unknown' && homepageHtml) {
+      try {
+        const frameworkIssues = await getFrameworkIssues(detectedFramework, homepageHtml, url);
+        if (frameworkIssues.length > 0) {
+          mergedIssues = [...mergedIssues, ...frameworkIssues];
+        }
+      } catch {
+        // Framework-specific issues are optional, continue without them
+      }
+    }
 
     // ===== PHASE 3: AI Analysis (optional) =====
     let aiAnalysis: AIAnalysis | null = null;
@@ -417,12 +441,18 @@ export async function audit(options: AuditOptions): Promise<void> {
     // ===== PHASE 4: Output results =====
     const totalTime = Date.now() - startTime;
 
+    // Determine framework info for output
+    const frameworkName = detectedFramework.framework !== 'unknown'
+      ? getFrameworkDisplayName(detectedFramework.framework)
+      : null;
+
     if (options.output === 'json') {
       const jsonOutput = {
         url,
         score: primaryReport.healthScore?.overall || 0,
         pagesAudited: successCount,
         totalTime,
+        framework: frameworkName,
         issues: mergedIssues,
         healthScores: primaryReport.healthScore,
         aiAnalysis,
@@ -443,6 +473,9 @@ export async function audit(options: AuditOptions): Promise<void> {
       console.log(`  ${chalk.bold('Pages audited:')} ${successCount}`);
       console.log(`  ${chalk.bold('Issues found:')} ${mergedIssues.length}`);
       console.log(`  ${chalk.bold('Time:')} ${totalTime}ms`);
+      if (frameworkName) {
+        console.log(`  ${chalk.bold('Framework:')} ${chalk.cyan(frameworkName)}`);
+      }
 
       // Health scores
       if (primaryReport.healthScore) {

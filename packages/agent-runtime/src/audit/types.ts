@@ -17,7 +17,8 @@ export type IssueCategory =
   | 'ai-readiness'
   | 'social'
   | 'local-seo'
-  | 'accessibility';
+  | 'accessibility'
+  | 'framework';
 
 export interface AuditIssue {
   code: string;
@@ -1874,5 +1875,79 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     description: 'External links use URL shorteners, hiding the actual destination.',
     impact: 'URL shorteners reduce trust and SEO link value.',
     howToFix: 'Replace shortened URLs with direct links to the destination.',
+  },
+
+  // ==================== FRAMEWORK-SPECIFIC SEO ====================
+  REACT_CSR_DETECTED: {
+    code: 'REACT_CSR_DETECTED',
+    severity: 'error',
+    category: 'framework',
+    title: 'Client-side rendered React app detected',
+    description: 'React apps without SSR send empty HTML to crawlers. Search engines may not index your content.',
+    impact: 'Critical - your content is likely invisible to Google.',
+    howToFix: 'Migrate to Next.js for automatic SSR/SSG, add prerendering with react-snap, or use react-helmet-async with a prerender service.',
+  },
+  NEXTJS_NO_METADATA_API: {
+    code: 'NEXTJS_NO_METADATA_API',
+    severity: 'warning',
+    category: 'framework',
+    title: 'Not using Next.js Metadata API',
+    description: 'Next.js 13+ has a built-in Metadata API that is more reliable than third-party solutions.',
+    impact: 'Missing out on Next.js optimized SEO features.',
+    howToFix: 'Use export const metadata or generateMetadata in your page/layout files.',
+  },
+  VUE_CSR_DETECTED: {
+    code: 'VUE_CSR_DETECTED',
+    severity: 'error',
+    category: 'framework',
+    title: 'Client-side rendered Vue app detected',
+    description: 'Vue apps without SSR send empty HTML to crawlers.',
+    impact: 'Your content may not be indexed by search engines.',
+    howToFix: 'Migrate to Nuxt for automatic SSR/SSG, or add SSR with @vue/server-renderer.',
+  },
+  ANGULAR_NO_UNIVERSAL: {
+    code: 'ANGULAR_NO_UNIVERSAL',
+    severity: 'error',
+    category: 'framework',
+    title: 'Angular app without Universal (SSR)',
+    description: 'Client-side Angular apps send empty HTML to crawlers.',
+    impact: 'Your content may not be indexed by search engines.',
+    howToFix: 'Add Angular Universal for SSR: ng add @angular/ssr',
+  },
+  WORDPRESS_NO_SEO_PLUGIN: {
+    code: 'WORDPRESS_NO_SEO_PLUGIN',
+    severity: 'warning',
+    category: 'framework',
+    title: 'No SEO plugin detected',
+    description: 'WordPress benefits greatly from an SEO plugin like Yoast or Rank Math.',
+    impact: 'Missing automated SEO features like sitemaps, schema, and meta tag management.',
+    howToFix: 'Install Yoast SEO or Rank Math plugin.',
+  },
+  WORDPRESS_NO_CACHING: {
+    code: 'WORDPRESS_NO_CACHING',
+    severity: 'warning',
+    category: 'framework',
+    title: 'No caching plugin detected',
+    description: 'WordPress without caching is slow, hurting Core Web Vitals.',
+    impact: 'Poor performance affects user experience and rankings.',
+    howToFix: 'Install WP Super Cache, W3 Total Cache, or LiteSpeed Cache.',
+  },
+  SPA_EMPTY_BODY: {
+    code: 'SPA_EMPTY_BODY',
+    severity: 'error',
+    category: 'framework',
+    title: 'Single Page App with empty body',
+    description: 'Page body contains minimal content, suggesting client-side rendering without SSR.',
+    impact: 'Search engines see an empty page and cannot index your content.',
+    howToFix: 'Implement server-side rendering, static site generation, or prerendering.',
+  },
+  FRAMEWORK_OUTDATED: {
+    code: 'FRAMEWORK_OUTDATED',
+    severity: 'warning',
+    category: 'framework',
+    title: 'Outdated framework version detected',
+    description: 'Running an outdated version of your framework may have security vulnerabilities and SEO bugs.',
+    impact: 'Potential security issues and missing SEO improvements.',
+    howToFix: 'Update to the latest stable version of your framework.',
   },
 };

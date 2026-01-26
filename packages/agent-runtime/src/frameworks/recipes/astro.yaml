@@ -1,0 +1,206 @@
+# Astro SEO Recipe
+# Astro is SEO-first by design - zero JS by default, excellent for content sites
+
+framework: astro
+display_name: Astro
+category: static-first
+ssr_default: false  # Static by default, SSR optional
+
+seo_strengths:
+  - "Zero JavaScript by default"
+  - "Static HTML output"
+  - "Excellent performance (100 Lighthouse)"
+  - "Content Collections for organized content"
+  - "Built-in sitemap and RSS integrations"
+  - "Partial hydration (Islands Architecture)"
+
+checks:
+  - code: ASTRO_NO_SITEMAP
+    severity: warning
+    title: "Missing sitemap integration"
+    description: "Astro has a built-in sitemap integration."
+    howToFix: |
+      Add the sitemap integration:
+
+      ```bash
+      npx astro add sitemap
+      ```
+
+      Configure in astro.config.mjs:
+      ```js
+      import sitemap from '@astrojs/sitemap';
+
+      export default defineConfig({
+        site: 'https://yoursite.com',
+        integrations: [sitemap()],
+      });
+      ```
+
+  - code: ASTRO_NO_SITE_CONFIG
+    severity: error
+    title: "Missing site URL configuration"
+    description: "The site URL is required for sitemap and canonical URLs."
+    howToFix: |
+      Add site to astro.config.mjs:
+
+      ```js
+      export default defineConfig({
+        site: 'https://yoursite.com',
+      });
+      ```
+
+  - code: ASTRO_CLIENT_DIRECTIVE_OVERUSE
+    severity: warning
+    title: "Overusing client: directives"
+    description: "Too many client-side components reduce Astro's performance benefits."
+    howToFix: |
+      Only hydrate components that need interactivity:
+
+      ```astro
+      <!-- Bad - unnecessary JS -->
+      <StaticCard client:load />
+
+      <!-- Good - no JS for static content -->
+      <StaticCard />
+
+      <!-- Good - only hydrate when needed -->
+      <InteractiveWidget client:visible />
+      ```
+
+      Prefer client:visible over client:load for below-fold content.
+
+  - code: ASTRO_NO_BASE_LAYOUT
+    severity: notice
+    title: "Pages missing base layout"
+    description: "Using a shared layout ensures consistent SEO tags."
+    howToFix: |
+      Create a BaseLayout.astro:
+
+      ```astro
+      ---
+      // src/layouts/BaseLayout.astro
+      interface Props {
+        title: string;
+        description: string;
+      }
+      const { title, description } = Astro.props;
+      ---
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width" />
+          <title>{title}</title>
+          <meta name="description" content={description} />
+          <link rel="canonical" href={Astro.url} />
+        </head>
+        <body>
+          <slot />
+        </body>
+      </html>
+      ```
+
+  - code: ASTRO_NO_ASTRO_SEO
+    severity: notice
+    title: "Not using @astrolib/seo"
+    description: "The astro-seo package provides comprehensive SEO components."
+    howToFix: |
+      Install astro-seo:
+
+      ```bash
+      npm install astro-seo
+      ```
+
+      ```astro
+      ---
+      import { SEO } from 'astro-seo';
+      ---
+      <SEO
+        title="Page Title"
+        description="Description"
+        openGraph={{
+          basic: {
+            title: "OG Title",
+            type: "website",
+            image: "/og-image.jpg",
+          }
+        }}
+        twitter={{
+          creator: "@handle"
+        }}
+      />
+      ```
+
+  - code: ASTRO_IMAGE_NOT_OPTIMIZED
+    severity: warning
+    title: "Images not using Astro Image"
+    description: "Use Astro's built-in Image component for optimization."
+    howToFix: |
+      Use the Image component:
+
+      ```astro
+      ---
+      import { Image } from 'astro:assets';
+      import heroImage from '../assets/hero.jpg';
+      ---
+      <Image
+        src={heroImage}
+        alt="Hero"
+        width={1200}
+        height={630}
+        loading="eager"
+      />
+      ```
+
+  - code: ASTRO_NO_CONTENT_COLLECTIONS
+    severity: notice
+    title: "Not using Content Collections"
+    description: "Content Collections provide type-safe content with built-in frontmatter validation."
+    howToFix: |
+      Define a collection in src/content/config.ts:
+
+      ```ts
+      import { defineCollection, z } from 'astro:content';
+
+      const blog = defineCollection({
+        schema: z.object({
+          title: z.string(),
+          description: z.string(),
+          pubDate: z.date(),
+        }),
+      });
+
+      export const collections = { blog };
+      ```
+
+  - code: ASTRO_SSR_OVERUSE
+    severity: notice
+    title: "Using SSR when static would work"
+    description: "Static pages are faster and cheaper to host."
+    howToFix: |
+      Use prerender for pages that don't need SSR:
+
+      ```astro
+      ---
+      export const prerender = true; // Static generation
+      ---
+      ```
+
+      Or set default to static in config:
+      ```js
+      export default defineConfig({
+        output: 'hybrid', // Static by default, SSR opt-in
+      });
+      ```
+
+performance_tips:
+  - "Use client:visible instead of client:load for below-fold components"
+  - "Leverage Content Collections for type-safe content"
+  - "Use View Transitions for smooth navigation"
+  - "Optimize images with astro:assets"
+  - "Consider using Astro DB for dynamic content"
+
+integrations:
+  - "@astrojs/sitemap - Automatic sitemap generation"
+  - "@astrojs/rss - RSS feed for blogs"
+  - "astro-seo - Comprehensive SEO component"
+  - "@astrojs/partytown - Move third-party scripts to web worker"
