@@ -60,6 +60,11 @@ vi.mock('@rankcli/agent-runtime', () => ({
   runFullAudit: (...args: unknown[]) => mockRunFullAudit(...args),
   formatReport: vi.fn().mockReturnValue('Formatted report'),
   discoverPagesFromLinks: (...args: unknown[]) => mockDiscoverPagesFromLinks(...args),
+  frameworks: {
+    detectFramework: vi.fn().mockReturnValue({ framework: 'unknown', confidence: 0 }),
+    getFrameworkDisplayName: vi.fn().mockReturnValue('Unknown'),
+    getFrameworkIssues: vi.fn().mockReturnValue([]),
+  },
 }));
 
 // Mock config

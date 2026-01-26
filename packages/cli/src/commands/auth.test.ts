@@ -39,6 +39,10 @@ const mockSaveSession = vi.fn();
 const mockSaveSubscription = vi.fn();
 const mockGetSupabaseClient = vi.fn();
 const mockGetAuthenticatedClient = vi.fn();
+const mockIsApiKeyAuth = vi.fn();
+const mockGetApiKey = vi.fn();
+const mockSaveApiKey = vi.fn();
+const mockValidateApiKey = vi.fn();
 
 vi.mock('../lib/config.js', () => ({
   isLoggedIn: () => mockIsLoggedIn(),
@@ -48,6 +52,10 @@ vi.mock('../lib/config.js', () => ({
   saveSubscription: (s: unknown) => mockSaveSubscription(s),
   getSupabaseClient: () => mockGetSupabaseClient(),
   getAuthenticatedClient: () => mockGetAuthenticatedClient(),
+  isApiKeyAuth: () => mockIsApiKeyAuth(),
+  getApiKey: () => mockGetApiKey(),
+  saveApiKey: (key: string, name?: string) => mockSaveApiKey(key, name),
+  validateApiKey: (key: string) => mockValidateApiKey(key),
   WEB_APP_URL: 'http://localhost:3005',
 }));
 
@@ -234,8 +242,9 @@ describe('Auth Commands', () => {
       );
     });
 
-    it('displays account info when logged in', async () => {
+    it('displays account info when logged in via session', async () => {
       mockIsLoggedIn.mockReturnValue(true);
+      mockIsApiKeyAuth.mockReturnValue(false);
       mockGetUserInfo.mockReturnValue({
         email: 'pro@test.com',
         planName: 'Pro',
@@ -267,8 +276,30 @@ describe('Auth Commands', () => {
       );
     });
 
+    it('displays account info when logged in via API key', async () => {
+      mockIsLoggedIn.mockReturnValue(true);
+      mockIsApiKeyAuth.mockReturnValue(true);
+      mockGetApiKey.mockReturnValue('rankcli_testkey123');
+      mockValidateApiKey.mockResolvedValue({
+        valid: true,
+        subscription: { planId: 'pro', planName: 'Pro', sitesLimit: 10 },
+      });
+      mockGetUserInfo.mockReturnValue({
+        email: 'apikey@test.com',
+        planName: 'Pro',
+        sitesLimit: 10,
+      });
+
+      await whoami();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('apikey@test.com')
+      );
+    });
+
     it('handles fetch error gracefully', async () => {
       mockIsLoggedIn.mockReturnValue(true);
+      mockIsApiKeyAuth.mockReturnValue(false);
       mockGetUserInfo.mockReturnValue({ email: 'user@test.com' });
 
       mockGetAuthenticatedClient.mockRejectedValue(new Error('Auth failed'));
