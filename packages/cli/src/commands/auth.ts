@@ -8,6 +8,10 @@ import {
   saveSubscription,
   clearCredentials,
   isLoggedIn,
+  isApiKeyAuth,
+  getApiKey,
+  saveApiKey,
+  validateApiKey,
   getUserInfo,
   getAuthenticatedClient,
   WEB_APP_URL,
@@ -16,6 +20,7 @@ import {
 export interface LoginOptions {
   email?: string;
   browser?: boolean;
+  token?: string; // API key for non-interactive auth
 }
 
 export async function login(options: LoginOptions): Promise<void> {
@@ -29,6 +34,41 @@ export async function login(options: LoginOptions): Promise<void> {
   const spinner = ora();
 
   try {
+    // API key authentication (--token flag)
+    if (options.token) {
+      const apiKey = options.token;
+
+      if (!apiKey.startsWith('rankcli_')) {
+        console.log(chalk.red('Invalid API key format. Keys should start with "rankcli_"'));
+        return;
+      }
+
+      spinner.start('Validating API key...');
+
+      const result = await validateApiKey(apiKey);
+
+      if (!result.valid) {
+        spinner.fail('Invalid API key');
+        console.log(chalk.red(`\n${result.error}`));
+        return;
+      }
+
+      // Save API key and user info
+      saveApiKey(apiKey);
+      if (result.subscription) {
+        saveSubscription({
+          planId: result.subscription.planId,
+          planName: result.subscription.planName,
+          sitesLimit: result.subscription.sitesLimit,
+        });
+      }
+
+      spinner.succeed(`Authenticated via API key`);
+      console.log(chalk.dim(`\nEmail: ${result.user?.email}`));
+      console.log(chalk.dim(`Plan: ${result.subscription?.planName || 'Free'}`));
+      return;
+    }
+
     if (options.browser) {
       // Browser-based login
       console.log(chalk.cyan('\nOpening browser for login...'));
@@ -176,18 +216,35 @@ export async function whoami(): Promise<void> {
   const spinner = ora('Checking account...').start();
 
   try {
-    // Refresh subscription info
-    await fetchAndSaveSubscription();
+    // If using API key, validate and get fresh info
+    if (isApiKeyAuth()) {
+      const apiKey = getApiKey();
+      if (apiKey) {
+        const result = await validateApiKey(apiKey);
+        if (result.valid && result.subscription) {
+          saveSubscription({
+            planId: result.subscription.planId,
+            planName: result.subscription.planName,
+            sitesLimit: result.subscription.sitesLimit,
+          });
+        }
+      }
+    } else {
+      // Refresh subscription info via session
+      await fetchAndSaveSubscription();
+    }
 
     const { email, planName, sitesLimit } = getUserInfo();
+    const authMethod = isApiKeyAuth() ? 'API Key' : 'Session';
 
     spinner.stop();
 
     console.log(chalk.bold('\nRankCLI Account'));
     console.log('─'.repeat(40));
-    console.log(`  Email:  ${chalk.cyan(email)}`);
+    console.log(`  Email:  ${chalk.cyan(email || 'N/A')}`);
     console.log(`  Plan:   ${chalk.green(planName)}`);
     console.log(`  Sites:  ${sitesLimit} allowed`);
+    console.log(`  Auth:   ${chalk.dim(authMethod)}`);
     console.log('─'.repeat(40));
     console.log(chalk.dim(`\nManage at: ${WEB_APP_URL}/account`));
   } catch (err) {

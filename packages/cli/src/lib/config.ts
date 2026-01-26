@@ -3,12 +3,16 @@ import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 
 // RankCLI configuration schema
 interface ConfigSchema {
-  // Auth
+  // Auth (session-based)
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: number;
   userId?: string;
   email?: string;
+
+  // Auth (API key-based)
+  apiKey?: string;
+  apiKeyName?: string;
 
   // Subscription
   planId?: string;
@@ -28,6 +32,9 @@ const SUPABASE_ANON_KEY = process.env.RANKCLI_SUPABASE_ANON_KEY
 // Web app URL
 export const WEB_APP_URL = process.env.RANKCLI_WEB_URL || 'http://localhost:3005';
 
+// API base URL for validation
+const API_URL = process.env.RANKCLI_API_URL || SUPABASE_URL;
+
 // Initialize config store
 export const config = new Conf<ConfigSchema>({
   projectName: 'rankcli',
@@ -37,6 +44,8 @@ export const config = new Conf<ConfigSchema>({
     expiresAt: { type: 'number' },
     userId: { type: 'string' },
     email: { type: 'string' },
+    apiKey: { type: 'string' },
+    apiKeyName: { type: 'string' },
     planId: { type: 'string' },
     planName: { type: 'string' },
     sitesLimit: { type: 'number' },
@@ -58,8 +67,15 @@ export function getSupabaseClient(): SupabaseClient {
   return supabaseClient;
 }
 
-// Check if user is logged in and token is valid
+// Check if user is logged in (via session or API key)
 export function isLoggedIn(): boolean {
+  // Check API key first (env var or stored)
+  const apiKey = process.env.RANKCLI_API_KEY || config.get('apiKey');
+  if (apiKey && apiKey.startsWith('rankcli_')) {
+    return true;
+  }
+
+  // Check session token
   const accessToken = config.get('accessToken');
   const expiresAt = config.get('expiresAt');
 
@@ -70,6 +86,57 @@ export function isLoggedIn(): boolean {
   // Check if token is expired (with 5 min buffer)
   const now = Math.floor(Date.now() / 1000);
   return expiresAt > now + 300;
+}
+
+// Check if using API key auth
+export function isApiKeyAuth(): boolean {
+  const apiKey = process.env.RANKCLI_API_KEY || config.get('apiKey');
+  return !!(apiKey && apiKey.startsWith('rankcli_'));
+}
+
+// Get API key (from env or config)
+export function getApiKey(): string | null {
+  return process.env.RANKCLI_API_KEY || config.get('apiKey') || null;
+}
+
+// Save API key to config
+export function saveApiKey(apiKey: string, keyName?: string): void {
+  config.set('apiKey', apiKey);
+  if (keyName) {
+    config.set('apiKeyName', keyName);
+  }
+}
+
+// Validate API key with the server
+export async function validateApiKey(apiKey: string): Promise<{
+  valid: boolean;
+  user?: { id: string; email: string };
+  subscription?: { planId: string; planName: string; sitesLimit: number };
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/validate-api-key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { valid: false, error: data.error || 'Invalid API key' };
+    }
+
+    return {
+      valid: true,
+      user: data.user,
+      subscription: data.subscription,
+    };
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : 'Validation failed' };
+  }
 }
 
 // Get current session if valid
@@ -147,6 +214,8 @@ export function clearCredentials(): void {
   config.delete('expiresAt');
   config.delete('userId');
   config.delete('email');
+  config.delete('apiKey');
+  config.delete('apiKeyName');
   config.delete('planId');
   config.delete('planName');
   config.delete('sitesLimit');

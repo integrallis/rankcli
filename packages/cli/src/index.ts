@@ -23,6 +23,7 @@ program
   .description('Log in to your RankCLI account')
   .option('-e, --email <email>', 'Email address')
   .option('-b, --browser', 'Open browser for login')
+  .option('-t, --token <apiKey>', 'API key for non-interactive authentication')
   .action(login);
 
 program
