@@ -1,5 +1,5 @@
 {
-  "name": "rankcli",
+  "name": "@rankcli/cli",
   "version": "0.0.1",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
