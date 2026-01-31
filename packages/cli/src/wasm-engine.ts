@@ -129,6 +129,12 @@ function createExecutionContext(jsCode: string): void {
     // URL parsing
     URL,
     URLSearchParams,
+    // Node.js globals needed by bundled dependencies (e.g., cheerio)
+    Buffer,
+    process: { env: {} },
+    // TextEncoder/TextDecoder for string handling
+    TextEncoder,
+    TextDecoder,
     // The RankCLI namespace will be populated by the code
     RankCLI: {},
     // Global reference
