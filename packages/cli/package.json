@@ -30,7 +30,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "npm run build:checks && npm run build:wasm && npm run build:js",
-    "build:js": "tsup src/index.ts src/wasm-engine.ts --format cjs,esm --dts",
+    "build:js": "npm run update-version && tsup src/index.ts src/wasm-engine.ts --format cjs,esm --dts",
     "build:checks": "cd ../agent-runtime && pnpm build:wasm",
     "build:wasm": "cd native && wasm-pack build --target nodejs --release && cp -r pkg ../wasm",
     "build:wasm:dev": "cd native && wasm-pack build --target nodejs --dev && mkdir -p ../wasm && cp -r pkg/* ../wasm/",
@@ -38,7 +38,8 @@
     "start": "node dist/index.js",
     "lint": "eslint src/",
     "test": "vitest run --passWithNoTests",
-    "test:wasm": "node test-wasm.js"
+    "test:wasm": "node test-wasm.js",
+    "update-version": "node scripts/update-version.js"
   },
   "dependencies": {
     "@rankcli/agent-runtime": "workspace:*",

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { createRequire } from 'module';
 import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
@@ -10,17 +9,14 @@ import { keywords, keywordsQuick, keywordsCompetitor, keywordsAI } from './comma
 import { analyzeContent, analyzeIntent } from './commands/content.js';
 import { setup, showGSCInstructions } from './commands/setup.js';
 import { login, logout, whoami } from './commands/auth.js';
-
-// Get version from package.json
-const require = createRequire(import.meta.url);
-const { version } = require('../package.json');
+import { VERSION } from './version.js';
 
 const program = new Command();
 
 program
   .name('rankcli')
   .description('RankCLI - Ship code, get ranked. SEO meets CI/CD.')
-  .version(version);
+  .version(VERSION);
 
 // Auth commands
 program
