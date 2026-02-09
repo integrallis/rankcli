@@ -48,7 +48,7 @@ export async function analyzeHtmlCompliance(
   headers?: Record<string, string>
 ): Promise<{ issues: AuditIssue[]; data: HtmlComplianceData }> {
   const issues: AuditIssue[] = [];
-  const $ = cheerio.load(html, { decodeEntities: false });
+  const $ = cheerio.load(html);
   const parsedUrl = new URL(url);
 
   // === DOCTYPE CHECK ===

@@ -73,7 +73,7 @@ export async function getRelatedSearches(query: string): Promise<string[]> {
 // 3. Wikipedia Topics for Long-Tail Ideas
 export async function getWikipediaTopics(query: string): Promise<string[]> {
   try {
-    const response = await httpGet<string>('https://en.wikipedia.org/w/api.php', {
+    const response = await httpGet<[string, string[], string[], string[]]>('https://en.wikipedia.org/w/api.php', {
       params: {
         action: 'opensearch',
         search: query,

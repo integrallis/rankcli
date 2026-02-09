@@ -2,6 +2,7 @@
 // Based on Nathan Gotch's advice: New sites should focus on authority building, not content proliferation
 // Reference: "How to do SEO when your website is new?"
 
+import https from 'https';
 import { httpGet } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';

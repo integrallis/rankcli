@@ -9,6 +9,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import type { Element } from 'domhandler';
 import type { AuditIssue } from '../types.js';
 
 export interface ImageDimensionsData {
@@ -77,7 +78,7 @@ export function analyzeImageDimensions(
       if (src && !src.includes('data:image/') && !src.includes('placeholder')) {
         // Get context (parent element for identification)
         const parent = $img.parent();
-        const parentTag = parent.length > 0 ? (parent[0] as cheerio.Element).name || '' : '';
+        const parentTag = parent.length > 0 ? (parent[0] as Element).name || '' : '';
         const parentClass = parent.attr('class')?.split(' ')[0] || '';
         const context = parentClass ? `${parentTag}.${parentClass}` : parentTag;
 
