@@ -13,7 +13,6 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { Element } from 'domhandler';
 import type { AuditIssue } from '../types.js';
 
 export interface ColorContrastData {
@@ -146,7 +145,7 @@ export function analyzeColorContrast(
       failedChecks++;
 
       // Create selector for identification
-      const tagName = (element as Element).name;
+      const tagName = (element as any).name;
       const id = $el.attr('id');
       const className = $el.attr('class')?.split(' ')[0];
       const selector = id ? `#${id}` : (className ? `${tagName}.${className}` : tagName);

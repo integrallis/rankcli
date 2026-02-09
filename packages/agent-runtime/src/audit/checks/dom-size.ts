@@ -14,7 +14,6 @@
  */
 
 import * as cheerio from 'cheerio';
-import type { Element } from 'domhandler';
 import type { AuditIssue } from '../types.js';
 
 export interface DomSizeData {
@@ -70,7 +69,7 @@ export function analyzeDomSize(
   let maxDepth = 0;
   let deepestPath: string[] = [];
 
-  function getDepth(element: cheerio.Cheerio<Element>, path: string[]): number {
+  function getDepth(element: cheerio.Cheerio<any>, path: string[]): number {
     const children = element.children();
     if (children.length === 0) {
       if (path.length > maxDepth) {
