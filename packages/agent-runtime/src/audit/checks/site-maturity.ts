@@ -2,7 +2,6 @@
 // Based on Nathan Gotch's advice: New sites should focus on authority building, not content proliferation
 // Reference: "How to do SEO when your website is new?"
 
-import https from 'https';
 import { httpGet } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';
@@ -39,6 +38,15 @@ export interface SiteMaturityData {
  * Estimate domain age from SSL certificate issuance date
  */
 export async function getSSLCertificateAge(url: string): Promise<number | null> {
+  // Dynamically import https module (Node.js only)
+  let https: typeof import('https');
+  try {
+    https = await import('https');
+  } catch {
+    // Not available in Deno/browser
+    return null;
+  }
+
   return new Promise((resolve) => {
     try {
       const parsedUrl = new URL(url);
