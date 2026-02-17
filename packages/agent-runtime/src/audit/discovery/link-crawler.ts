@@ -26,7 +26,8 @@ const MEDIUM_PRIORITY_PATTERNS = [
 
 // Patterns to exclude
 const EXCLUDE_PATTERNS = [
-  /\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|zip|tar|gz)$/i, // Files
+  /\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|zip|tar|gz)$/i, // Images & archives
+  /\.(json|xml|txt|webmanifest|rss|atom)$/i, // Data files (not HTML)
   /^(mailto:|tel:|javascript:|#)/i, // Non-HTTP
   /\/(api|_next|static|assets|cdn)\//i, // Technical paths
   /[?&](utm_|ref=|source=)/i, // Tracking params
