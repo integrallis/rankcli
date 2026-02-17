@@ -62,6 +62,9 @@ export * from './reports/index.js';
 // GEO (Generative Engine Optimization) tracking
 export * from './geo/index.js';
 
+// Advanced Analyzers (GEO, CWV, Security, Schema, Images, Links, Mobile)
+export * as analyzers from './analyzers/index.js';
+
 // Framework Detection & SEO Recipes
 // Note: Export as namespace to avoid conflict with tools/detectFramework
 export * as frameworks from './frameworks/index.js';
