@@ -441,9 +441,10 @@ function generateSitemapFix(context: FixContext, url: string): GeneratedFix {
 
 function generateSPAMetaFix(context: FixContext, framework: FrameworkInfo): GeneratedFix {
   const { htmlPath } = context;
+  const frameworkLower = framework.name.toLowerCase();
 
-  // For React apps, recommend react-helmet-async
-  if (framework.name.toLowerCase().includes('react') || framework.name === 'Unknown') {
+  // For React/Vite apps, recommend react-helmet-async
+  if (frameworkLower.includes('react') || frameworkLower.includes('vite') || framework.name === 'Unknown') {
     return {
       issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without dynamic meta tag management', severity: 'warning' },
       file: 'src/components/SEOHead.tsx',
