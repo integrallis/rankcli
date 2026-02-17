@@ -3,3 +3,4 @@
  */
 
 export * from './framework-fixes.js';
+export * from './schemas.js';

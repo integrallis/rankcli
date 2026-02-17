@@ -26,6 +26,9 @@ export type { ExecuteOptions, ExecutionResult } from './executor.js';
 export { generateFixes, applyFixes } from './fixer.js';
 export type { FixGeneratorOptions, GeneratedFix } from './fixer.js';
 export * from './fixer/framework-fixes.js';
+// Schemas are exported from ./fixer/schemas.js - import directly to avoid conflicts
+// with generateFAQJsonLd and other duplicates in framework-fixes
+export { Schemas } from './fixer/schemas.js';
 
 // Tools
 export { tools } from './tools/index.js';
