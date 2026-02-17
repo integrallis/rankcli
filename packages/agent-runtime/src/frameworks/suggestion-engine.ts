@@ -48,6 +48,7 @@ export interface FrameworkRecipe {
 
 // Embedded recipes (loaded at build time or dynamically)
 const RECIPES: Record<Framework, FrameworkRecipe | null> = {
+  // JavaScript/TypeScript
   react: null,
   nextjs: null,
   vue: null,
@@ -58,10 +59,46 @@ const RECIPES: Record<Framework, FrameworkRecipe | null> = {
   astro: null,
   remix: null,
   gatsby: null,
+  solidjs: null,
+  qwik: null,
+  fresh: null,
+  
+  // Ruby
   rails: null,
-  laravel: null,
+  
+  // Python
   django: null,
+  flask: null,
+  fastapi: null,
+  
+  // PHP
+  laravel: null,
+  symfony: null,
   wordpress: null,
+  
+  // Java
+  spring: null,
+  
+  // C#
+  aspnet: null,
+  
+  // Go
+  go: null,
+  
+  // Elixir
+  phoenix: null,
+  
+  // Hypermedia
+  htmx: null,
+  hotwire: null,
+  
+  // Static Site Generators
+  hugo: null,
+  jekyll: null,
+  eleventy: null,
+  pelican: null,
+  
+  // Unknown
   unknown: null,
 };
 

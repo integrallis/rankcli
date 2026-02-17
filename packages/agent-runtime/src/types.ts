@@ -110,7 +110,21 @@ export interface FrameworkInfo {
   name: string;
   version?: string;
   router?: 'app' | 'pages' | 'file-based' | 'custom';
-  metaPattern: 'metadata-export' | 'head-component' | 'frontmatter' | 'meta-function' | 'html-head';
+  language?: 'javascript' | 'typescript' | 'ruby' | 'python' | 'php' | 'java' | 'csharp' | 'go' | 'elixir' | 'rust';
+  metaPattern: 
+    | 'metadata-export'    // Next.js App Router
+    | 'head-component'     // React, Vue, Svelte
+    | 'frontmatter'        // Astro, Hugo, Jekyll, Eleventy
+    | 'meta-function'      // Remix
+    | 'html-head'          // Plain HTML
+    | 'erb-helpers'        // Rails with meta-tags gem
+    | 'blade-components'   // Laravel Blade
+    | 'thymeleaf'          // Spring Boot
+    | 'razor'              // ASP.NET Core
+    | 'heex'               // Phoenix/Elixir
+    | 'go-templates'       // Go (Gin/Echo/Fiber)
+    | 'django-templates'   // Django/Jinja2
+    | 'server-rendered';   // HTMX and other server-rendered
 }
 
 export interface Fix {
