@@ -5,6 +5,7 @@ import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
+import { geo } from './commands/geo.js';
 import { keywords, keywordsQuick, keywordsCompetitor, keywordsAI } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
 import { setup, showGSCInstructions } from './commands/setup.js';
@@ -68,6 +69,13 @@ program
   .option('--auto', 'Auto-apply fixes without confirmation')
   .option('--dry-run', 'Preview changes without applying')
   .action(apply);
+
+program
+  .command('geo')
+  .description('GEO analysis - Check AI search visibility (ChatGPT, Perplexity, Claude)')
+  .option('-u, --url <url>', 'URL to analyze')
+  .option('-o, --output <format>', 'Output format (json, console)', 'console')
+  .action(geo);
 
 program
   .command('keywords')
