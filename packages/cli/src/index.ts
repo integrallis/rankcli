@@ -52,7 +52,7 @@ program
 
 program
   .command('audit')
-  .description('Run a comprehensive SEO audit (170+ checks, Ahrefs-level)')
+  .description('Run a comprehensive SEO audit (200+ checks, Ahrefs-level)')
   .option('-u, --url <url>', 'URL to audit')
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
