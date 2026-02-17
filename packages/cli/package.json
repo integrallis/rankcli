@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/cli",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
   "main": "dist/index.js",
@@ -35,6 +35,8 @@
     "build:wasm": "cd native && wasm-pack build --target nodejs --release && cp -r pkg ../wasm",
     "build:wasm:dev": "cd native && wasm-pack build --target nodejs --dev && mkdir -p ../wasm && cp -r pkg/* ../wasm/",
     "prebuild:wasm": "mkdir -p wasm",
+    "inject-config": "node scripts/inject-config.js",
+    "prepublishOnly": "npm run build && npm run inject-config",
     "start": "node dist/index.js",
     "lint": "eslint src/",
     "test": "vitest run --passWithNoTests",

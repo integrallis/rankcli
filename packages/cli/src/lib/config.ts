@@ -20,17 +20,67 @@ interface ConfigSchema {
   sitesLimit?: number;
 }
 
-// Supabase configuration (supports VITE_ vars for dev, RANKCLI_ for production CLI)
-const SUPABASE_URL = process.env.RANKCLI_SUPABASE_URL
-  || process.env.VITE_SUPABASE_URL
-  || 'https://uisqfyeasobjjrgurwnb.supabase.co';
+// Production config - injected at build time via scripts/inject-config.js
+// DO NOT hardcode secrets here - use environment variables or build-time injection
+interface ProductionConfig {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  webAppUrl: string;
+}
 
-const SUPABASE_ANON_KEY = process.env.RANKCLI_SUPABASE_ANON_KEY
-  || process.env.VITE_SUPABASE_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpc3FmeWVhc29iampyZ3Vyd25iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwMDc3NjIsImV4cCI6MjA2MzU4Mzc2Mn0.r-GaAqD-OwAKMyH8w7qpAj6P7w52cAPTsb8JfMZmtJE';
+// Try to load build-time injected config (replaced during CI build)
+const INJECTED_CONFIG: ProductionConfig | null = null; // __INJECT_PRODUCTION_CONFIG__
+
+// Supabase configuration priority:
+// 1. Environment variables (highest priority - for local dev and CI)
+// 2. Build-time injected config (for npm package)
+// 3. Error if neither available (no hardcoded fallbacks!)
+function getSupabaseUrl(): string {
+  const url = process.env.RANKCLI_SUPABASE_URL
+    || process.env.VITE_SUPABASE_URL
+    || INJECTED_CONFIG?.supabaseUrl;
+  
+  if (!url) {
+    throw new Error(
+      'Supabase URL not configured. Set RANKCLI_SUPABASE_URL environment variable.\n' +
+      'See: https://rankcli.dev/docs/cli-setup'
+    );
+  }
+  return url;
+}
+
+function getSupabaseAnonKey(): string {
+  const key = process.env.RANKCLI_SUPABASE_ANON_KEY
+    || process.env.VITE_SUPABASE_ANON_KEY
+    || INJECTED_CONFIG?.supabaseAnonKey;
+  
+  if (!key) {
+    throw new Error(
+      'Supabase anon key not configured. Set RANKCLI_SUPABASE_ANON_KEY environment variable.\n' +
+      'See: https://rankcli.dev/docs/cli-setup'
+    );
+  }
+  return key;
+}
+
+// Lazy-loaded config values (only fail when actually needed)
+let _supabaseUrl: string | null = null;
+let _supabaseAnonKey: string | null = null;
+
+const SUPABASE_URL = (() => {
+  if (!_supabaseUrl) _supabaseUrl = getSupabaseUrl();
+  return _supabaseUrl;
+})();
+
+const SUPABASE_ANON_KEY = (() => {
+  if (!_supabaseAnonKey) _supabaseAnonKey = getSupabaseAnonKey();
+  return _supabaseAnonKey;
+})();
 
 // Web app URL
-export const WEB_APP_URL = process.env.RANKCLI_WEB_URL || 'http://localhost:3005';
+export const WEB_APP_URL = process.env.RANKCLI_WEB_URL 
+  || INJECTED_CONFIG?.webAppUrl 
+  || 'https://rankcli.dev';
 
 // API base URL for validation
 const API_URL = process.env.RANKCLI_API_URL || SUPABASE_URL;
