@@ -2,13 +2,16 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   runDirectAnalysis,
+  runAuditWithFixes,
   generateFixes,
   applyFixes,
   detectFramework,
   type SEOAnalysisResult,
   type GeneratedFix,
   type FrameworkInfo,
+  type AuditRunnerResult,
 } from '@rankcli/agent-runtime';
+import { isLoggedIn, isApiKeyAuth } from '../lib/config.js';
 
 interface ApplyOptions {
   url?: string;
@@ -96,21 +99,50 @@ export async function apply(options: ApplyOptions): Promise<void> {
     : { name: 'Unknown', metaPattern: 'html-head' as const };
   console.log(`   Framework: ${framework.name}`);
 
-  // Analyze URL
+  // Analyze URL - use full audit for authenticated users, basic for free
+  const isPaidUser = isLoggedIn();
+  
   console.log(`\n\u{1F50D} Analyzing ${url}...`);
+  if (isPaidUser) {
+    console.log('   Running full audit (200+ checks)...');
+  } else {
+    console.log('   Running basic analysis (login for full 200+ checks)');
+  }
 
-  let analysis: SEOAnalysisResult;
+  let issues: SEOAnalysisResult['issues'];
+  let score: number;
+  let auditResult: AuditRunnerResult | null = null;
+
   try {
-    analysis = await runDirectAnalysis(url);
+    if (isPaidUser) {
+      // Full audit for paid users
+      auditResult = await runAuditWithFixes({
+        url,
+        generateFixes: true,
+      });
+      issues = auditResult.report.issues.map(issue => ({
+        severity: issue.severity,
+        category: issue.category,
+        code: issue.code,
+        message: issue.title,
+        impact: issue.description || undefined,
+      }));
+      score = auditResult.score;
+    } else {
+      // Basic analysis for free users
+      const analysis = await runDirectAnalysis(url);
+      issues = analysis.issues;
+      score = analysis.score;
+    }
   } catch (error) {
     console.log(`\n\u274C Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
     return;
   }
 
-  console.log(`   Score: ${analysis.score}/100`);
-  console.log(`   Issues found: ${analysis.issues.length}`);
+  console.log(`   Score: ${score}/100`);
+  console.log(`   Issues found: ${issues.length}`);
 
-  if (analysis.issues.length === 0) {
+  if (issues.length === 0) {
     console.log('\n\u2705 No issues found! Your site looks great.\n');
     return;
   }
@@ -118,7 +150,7 @@ export async function apply(options: ApplyOptions): Promise<void> {
   // Generate fixes
   console.log('\n\u{1F527} Generating fixes...');
 
-  const fixes = await generateFixes(analysis.issues, {
+  const fixes = await generateFixes(issues, {
     cwd,
     url,
     framework,
