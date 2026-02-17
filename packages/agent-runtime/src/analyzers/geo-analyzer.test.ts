@@ -47,6 +47,7 @@ Disallow: /
 
   describe('detectRenderingMode', () => {
     it('detects SSR with Next.js', () => {
+      // Need substantial content (>2 paragraphs or >2 headings) for contentInHTML=true
       const html = `
 <!DOCTYPE html>
 <html>
@@ -54,7 +55,12 @@ Disallow: /
 <body>
   <div id="__next">
     <h1>Hello World</h1>
-    <p>This is content</p>
+    <h2>Section One</h2>
+    <p>This is content paragraph one.</p>
+    <h2>Section Two</h2>
+    <p>This is content paragraph two.</p>
+    <h2>Section Three</h2>
+    <p>This is content paragraph three.</p>
   </div>
   <script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
 </body>

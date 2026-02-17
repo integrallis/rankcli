@@ -1,6 +1,6 @@
 // Comprehensive SEO Audit Types - Matching Ahrefs 170+ checks
 
-export type IssueSeverity = 'error' | 'warning' | 'notice';
+export type IssueSeverity = 'critical' | 'error' | 'warning' | 'info' | 'notice';
 
 export type IssueCategory =
   | 'crawlability'
@@ -18,7 +18,8 @@ export type IssueCategory =
   | 'social'
   | 'local-seo'
   | 'accessibility'
-  | 'framework';
+  | 'framework'
+  | 'technical';
 
 export interface AuditIssue {
   code: string;

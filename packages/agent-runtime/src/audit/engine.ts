@@ -454,7 +454,7 @@ function createReport(url: string, domain: string, issues: AuditIssue[], pages: 
 
 function calculateHealthScore(issues: AuditIssue[]): HealthScore {
   // Weight issues by severity
-  const weights = { error: 10, warning: 3, notice: 1 };
+  const weights: Record<string, number> = { critical: 15, error: 10, warning: 3, info: 1, notice: 1 };
 
   // Calculate deductions per category
   const categoryDeductions: Record<string, number> = {
@@ -611,8 +611,8 @@ function groupIssuesByCategory(issues: AuditIssue[]): Record<string, AuditIssue[
   // Sort by severity within each category
   for (const category of Object.keys(grouped)) {
     grouped[category].sort((a, b) => {
-      const order = { error: 0, warning: 1, notice: 2 };
-      return order[a.severity] - order[b.severity];
+      const order: Record<string, number> = { critical: 0, error: 1, warning: 2, info: 3, notice: 4 };
+      return (order[a.severity] ?? 5) - (order[b.severity] ?? 5);
     });
   }
 

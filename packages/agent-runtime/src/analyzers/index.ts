@@ -145,8 +145,8 @@ export async function analyzeComprehensive(
   ];
   
   // Sort by severity
-  const severityOrder = { critical: 0, warning: 1, info: 2 };
-  allIssues.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  const severityOrder: Record<string, number> = { critical: 0, error: 1, warning: 2, info: 3, notice: 4 };
+  allIssues.sort((a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5));
   
   // Calculate overall score (weighted average)
   const weights = {
