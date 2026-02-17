@@ -25,6 +25,7 @@ export type { ExecuteOptions, ExecutionResult } from './executor.js';
 // Fix generator
 export { generateFixes, applyFixes } from './fixer.js';
 export type { FixGeneratorOptions, GeneratedFix } from './fixer.js';
+export * from './fixer/framework-fixes.js';
 
 // Tools
 export { tools } from './tools/index.js';

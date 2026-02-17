@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { SEOIssue, Fix, FrameworkInfo } from './types.js';
 import { detectFramework, findHtmlEntry, readFile } from './tools/files.js';
 import { generateH1Fix } from './tools/h1-fixer.js';
+import { getFrameworkSpecificFix } from './fixer/framework-fixes.js';
 
 export interface FixGeneratorOptions {
   cwd: string;
@@ -448,63 +449,29 @@ function generateSitemapFix(context: FixContext, url: string): GeneratedFix {
 }
 
 function generateSPAMetaFix(context: FixContext, framework: FrameworkInfo): GeneratedFix {
-  const { htmlPath } = context;
-  const frameworkLower = framework.name.toLowerCase();
+  const { url } = context;
+  const fullUrl = url || 'https://example.com';
+  const siteName = new URL(fullUrl).hostname.replace('www.', '').split('.')[0];
+  const capitalizedName = siteName.charAt(0).toUpperCase() + siteName.slice(1);
+  
+  const generatedCode = getFrameworkSpecificFix(framework, {
+    siteName: capitalizedName,
+    siteUrl: fullUrl,
+    title: `${capitalizedName} - Your tagline here`,
+    description: `${capitalizedName} - A compelling description of your product or service.`,
+    image: `${fullUrl}/og-image.png`,
+  });
 
-  // For React/Vite apps, recommend react-helmet-async
-  if (frameworkLower.includes('react') || frameworkLower.includes('vite') || framework.name === 'Unknown') {
-    return {
-      issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without dynamic meta tag management', severity: 'warning' },
-      file: 'src/components/SEOHead.tsx',
-      before: null,
-      after: `import { Helmet } from 'react-helmet-async';
-
-interface SEOHeadProps {
-  title?: string;
-  description?: string;
-  image?: string;
-  url?: string;
-}
-
-export function SEOHead({ 
-  title = 'Your Site Name',
-  description = 'Your site description',
-  image = '/og-image.png',
-  url = window.location.href,
-}: SEOHeadProps) {
-  return (
-    <Helmet>
-      <title>{title}</title>
-      <meta name="description" content={description} />
-      <link rel="canonical" href={url} />
-      
-      {/* Open Graph */}
-      <meta property="og:title" content={title} />
-      <meta property="og:description" content={description} />
-      <meta property="og:image" content={image} />
-      <meta property="og:url" content={url} />
-      <meta property="og:type" content="website" />
-      
-      {/* Twitter */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={title} />
-      <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={image} />
-    </Helmet>
-  );
-}`,
-      explanation: 'Created SEOHead component using react-helmet-async for dynamic meta tags. Install: npm install react-helmet-async',
-    };
-  }
+  const installInstructions = generatedCode.installCommands 
+    ? `\n\nInstall: ${generatedCode.installCommands.join(' && ')}`
+    : '';
 
   return {
-    issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without meta management', severity: 'warning' },
-    file: htmlPath,
+    issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without dynamic meta tag management', severity: 'warning' },
+    file: generatedCode.file,
     before: null,
-    after: '<!-- Add a meta management library for your framework -->',
-    explanation: `Add dynamic meta tag management for ${framework.name}`,
-    skipped: true,
-    skipReason: `Framework-specific solution needed for ${framework.name}`,
+    after: generatedCode.code,
+    explanation: generatedCode.explanation + installInstructions,
   };
 }
 
