@@ -73,6 +73,7 @@ async function generateFixForIssue(
   switch (issue.code) {
     // Title issues
     case 'MISSING_TITLE':
+    case 'TITLE_MISSING':  // Full audit code
     case 'TITLE_KEYWORD_MISMATCH':
     case 'TITLE_H1_KEYWORD_MISMATCH':
     case 'OUTDATED_YEAR_IN_TITLE':
@@ -80,6 +81,7 @@ async function generateFixForIssue(
 
     // Meta description issues
     case 'MISSING_META_DESC':
+    case 'META_DESC_MISSING':  // Full audit code
       return generateMetaDescFix(context, siteName);
 
     // Canonical issues
@@ -95,14 +97,23 @@ async function generateFixForIssue(
 
     // Open Graph issues
     case 'MISSING_OG_TAGS':
+    case 'OG_TITLE_MISSING':
+    case 'OG_DESC_MISSING':
+    case 'OG_IMAGE_MISSING':
+    case 'OG_URL_MISSING':
       return generateOGFix(context, siteName, fullUrl);
 
     // Twitter Card issues
     case 'MISSING_TWITTER_CARD':
+    case 'TWITTER_CARD_MISSING':
+    case 'TWITTER_TITLE_MISSING':
+    case 'TWITTER_DESC_MISSING':
+    case 'TWITTER_IMAGE_MISSING':
       return generateTwitterFix(context, siteName);
 
     // Schema/structured data issues
     case 'MISSING_SCHEMA':
+    case 'SCHEMA_MISSING':  // Full audit code
     case 'SCHEMA_ORG_MISSING':
     case 'NO_ORGANIZATION_SCHEMA':
     case 'NO_ENTITY_SCHEMA':
@@ -111,12 +122,14 @@ async function generateFixForIssue(
 
     // Robots.txt issues
     case 'MISSING_ROBOTS':
+    case 'ROBOTS_TXT_MISSING':  // Full audit code
     case 'ROBOTS_TXT_WARNINGS':
     case 'ROBOTS_TXT_INVALID_SYNTAX':
       return generateRobotsFix(context, fullUrl);
 
     // Sitemap issues
     case 'MISSING_SITEMAP':
+    case 'SITEMAP_MISSING':  // Full audit code
     case 'BING_SITEMAP_MISSING':
       return generateSitemapFix(context, fullUrl);
 
@@ -128,7 +141,24 @@ async function generateFixForIssue(
 
     // SPA-specific: add meta management library recommendation
     case 'SPA_NO_META_MANAGEMENT':
+    case 'SPA_WITHOUT_SSR':
+    case 'CLIENT_SIDE_RENDERING':
       return generateSPAMetaFix(context, framework);
+
+    // Internal links - suggest adding links
+    case 'NO_INTERNAL_LINKS':
+    case 'LINKS_NO_INTERNAL':
+    case 'NO_CONTENT_INTERNAL_LINKS':
+      return {
+        issue: { code: issue.code, message: 'No internal links found', severity: 'warning' },
+        file: 'src/components/Footer.tsx',
+        before: null,
+        after: `// Add internal navigation links to your footer or content
+// Example: <Link to="/about">About</Link>`,
+        explanation: 'Add internal links to help search engines discover your content',
+        skipped: true,
+        skipReason: 'Requires manual content updates - add links to your navigation and content',
+      };
 
     // Preconnect issues
     case 'GOOGLE_FONTS_NO_PRECONNECT':
