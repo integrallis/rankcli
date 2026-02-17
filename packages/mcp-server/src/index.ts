@@ -26,23 +26,9 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
-import * as cheerio from 'cheerio';
 
-// Import analyzers
-import {
-  analyzeGEO,
-  analyzeRobotsTxtForAI,
-  generateAIFriendlyRobotsTxt,
-  AI_CRAWLERS_INFO,
-} from '@rankcli/agent-runtime/analyzers/geo-analyzer.js';
-import { analyzeCoreWebVitals } from '@rankcli/agent-runtime/analyzers/core-web-vitals-analyzer.js';
-import { analyzeSecurityHeaders, generateSecurityHeaders } from '@rankcli/agent-runtime/analyzers/security-headers-analyzer.js';
-import { analyzeStructuredData, generateSchemaTemplate } from '@rankcli/agent-runtime/analyzers/structured-data-analyzer.js';
-import { analyzeImages, generateResponsiveImage } from '@rankcli/agent-runtime/analyzers/image-optimization-analyzer.js';
-import { analyzeInternalLinking } from '@rankcli/agent-runtime/analyzers/internal-linking-analyzer.js';
-import { analyzeMobileSEO } from '@rankcli/agent-runtime/analyzers/mobile-seo-analyzer.js';
-import { analyzeComprehensive } from '@rankcli/agent-runtime/analyzers/index.js';
+// Import analyzers from the main package namespace
+import { analyzers } from '@rankcli/agent-runtime';
 
 // Tool definitions
 const TOOLS: Tool[] = [
@@ -336,7 +322,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'seo_analyze': {
         const { url, html, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
         
-        // If no HTML provided, we can't analyze
         if (!html) {
           return {
             content: [
@@ -348,8 +333,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         
-        const result = await analyzeComprehensive(html, url, { robotsTxt });
-        
+        const result = await analyzers.analyzeComprehensive(html, url, { robotsTxt });
         return {
           content: [
             {
@@ -369,7 +353,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         
-        const result = await analyzeGEO(html, url, robotsTxt);
+        const result = await analyzers.analyzeGEO(html, url, robotsTxt);
         return {
           content: [{ type: 'text', text: formatGEOResult(result) }],
         };
@@ -377,7 +361,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_robots_ai': {
         const { robotsTxt } = args as { robotsTxt: string };
-        const result = analyzeRobotsTxtForAI(robotsTxt);
+        const result = analyzers.analyzeRobotsTxtForAI(robotsTxt);
         return {
           content: [
             {
@@ -390,7 +374,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_generate_robots': {
         const { siteUrl } = args as { siteUrl: string };
-        const robotsTxt = generateAIFriendlyRobotsTxt(siteUrl);
+        const robotsTxt = analyzers.generateAIFriendlyRobotsTxt(siteUrl);
         return {
           content: [
             {
@@ -403,7 +387,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_core_web_vitals': {
         const { url, html } = args as { url: string; html: string };
-        const result = analyzeCoreWebVitals(html, url);
+        const result = analyzers.analyzeCoreWebVitals(html, url);
         return {
           content: [{ type: 'text', text: formatCWVResult(result) }],
         };
@@ -411,7 +395,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_structured_data': {
         const { url, html } = args as { url: string; html: string };
-        const result = analyzeStructuredData(html, url);
+        const result = analyzers.analyzeStructuredData(html, url);
         return {
           content: [{ type: 'text', text: formatStructuredDataResult(result) }],
         };
@@ -425,7 +409,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           authorName?: string;
           organizationName?: string;
         };
-        const schema = generateSchemaTemplate(pageType, { siteName, siteUrl, authorName, organizationName });
+        const schema = analyzers.generateSchemaTemplate(pageType, { siteName, siteUrl, authorName, organizationName });
         return {
           content: [
             {
@@ -438,7 +422,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_security_headers': {
         const { url, headers } = args as { url: string; headers: Record<string, string> };
-        const result = analyzeSecurityHeaders(headers, url);
+        const result = analyzers.analyzeSecurityHeaders(headers, url);
         return {
           content: [{ type: 'text', text: formatSecurityResult(result) }],
         };
@@ -446,7 +430,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_generate_security_headers': {
         const { siteUrl } = args as { siteUrl: string };
-        const headers = generateSecurityHeaders(siteUrl);
+        const headers = analyzers.generateSecurityHeaders(siteUrl);
         return {
           content: [
             {
@@ -459,7 +443,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_images': {
         const { url, html } = args as { url: string; html: string };
-        const result = analyzeImages(html, url);
+        const result = analyzers.analyzeImages(html, url);
         return {
           content: [{ type: 'text', text: formatImagesResult(result) }],
         };
@@ -467,7 +451,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_internal_links': {
         const { url, html } = args as { url: string; html: string };
-        const result = analyzeInternalLinking(html, url);
+        const result = analyzers.analyzeInternalLinking(html, url);
         return {
           content: [{ type: 'text', text: formatInternalLinksResult(result) }],
         };
@@ -475,7 +459,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       case 'seo_mobile': {
         const { url, html } = args as { url: string; html: string };
-        const result = analyzeMobileSEO(html, url);
+        const result = analyzers.analyzeMobileSEO(html, url);
         return {
           content: [{ type: 'text', text: formatMobileResult(result) }],
         };
@@ -512,7 +496,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // Formatting helpers
-function formatComprehensiveResult(result: Awaited<ReturnType<typeof analyzeComprehensive>>): string {
+function formatComprehensiveResult(result: Awaited<ReturnType<typeof analyzers.analyzeComprehensive>>): string {
   const criticalIssues = result.allIssues.filter(i => i.severity === 'critical');
   const warnings = result.allIssues.filter(i => i.severity === 'warning');
   
@@ -548,7 +532,7 @@ ${result.prioritizedRecommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 `;
 }
 
-function formatGEOResult(result: Awaited<ReturnType<typeof analyzeGEO>>): string {
+function formatGEOResult(result: Awaited<ReturnType<typeof analyzers.analyzeGEO>>): string {
   return `# GEO Analysis (AI Search Optimization)
 
 **Score:** ${result.score}/100
@@ -589,7 +573,7 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 `;
 }
 
-function formatCWVResult(result: ReturnType<typeof analyzeCoreWebVitals>): string {
+function formatCWVResult(result: ReturnType<typeof analyzers.analyzeCoreWebVitals>): string {
   const emoji = (est: string) => est === 'good' ? '🟢' : est === 'needs-improvement' ? '🟡' : '🔴';
   
   return `# Core Web Vitals Estimate
@@ -609,7 +593,7 @@ ${result.issues.map(i => `- **${i.title}:** ${i.howToFix}`).join('\n') || 'No cr
 `;
 }
 
-function formatStructuredDataResult(result: ReturnType<typeof analyzeStructuredData>): string {
+function formatStructuredDataResult(result: ReturnType<typeof analyzers.analyzeStructuredData>): string {
   return `# Structured Data Analysis
 
 **Score:** ${result.score}/100
@@ -637,7 +621,7 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 `;
 }
 
-function formatSecurityResult(result: ReturnType<typeof analyzeSecurityHeaders>): string {
+function formatSecurityResult(result: ReturnType<typeof analyzers.analyzeSecurityHeaders>): string {
   return `# Security Headers Analysis
 
 **Grade:** ${result.grade}
@@ -661,7 +645,7 @@ ${result.issues.map(i => `- **${i.title}:** ${i.howToFix}`).join('\n') || 'No is
 `;
 }
 
-function formatImagesResult(result: ReturnType<typeof analyzeImages>): string {
+function formatImagesResult(result: ReturnType<typeof analyzers.analyzeImages>): string {
   return `# Image Analysis
 
 **Score:** ${result.score}/100
@@ -687,7 +671,7 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 `;
 }
 
-function formatInternalLinksResult(result: ReturnType<typeof analyzeInternalLinking>): string {
+function formatInternalLinksResult(result: ReturnType<typeof analyzers.analyzeInternalLinking>): string {
   return `# Internal Linking Analysis
 
 **Score:** ${result.score}/100
@@ -719,7 +703,7 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 `;
 }
 
-function formatMobileResult(result: ReturnType<typeof analyzeMobileSEO>): string {
+function formatMobileResult(result: ReturnType<typeof analyzers.analyzeMobileSEO>): string {
   return `# Mobile SEO Analysis
 
 **Score:** ${result.score}/100
@@ -753,7 +737,7 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 }
 
 function formatAICrawlersInfo(): string {
-  const crawlers = Object.entries(AI_CRAWLERS_INFO);
+  const crawlers = Object.entries(analyzers.AI_CRAWLERS_INFO);
   return `# Known AI Crawlers
 
 ${crawlers.map(([name, info]) => `## ${name}
