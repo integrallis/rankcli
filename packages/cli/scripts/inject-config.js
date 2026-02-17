@@ -22,7 +22,12 @@ const DIST_FILES = [
   'dist/index.mjs',
 ];
 
-const PLACEHOLDER = 'null; // __INJECT_PRODUCTION_CONFIG__';
+// Regex to match any INJECTED_CONFIG = null pattern (handles various tsup outputs)
+// Matches: var/const/let INJECTED_CONFIG = null; with optional whitespace
+const INJECTED_CONFIG_REGEX = /(var|const|let)\s+INJECTED_CONFIG\s*=\s*null\s*;?/g;
+
+// Also match if already injected (for re-injection)
+const ALREADY_INJECTED_REGEX = /(var|const|let)\s+INJECTED_CONFIG\s*=\s*\{[^}]+\}\s*;?/g;
 
 function main() {
   const supabaseUrl = process.env.RANKCLI_SUPABASE_URL;
@@ -57,12 +62,31 @@ function main() {
 
     let content = fs.readFileSync(filePath, 'utf8');
     
-    if (!content.includes(PLACEHOLDER)) {
-      console.warn(`⚠️  Skipping ${relPath} (placeholder not found - already injected?)`);
+    // Check if config needs injection (null) or re-injection (already has value)
+    const hasNullConfig = INJECTED_CONFIG_REGEX.test(content);
+    INJECTED_CONFIG_REGEX.lastIndex = 0; // Reset regex state
+    
+    const hasExistingConfig = ALREADY_INJECTED_REGEX.test(content);
+    ALREADY_INJECTED_REGEX.lastIndex = 0; // Reset regex state
+    
+    if (!hasNullConfig && !hasExistingConfig) {
+      console.warn(`⚠️  Skipping ${relPath} (no INJECTED_CONFIG pattern found)`);
       continue;
     }
 
-    content = content.replace(PLACEHOLDER, replacement);
+    // Replace the config (use var for CJS, const for ESM)
+    const varType = relPath.endsWith('.mjs') ? 'const' : 'var';
+    const newConfig = `${varType} INJECTED_CONFIG = ${replacement};`;
+    
+    if (hasNullConfig) {
+      content = content.replace(INJECTED_CONFIG_REGEX, newConfig);
+      INJECTED_CONFIG_REGEX.lastIndex = 0;
+    } else {
+      content = content.replace(ALREADY_INJECTED_REGEX, newConfig);
+      ALREADY_INJECTED_REGEX.lastIndex = 0;
+      console.log(`   (re-injecting existing config)`);
+    }
+    
     fs.writeFileSync(filePath, content);
     console.log(`✅ Injected config into ${relPath}`);
     filesUpdated++;
