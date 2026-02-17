@@ -63,27 +63,29 @@ function getSupabaseAnonKey(): string {
   return key;
 }
 
-// Lazy-loaded config values (only fail when actually needed)
+// Lazy-loaded config values (only fail when actually needed, not at import time)
 let _supabaseUrl: string | null = null;
 let _supabaseAnonKey: string | null = null;
 
-const SUPABASE_URL = (() => {
+function getSupabaseUrlLazy(): string {
   if (!_supabaseUrl) _supabaseUrl = getSupabaseUrl();
   return _supabaseUrl;
-})();
+}
 
-const SUPABASE_ANON_KEY = (() => {
+function getSupabaseAnonKeyLazy(): string {
   if (!_supabaseAnonKey) _supabaseAnonKey = getSupabaseAnonKey();
   return _supabaseAnonKey;
-})();
+}
 
 // Web app URL
 export const WEB_APP_URL = process.env.RANKCLI_WEB_URL 
   || INJECTED_CONFIG?.webAppUrl 
   || 'https://rankcli.dev';
 
-// API base URL for validation
-const API_URL = process.env.RANKCLI_API_URL || SUPABASE_URL;
+// API base URL for validation (lazy)
+function getApiUrl(): string {
+  return process.env.RANKCLI_API_URL || getSupabaseUrlLazy();
+}
 
 // Initialize config store
 export const config = new Conf<ConfigSchema>({
@@ -107,7 +109,7 @@ let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    supabaseClient = createClient(getSupabaseUrlLazy(), getSupabaseAnonKeyLazy(), {
       auth: {
         persistSession: false, // We manage session ourselves via conf
         autoRefreshToken: false,
@@ -165,7 +167,7 @@ export async function validateApiKey(apiKey: string): Promise<{
   error?: string;
 }> {
   try {
-    const response = await fetch(`${API_URL}/functions/v1/validate-api-key`, {
+    const response = await fetch(`${getApiUrl()}/functions/v1/validate-api-key`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
