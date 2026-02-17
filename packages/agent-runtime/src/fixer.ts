@@ -71,35 +71,86 @@ async function generateFixForIssue(
   const siteName = new URL(fullUrl).hostname.replace('www.', '');
 
   switch (issue.code) {
+    // Title issues
     case 'MISSING_TITLE':
+    case 'TITLE_KEYWORD_MISMATCH':
+    case 'TITLE_H1_KEYWORD_MISMATCH':
+    case 'OUTDATED_YEAR_IN_TITLE':
       return generateTitleFix(context, siteName);
 
+    // Meta description issues
     case 'MISSING_META_DESC':
       return generateMetaDescFix(context, siteName);
 
+    // Canonical issues
     case 'MISSING_CANONICAL':
+    case 'CANONICAL_NO_HTTPS_REDIRECT':
       return generateCanonicalFix(context, fullUrl);
 
+    // Viewport issues
     case 'MISSING_VIEWPORT':
+    case 'HTML_NO_VIEWPORT':
+    case 'RESPONSIVE_NO_VIEWPORT':
       return generateViewportFix(context);
 
+    // Open Graph issues
     case 'MISSING_OG_TAGS':
       return generateOGFix(context, siteName, fullUrl);
 
+    // Twitter Card issues
     case 'MISSING_TWITTER_CARD':
       return generateTwitterFix(context, siteName);
 
+    // Schema/structured data issues
     case 'MISSING_SCHEMA':
+    case 'SCHEMA_ORG_MISSING':
+    case 'NO_ORGANIZATION_SCHEMA':
+    case 'NO_ENTITY_SCHEMA':
+    case 'FAQ_SCHEMA_MISSING':
       return generateSchemaFix(context, siteName, fullUrl);
 
+    // Robots.txt issues
     case 'MISSING_ROBOTS':
+    case 'ROBOTS_TXT_WARNINGS':
+    case 'ROBOTS_TXT_INVALID_SYNTAX':
       return generateRobotsFix(context, fullUrl);
 
+    // Sitemap issues
     case 'MISSING_SITEMAP':
+    case 'BING_SITEMAP_MISSING':
       return generateSitemapFix(context, fullUrl);
 
+    // H1 issues
     case 'MISSING_H1':
+    case 'NO_VISIBLE_HEADLINE':
+    case 'H1_MISSING_KEYWORD':
       return await generateH1Fix({ cwd });
+
+    // SPA-specific: add meta management library recommendation
+    case 'SPA_NO_META_MANAGEMENT':
+      return generateSPAMetaFix(context, framework);
+
+    // Preconnect issues
+    case 'GOOGLE_FONTS_NO_PRECONNECT':
+    case 'MISSING_PRECONNECT':
+      return generatePreconnectFix(context);
+
+    // Favicon/icons
+    case 'HTML_NO_FAVICON':
+    case 'HTML_NO_APPLE_TOUCH_ICON':
+      return generateFaviconFix(context);
+
+    // Charset/lang
+    case 'HTML_NO_CHARSET':
+    case 'HTML_NOT_UTF8':
+      return generateCharsetFix(context);
+
+    case 'HTML_NO_LANG':
+      return generateLangFix(context);
+
+    // AI/LLMs.txt
+    case 'AI_NO_LLMS_TXT':
+      return generateLlmsTxtFix(context, siteName, fullUrl);
 
     default:
       return null;
@@ -355,6 +406,175 @@ function generateSitemapFix(context: FixContext, url: string): GeneratedFix {
     before: null,
     after: sitemap,
     explanation: 'Created sitemap.xml to help search engines discover all pages',
+  };
+}
+
+function generateSPAMetaFix(context: FixContext, framework: FrameworkInfo): GeneratedFix {
+  const { htmlPath } = context;
+
+  // For React apps, recommend react-helmet-async
+  if (framework.name.toLowerCase().includes('react') || framework.name === 'Unknown') {
+    return {
+      issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without dynamic meta tag management', severity: 'warning' },
+      file: 'src/components/SEOHead.tsx',
+      before: null,
+      after: `import { Helmet } from 'react-helmet-async';
+
+interface SEOHeadProps {
+  title?: string;
+  description?: string;
+  image?: string;
+  url?: string;
+}
+
+export function SEOHead({ 
+  title = 'Your Site Name',
+  description = 'Your site description',
+  image = '/og-image.png',
+  url = window.location.href,
+}: SEOHeadProps) {
+  return (
+    <Helmet>
+      <title>{title}</title>
+      <meta name="description" content={description} />
+      <link rel="canonical" href={url} />
+      
+      {/* Open Graph */}
+      <meta property="og:title" content={title} />
+      <meta property="og:description" content={description} />
+      <meta property="og:image" content={image} />
+      <meta property="og:url" content={url} />
+      <meta property="og:type" content="website" />
+      
+      {/* Twitter */}
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={title} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={image} />
+    </Helmet>
+  );
+}`,
+      explanation: 'Created SEOHead component using react-helmet-async for dynamic meta tags. Install: npm install react-helmet-async',
+    };
+  }
+
+  return {
+    issue: { code: 'SPA_NO_META_MANAGEMENT', message: 'SPA without meta management', severity: 'warning' },
+    file: htmlPath,
+    before: null,
+    after: '<!-- Add a meta management library for your framework -->',
+    explanation: `Add dynamic meta tag management for ${framework.name}`,
+    skipped: true,
+    skipReason: `Framework-specific solution needed for ${framework.name}`,
+  };
+}
+
+function generatePreconnectFix(context: FixContext): GeneratedFix {
+  const { htmlPath, htmlContent } = context;
+
+  const preconnects = `<!-- Preconnect to external origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />`;
+
+  return {
+    issue: { code: 'MISSING_PRECONNECT', message: 'Missing preconnect hints', severity: 'info' },
+    file: htmlPath,
+    before: '<head>',
+    after: `<head>\n    ${preconnects}`,
+    explanation: 'Added preconnect hints to speed up loading of external resources',
+  };
+}
+
+function generateFaviconFix(context: FixContext): GeneratedFix {
+  const { htmlPath } = context;
+
+  const faviconTags = `<!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />`;
+
+  return {
+    issue: { code: 'HTML_NO_FAVICON', message: 'Missing favicon', severity: 'info' },
+    file: htmlPath,
+    before: '<head>',
+    after: `<head>\n    ${faviconTags}`,
+    explanation: 'Added favicon links. Create favicon files in public/ directory.',
+  };
+}
+
+function generateCharsetFix(context: FixContext): GeneratedFix {
+  const { htmlPath, htmlContent } = context;
+
+  if (htmlContent.includes('charset')) {
+    return {
+      issue: { code: 'HTML_NO_CHARSET', message: 'Missing charset', severity: 'warning' },
+      file: htmlPath,
+      before: null,
+      after: '<meta charset="UTF-8" />',
+      skipped: true,
+      skipReason: 'Charset already defined',
+      explanation: 'Charset is already present',
+    };
+  }
+
+  return {
+    issue: { code: 'HTML_NO_CHARSET', message: 'Missing charset declaration', severity: 'warning' },
+    file: htmlPath,
+    before: '<head>',
+    after: '<head>\n    <meta charset="UTF-8" />',
+    explanation: 'Added UTF-8 charset declaration as first element in head',
+  };
+}
+
+function generateLangFix(context: FixContext): GeneratedFix {
+  const { htmlPath, htmlContent } = context;
+
+  if (htmlContent.includes('<html') && !htmlContent.includes('lang=')) {
+    return {
+      issue: { code: 'HTML_NO_LANG', message: 'Missing lang attribute', severity: 'warning' },
+      file: htmlPath,
+      before: '<html>',
+      after: '<html lang="en">',
+      explanation: 'Added lang attribute for accessibility and SEO',
+    };
+  }
+
+  return {
+    issue: { code: 'HTML_NO_LANG', message: 'Missing lang attribute', severity: 'warning' },
+    file: htmlPath,
+    before: '<html',
+    after: '<html lang="en"',
+    explanation: 'Added lang attribute for accessibility and SEO',
+  };
+}
+
+function generateLlmsTxtFix(context: FixContext, siteName: string, url: string): GeneratedFix {
+  const llmsTxt = `# ${siteName}
+> ${siteName} - A brief description of your product/service
+
+## About
+${siteName} is... [Add your description here]
+
+## Features
+- Feature 1
+- Feature 2
+- Feature 3
+
+## Links
+- Homepage: ${url}
+- Documentation: ${url}/docs
+- API: ${url}/api
+
+## Contact
+- Email: hello@${new URL(url).hostname}
+`;
+
+  return {
+    issue: { code: 'AI_NO_LLMS_TXT', message: 'No llms.txt file for AI crawlers', severity: 'info' },
+    file: 'public/llms.txt',
+    before: null,
+    after: llmsTxt,
+    explanation: 'Created llms.txt to help AI systems understand your site. Customize the content.',
   };
 }
 
