@@ -243,11 +243,11 @@ function validateSchema(data: any, type: string): SchemaItem {
     // Check for proper item list
     if (data.itemListElement) {
       const items = Array.isArray(data.itemListElement) ? data.itemListElement : [data.itemListElement];
-      items.forEach((item, i) => {
+      items.forEach((item: Record<string, unknown>, i: number) => {
         if (!item.position) {
           errors.push(`Breadcrumb item ${i + 1} missing position`);
         }
-        if (!item.name && !item.item?.name) {
+        if (!item.name && !(item.item as Record<string, unknown>)?.name) {
           errors.push(`Breadcrumb item ${i + 1} missing name`);
         }
       });
@@ -581,7 +581,7 @@ export function generateSchemaTemplate(pageType: 'article' | 'product' | 'faq' |
     website: baseSchemas[1],
   };
   
-  const result = [...baseSchemas];
+  const result: object[] = [...baseSchemas];
   if (pageType !== 'website' && pageSchemas[pageType]) {
     result.push(pageSchemas[pageType]);
   }

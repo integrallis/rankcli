@@ -89,7 +89,8 @@ function isInternalUrl(href: string, baseUrl: string): boolean {
 /**
  * Check if link is in navigation
  */
-function isNavigationLink($el: cheerio.Cheerio<cheerio.Element>, $: cheerio.CheerioAPI): boolean {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isNavigationLink($el: cheerio.Cheerio<any>, $: cheerio.CheerioAPI): boolean {
   const parent = $el.parents('nav, header, footer, [role="navigation"], .nav, .navigation, .menu, .sidebar').first();
   return parent.length > 0;
 }
