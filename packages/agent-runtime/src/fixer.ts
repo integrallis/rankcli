@@ -86,6 +86,7 @@ async function generateFixForIssue(
 
     // Canonical issues
     case 'MISSING_CANONICAL':
+    case 'CANONICAL_MISSING':  // Full audit code
     case 'CANONICAL_NO_HTTPS_REDIRECT':
       return generateCanonicalFix(context, fullUrl);
 
@@ -93,14 +94,17 @@ async function generateFixForIssue(
     case 'MISSING_VIEWPORT':
     case 'HTML_NO_VIEWPORT':
     case 'RESPONSIVE_NO_VIEWPORT':
+    case 'VIEWPORT_MISSING':  // Full audit code
       return generateViewportFix(context);
 
     // Open Graph issues
     case 'MISSING_OG_TAGS':
     case 'OG_TITLE_MISSING':
     case 'OG_DESC_MISSING':
+    case 'OG_DESCRIPTION_MISSING':  // Full audit code
     case 'OG_IMAGE_MISSING':
     case 'OG_URL_MISSING':
+    case 'OG_TYPE_MISSING':
       return generateOGFix(context, siteName, fullUrl);
 
     // Twitter Card issues
@@ -108,6 +112,7 @@ async function generateFixForIssue(
     case 'TWITTER_CARD_MISSING':
     case 'TWITTER_TITLE_MISSING':
     case 'TWITTER_DESC_MISSING':
+    case 'TWITTER_DESCRIPTION_MISSING':  // Full audit code
     case 'TWITTER_IMAGE_MISSING':
       return generateTwitterFix(context, siteName);
 
@@ -135,6 +140,7 @@ async function generateFixForIssue(
 
     // H1 issues
     case 'MISSING_H1':
+    case 'H1_MISSING':  // Full audit code
     case 'NO_VISIBLE_HEADLINE':
     case 'H1_MISSING_KEYWORD':
       return await generateH1Fix({ cwd });
@@ -168,6 +174,7 @@ async function generateFixForIssue(
     // Favicon/icons
     case 'HTML_NO_FAVICON':
     case 'HTML_NO_APPLE_TOUCH_ICON':
+    case 'FAVICON_MISSING':  // Full audit code
       return generateFaviconFix(context);
 
     // Charset/lang
@@ -176,6 +183,7 @@ async function generateFixForIssue(
       return generateCharsetFix(context);
 
     case 'HTML_NO_LANG':
+    case 'LANG_ATTR_MISSING':  // Full audit code
       return generateLangFix(context);
 
     // AI/LLMs.txt
