@@ -59,26 +59,31 @@ Analyzes:
 
 ### 🔌 MCP Server (For AI Assistants)
 
-Let Claude run SEO audits for you:
+Let Claude, Cursor, or any MCP-compatible AI run SEO audits for you. **No installation required** — just add your API key:
 
-```bash
-# Install the MCP server
-npm install -g @rankcli/mcp-server
-```
-
-Configure in Claude Desktop:
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
     "rankcli": {
-      "command": "npx",
-      "args": ["@rankcli/mcp-server"]
+      "url": "https://bspljbxwbjiqueeyzyat.supabase.co/functions/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
     }
   }
 }
 ```
 
-Now Claude has 12 SEO tools: `seo_analyze`, `seo_geo_check`, `seo_structured_data`, and more.
+Get your API key at [rankcli.dev/dashboard](https://rankcli.dev/dashboard).
+
+**Available tools:**
+- `seo_audit` — Full 280+ check audit on any URL
+- `seo_geo_check` — AI search visibility analysis
+- `seo_robots_check` — AI crawler permissions in robots.txt
+- `seo_compare` — Compare SEO metrics between two URLs
+
+Now just ask Claude: *"Run an SEO audit on example.com"* ✨
 
 ### 🔧 Framework-Specific Fixes
 
