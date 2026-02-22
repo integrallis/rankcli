@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/cli",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
   "main": "dist/index.js",
@@ -52,7 +52,7 @@
     "ora": "5.4.1",
     "inquirer": "^9.2.0",
     "axios": "^1.6.0",
-    "cheerio": "^1.0.0",
+    "cheerio": "1.0.0-rc.12",
     "open": "^10.0.0",
     "table": "^6.8.0"
   },
