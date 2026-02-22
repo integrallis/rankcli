@@ -12,7 +12,7 @@ Just add your API key to Claude Desktop — no npm install needed:
 {
   "mcpServers": {
     "rankcli": {
-      "url": "https://bspljbxwbjiqueeyzyat.supabase.co/functions/v1/mcp",
+      "url": "https://rankcli-audit-worker.fly.dev/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
       }
