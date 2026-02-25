@@ -7,11 +7,16 @@
 
 export type AlertType = 'error' | 'score_drop' | 'weekly_report' | 'pr_created';
 
+export type CreatePrMode = 'true' | 'false' | 'auto';
+
 export interface ActionInputs {
   url: string;
+  apiKey?: string;
   githubToken?: string;
-  createPr: boolean;
+  createPr: CreatePrMode;
   prBaseBranch: string;
+  prThresholdErrors: number;
+  prThresholdScore: number;
   commentOnPr: boolean;
   failOnError: boolean;
   scoreThreshold: number;
@@ -44,9 +49,16 @@ type GetInputFn = (name: string) => string;
  */
 export function parseInputs(getInput: GetInputFn): ActionInputs {
   const url = getInput('url');
+  const apiKey = getInput('api-key') || process.env.RANKCLI_API_KEY || undefined;
   const githubToken = getInput('github-token') || undefined;
-  const createPr = getInput('create-pr') === 'true';
+  
+  // create-pr can be 'true', 'false', or 'auto'
+  const createPrRaw = getInput('create-pr') || 'false';
+  const createPr: CreatePrMode = createPrRaw === 'auto' ? 'auto' : (createPrRaw === 'true' ? 'true' : 'false');
+  
   const prBaseBranch = getInput('pr-base-branch') || 'main';
+  const prThresholdErrors = parseInt(getInput('pr-threshold-errors') || '1', 10);
+  const prThresholdScore = parseInt(getInput('pr-threshold-score') || '70', 10);
   const commentOnPr = getInput('comment-on-pr') !== 'false'; // default true
   const failOnError = getInput('fail-on-error') === 'true';
   const scoreThreshold = parseInt(getInput('score-threshold') || '0', 10);
@@ -66,9 +78,12 @@ export function parseInputs(getInput: GetInputFn): ActionInputs {
 
   return {
     url,
+    apiKey,
     githubToken,
     createPr,
     prBaseBranch,
+    prThresholdErrors,
+    prThresholdScore,
     commentOnPr,
     failOnError,
     scoreThreshold,
@@ -77,6 +92,23 @@ export function parseInputs(getInput: GetInputFn): ActionInputs {
     alertOn,
     checks,
   };
+}
+
+/**
+ * Determines if PR should be created based on auto mode thresholds
+ */
+export function shouldCreatePr(
+  inputs: ActionInputs, 
+  summary: AuditSummary
+): boolean {
+  if (inputs.createPr === 'true') return true;
+  if (inputs.createPr === 'false') return false;
+  
+  // Auto mode - create PR if thresholds exceeded
+  if (summary.errorsCount >= inputs.prThresholdErrors) return true;
+  if (summary.score < inputs.prThresholdScore) return true;
+  
+  return false;
 }
 
 /**

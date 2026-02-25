@@ -4,6 +4,7 @@ import chalk from 'chalk';
 
 const { detectFramework, getFrameworkDisplayName, getFrameworkIssues } = frameworks;
 import { isLoggedIn, getAuthenticatedClient, getUserInfo, WEB_APP_URL } from '../lib/config.js';
+import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
 
 interface AuditOptions {
   url?: string;
@@ -13,6 +14,7 @@ interface AuditOptions {
   ai?: boolean;
   aiProvider?: string;
   aiKey?: string;
+  geo?: boolean;
 }
 
 interface AIAnalysis {
@@ -159,7 +161,9 @@ async function syncToCloud(
   report: AuditReport,
   mergedIssues: AuditIssue[],
   pagesAudited: number,
-  aiAnalysis: AIAnalysis | null
+  aiAnalysis: AIAnalysis | null,
+  durationMs: number,
+  checksRun: number
 ): Promise<{ projectId: string; auditId: string } | null> {
   const supabase = await getAuthenticatedClient();
   if (!supabase) return null;
@@ -231,6 +235,7 @@ async function syncToCloud(
       security: report.healthScore?.security || 0,
     };
 
+    const now = new Date().toISOString();
     const { data: audit, error: auditError } = await supabase
       .from('audits')
       .insert({
@@ -241,14 +246,17 @@ async function syncToCloud(
         score,
         pages_crawled: pagesAudited,
         issues_found: mergedIssues.length,
-        checks_run: mergedIssues.length > 0 ? 200 : 0, // Approximate
+        checks_run: checksRun,
         health_scores: healthScores,
-        completed_at: new Date().toISOString(),
+        started_at: new Date(Date.now() - durationMs).toISOString(),
+        completed_at: now,
+        duration_ms: durationMs,
         summary: {
           errors: mergedIssues.filter(i => i.severity === 'error').length,
           warnings: mergedIssues.filter(i => i.severity === 'warning').length,
           notices: mergedIssues.filter(i => i.severity === 'notice').length,
           pagesAudited,
+          checksRun,
           source: 'cli',
         },
         ai_analysis: aiAnalysis,
@@ -281,12 +289,14 @@ async function syncToCloud(
       await supabase.from('audit_issues').insert(issueRecords);
     }
 
-    // Update project last audit info
+    // Update project last audit info (including schedule tracking for rate limits)
     await supabase
       .from('projects')
       .update({
-        last_audit_at: new Date().toISOString(),
+        last_audit_at: now,
         last_audit_score: score,
+        last_scheduled_audit_at: now,
+        scheduled_audit_source: 'cli',
       })
       .eq('id', projectId);
 
@@ -446,7 +456,18 @@ export async function audit(options: AuditOptions): Promise<void> {
       ? getFrameworkDisplayName(detectedFramework.framework)
       : null;
 
+    // Calculate actual checks run from report summary (used for both output modes)
+    const actualChecksRun = (primaryReport.summary?.passed || 0) + 
+                            (primaryReport.summary?.errors || 0) + 
+                            (primaryReport.summary?.warnings || 0) || 200;
+
     if (options.output === 'json') {
+      // Sync to cloud for JSON output too (silent, no spinner)
+      let syncResult: { projectId: string; auditId: string } | null = null;
+      if (loggedIn) {
+        syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun);
+      }
+
       const jsonOutput = {
         url,
         score: primaryReport.healthScore?.overall || 0,
@@ -456,6 +477,12 @@ export async function audit(options: AuditOptions): Promise<void> {
         issues: mergedIssues,
         healthScores: primaryReport.healthScore,
         aiAnalysis,
+        // Include cloud sync info if synced
+        ...(syncResult && {
+          projectId: syncResult.projectId,
+          auditId: syncResult.auditId,
+          dashboardUrl: `${WEB_APP_URL}/dashboard/projects/${syncResult.projectId}`,
+        }),
       };
       console.log(JSON.stringify(jsonOutput, null, 2));
     } else {
@@ -536,10 +563,30 @@ export async function audit(options: AuditOptions): Promise<void> {
 
       console.log('\n' + chalk.bold('═'.repeat(60)));
 
+      // Get user tier for upsell logic
+      const userInfo = getUserInfo();
+      const tier = (userInfo.planName?.toLowerCase() || 'free') as TierId;
+      const isFreeTier = !loggedIn || tier === 'free';
+      const isSoloOrBelow = isFreeTier || tier === 'solo';
+
+      // Show checks limit message for free users
+      if (isFreeTier) {
+        const checksRun = mergedIssues.length > 0 ? (loggedIn ? 100 : 50) : 0;
+        showUpsell('checks_limit', { 
+          tier: loggedIn ? 'free' : 'free_anon', 
+          current: checksRun 
+        });
+      }
+
+      // Show GEO limited message if --geo was used on free tier
+      if (options.geo && isFreeTier) {
+        showUpsell('geo_limited', { tier: loggedIn ? 'free' : 'free_anon' });
+      }
+
       // Sync to cloud if logged in
       if (loggedIn) {
         const syncSpinner = ora('Syncing to cloud...').start();
-        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis);
+        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun);
 
         if (syncResult) {
           syncSpinner.succeed('Results synced to cloud');
@@ -549,8 +596,8 @@ export async function audit(options: AuditOptions): Promise<void> {
           syncSpinner.warn('Could not sync to cloud');
         }
       } else {
-        console.log(chalk.dim('\n  Tip: Log in to sync results and manage issues in the web dashboard:'));
-        console.log(chalk.dim('       rankcli login\n'));
+        // Show upsell for non-authenticated users
+        showUpsell('free_audit_complete');
       }
     }
 

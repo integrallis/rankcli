@@ -11,7 +11,8 @@ import {
   type FrameworkInfo,
   type AuditRunnerResult,
 } from '@rankcli/agent-runtime';
-import { isLoggedIn, isApiKeyAuth } from '../lib/config.js';
+import { isLoggedIn, isApiKeyAuth, getUserInfo } from '../lib/config.js';
+import { showUpsell, hasFeature, type TierId } from '../lib/upsell.js';
 
 interface ApplyOptions {
   url?: string;
@@ -91,6 +92,19 @@ export async function apply(options: ApplyOptions): Promise<void> {
   console.log('\n\u{1F680} SEO Autopilot - Apply Fixes');
   console.log('═'.repeat(50));
 
+  // Check if user has access to auto-fix feature
+  const loggedIn = isLoggedIn();
+  const userInfo = getUserInfo();
+  const tier = (userInfo.planName?.toLowerCase() || 'free') as TierId;
+  
+  // Auto-fix requires Solo tier or higher
+  const hasAutoFix = loggedIn && hasFeature(tier, 'auto_fix');
+  
+  if (!hasAutoFix) {
+    showUpsell('auto_fix_blocked');
+    return;
+  }
+
   // Detect framework
   console.log('\n\u{1F50D} Detecting framework...');
   const frameworkResult = await detectFramework({ cwd });
@@ -99,41 +113,28 @@ export async function apply(options: ApplyOptions): Promise<void> {
     : { name: 'Unknown', metaPattern: 'html-head' as const };
   console.log(`   Framework: ${framework.name}`);
 
-  // Analyze URL - use full audit for authenticated users, basic for free
-  const isPaidUser = isLoggedIn();
-  
+  // Analyze URL - full audit since we already verified access
   console.log(`\n\u{1F50D} Analyzing ${url}...`);
-  if (isPaidUser) {
-    console.log('   Running full audit (200+ checks)...');
-  } else {
-    console.log('   Running basic analysis (login for full 200+ checks)');
-  }
+  console.log('   Running full audit (200+ checks)...');
 
   let issues: SEOAnalysisResult['issues'];
   let score: number;
   let auditResult: AuditRunnerResult | null = null;
 
   try {
-    if (isPaidUser) {
-      // Full audit for paid users
-      auditResult = await runAuditWithFixes({
-        url,
-        generateFixes: true,
-      });
-      issues = auditResult.report.issues.map(issue => ({
-        severity: issue.severity,
-        category: issue.category,
-        code: issue.code,
-        message: issue.title,
-        impact: issue.description || undefined,
-      }));
-      score = auditResult.score;
-    } else {
-      // Basic analysis for free users
-      const analysis = await runDirectAnalysis(url);
-      issues = analysis.issues;
-      score = analysis.score;
-    }
+    // Full audit since we already verified access
+    auditResult = await runAuditWithFixes({
+      url,
+      generateFixes: true,
+    });
+    issues = auditResult.report.issues.map(issue => ({
+      severity: issue.severity,
+      category: issue.category,
+      code: issue.code,
+      message: issue.title,
+      impact: issue.description || undefined,
+    }));
+    score = auditResult.score;
   } catch (error) {
     console.log(`\n\u274C Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
     return;

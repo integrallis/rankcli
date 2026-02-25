@@ -10,15 +10,29 @@ inputs:
     description: 'URL to audit (e.g., https://example.com or ${{ env.DEPLOY_URL }})'
     required: true
 
+  api-key:
+    description: 'RankCLI API key for authentication (required for scheduled audits and advanced features)'
+    required: false
+
   github-token:
     description: 'GitHub token for creating PRs and comments (defaults to GITHUB_TOKEN)'
     required: false
     default: ${{ github.token }}
 
   create-pr:
-    description: 'Create a PR with SEO fixes (true/false)'
+    description: 'Create a PR with SEO fixes (true/false/auto). Auto creates PR only if issues exceed thresholds.'
     required: false
     default: 'false'
+
+  pr-threshold-errors:
+    description: 'Minimum errors to trigger PR creation in auto mode (default: 1)'
+    required: false
+    default: '1'
+
+  pr-threshold-score:
+    description: 'Score below which to trigger PR creation in auto mode (default: 70)'
+    required: false
+    default: '70'
 
   pr-base-branch:
     description: 'Base branch for fix PRs'
@@ -79,6 +93,21 @@ outputs:
 
   report-json:
     description: 'Full audit report as JSON string'
+
+  skipped:
+    description: 'Whether the audit was skipped (true/false)'
+
+  skip-reason:
+    description: 'Reason for skip (schedule_exceeded, rate_limited)'
+
+  next-allowed-at:
+    description: 'When the next audit is allowed (ISO timestamp)'
+
+  rate-limit-remaining:
+    description: 'Remaining API requests for the day'
+
+  rate-limit-resets-at:
+    description: 'When the rate limit resets (ISO timestamp)'
 
 runs:
   using: 'node20'
