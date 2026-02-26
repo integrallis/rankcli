@@ -9,6 +9,7 @@ import { geo } from './commands/geo.js';
 import { keywords, keywordsQuick, keywordsCompetitor, keywordsAI } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
 import { setup, showGSCInstructions } from './commands/setup.js';
+import { alerts } from './commands/alerts.js';
 import { login, logout, whoami } from './commands/auth.js';
 import { VERSION } from './version.js';
 
@@ -169,5 +170,15 @@ program
   .command('gsc-setup')
   .description('Show Google Search Console API setup instructions')
   .action(showGSCInstructions);
+
+program
+  .command('alerts')
+  .description('Configure Slack/Discord notifications for SEO events')
+  .option('-c, --channel <channel>', 'Alert channel (slack, discord)')
+  .option('-w, --webhook <url>', 'Webhook URL')
+  .option('--test', 'Test the webhook')
+  .option('--list', 'List current alert configurations')
+  .option('--remove <id>', 'Remove an alert configuration')
+  .action(alerts);
 
 program.parse();
