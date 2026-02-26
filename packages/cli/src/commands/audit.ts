@@ -233,6 +233,8 @@ async function syncToCloud(
       content: report.healthScore?.content || 0,
       performance: report.healthScore?.performance || 0,
       security: report.healthScore?.security || 0,
+      localSeo: report.healthScore?.localSeo || 0,
+      aiReadiness: report.healthScore?.aiReadiness || 0,
     };
 
     const now = new Date().toISOString();
@@ -519,6 +521,8 @@ export async function audit(options: AuditOptions): Promise<void> {
         console.log(`    Content:       ${bar(hs.content || 0)} ${hs.content || 0}%`);
         console.log(`    Performance:   ${bar(hs.performance || 0)} ${hs.performance || 0}%`);
         console.log(`    Security:      ${bar(hs.security || 0)} ${hs.security || 0}%`);
+        console.log(`    Local SEO:     ${bar(hs.localSeo || 0)} ${hs.localSeo || 0}%`);
+        console.log(`    AI Readiness:  ${bar(hs.aiReadiness || 0)} ${hs.aiReadiness || 0}%`);
       }
 
       // Issues by severity
