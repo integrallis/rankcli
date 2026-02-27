@@ -123,6 +123,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
       timeout: 30000,
       validateStatus: () => true,
     }).catch(err => {
+      console.error('Main page fetch failed:', err instanceof Error ? { message: err.message, cause: (err as NodeJS.ErrnoException).cause } : err);
       return { error: err, data: '', headers: {} as Record<string, string> };
     }),
   ]);
@@ -131,16 +132,21 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
 
   // Check if fetch failed
   if ('error' in fetchResult) {
-    const errorMsg = fetchResult.error instanceof Error ? fetchResult.error.message : 'Unknown error';
+    const err = fetchResult.error;
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    const errorCause = err instanceof Error && (err as NodeJS.ErrnoException).cause 
+      ? ` (${String((err as NodeJS.ErrnoException).cause)})` 
+      : '';
     allIssues.push({
       code: 'FETCH_ERROR',
       severity: 'error',
       category: 'indexability', // Not crawlability - robots/sitemap checks may have succeeded
       title: 'Page fetch failed',
-      description: `Could not load page content: ${errorMsg}. Only robots.txt and sitemap checks were performed.`,
+      description: `Could not load page content: ${errorMsg}${errorCause}. Only robots.txt and sitemap checks were performed.`,
       impact: 'Cannot perform full SEO audit without page HTML content.',
       howToFix: 'Verify the URL is accessible, the server is responding, and there are no firewall/geo blocks.',
       affectedUrls: [url],
+      details: { error: errorMsg, cause: errorCause || undefined },
     });
     return createReport(url, domain, allIssues, pages);
   }
