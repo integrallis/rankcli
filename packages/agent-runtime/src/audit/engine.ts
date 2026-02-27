@@ -131,14 +131,15 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
 
   // Check if fetch failed
   if ('error' in fetchResult) {
+    const errorMsg = fetchResult.error instanceof Error ? fetchResult.error.message : 'Unknown error';
     allIssues.push({
       code: 'FETCH_ERROR',
       severity: 'error',
-      category: 'crawlability',
-      title: 'Failed to fetch page',
-      description: `Could not fetch the page: ${fetchResult.error instanceof Error ? fetchResult.error.message : 'Unknown error'}`,
-      impact: 'Cannot perform full audit without page content.',
-      howToFix: 'Ensure the URL is accessible and the server is responding.',
+      category: 'indexability', // Not crawlability - robots/sitemap checks may have succeeded
+      title: 'Page fetch failed',
+      description: `Could not load page content: ${errorMsg}. Only robots.txt and sitemap checks were performed.`,
+      impact: 'Cannot perform full SEO audit without page HTML content.',
+      howToFix: 'Verify the URL is accessible, the server is responding, and there are no firewall/geo blocks.',
       affectedUrls: [url],
     });
     return createReport(url, domain, allIssues, pages);
