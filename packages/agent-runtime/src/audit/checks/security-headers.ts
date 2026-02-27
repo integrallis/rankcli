@@ -59,7 +59,15 @@ export async function analyzeSecurityHeaders(url: string): Promise<{ issues: Aud
     });
 
     const headers = response.headers;
-    const isHttps = url.startsWith('https://');
+    // Use URL parsing for robust protocol detection (handles case variations like Https://)
+    let isHttps = false;
+    try {
+      const parsedUrl = new URL(url);
+      isHttps = parsedUrl.protocol === 'https:';
+    } catch {
+      // If URL parsing fails, fall back to startsWith check
+      isHttps = url.toLowerCase().startsWith('https://');
+    }
 
     // Extract security headers (case-insensitive)
     const getHeader = (name: string): string | null => {
@@ -151,10 +159,18 @@ export async function analyzeSecurityHeaders(url: string): Promise<{ issues: Aud
       },
     };
   } catch (error) {
+    // Use URL parsing for robust protocol detection in error case too
+    let isHttps = false;
+    try {
+      const parsedUrl = new URL(url);
+      isHttps = parsedUrl.protocol === 'https:';
+    } catch {
+      isHttps = url.toLowerCase().startsWith('https://');
+    }
     return {
       issues,
       data: {
-        https: url.startsWith('https://'),
+        https: isHttps,
         headers: {
           hsts: null,
           csp: null,
