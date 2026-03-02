@@ -314,7 +314,9 @@ export async function audit(options: AuditOptions): Promise<void> {
   const maxPages = parseInt(options.maxPages || '5', 10);
   const enableAI = options.ai || false;
   const aiProvider = options.aiProvider || 'openai';
-  const aiKey = options.aiKey || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+  // Use provider-specific key when available
+  const aiKey = options.aiKey || 
+    (aiProvider === 'anthropic' ? (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) || '';
 
   // Check login status
   const loggedIn = isLoggedIn();
