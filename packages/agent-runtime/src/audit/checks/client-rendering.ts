@@ -312,17 +312,17 @@ function generateRecommendations(
 
     if (framework === 'React') {
       recommendations.push(
-        'Quick fix: Add react-snap to pre-render pages at build time (npm install -D react-snap, add "postbuild": "react-snap" to scripts)'
+        'Quick fix: Use Vike (vike.dev) for SSR/SSG - works with Vite, minimal config needed'
       );
       recommendations.push(
-        'Alternative: Use Vike (vite-plugin-ssr) for SSR/SSG without changing frameworks'
+        'Alternative: Migrate to Next.js or Remix for built-in SSR/SSG support'
       );
     } else if (framework === 'Vue') {
       recommendations.push(
-        'Quick fix: Add prerender-spa-plugin to pre-render pages at build time'
+        'Quick fix: Use Vike (vike.dev) for SSR/SSG - works with Vite, minimal config needed'
       );
       recommendations.push(
-        'Alternative: Use Vike (vite-plugin-ssr) for SSR/SSG without changing frameworks'
+        'Alternative: Migrate to Nuxt for built-in SSR/SSG support'
       );
     } else if (framework === 'Angular Universal') {
       recommendations.push(
@@ -330,7 +330,7 @@ function generateRecommendations(
       );
     } else {
       recommendations.push(
-        'Quick fix: Use a pre-rendering tool like react-snap or prerender-spa-plugin'
+        'Quick fix: Use Vike (vike.dev) for SSR/SSG with any Vite-based framework'
       );
     }
 
@@ -368,10 +368,10 @@ export function analyzeClientRendering(
   // Critical: Client-side only rendering
   if (analysis.renderingMethod === 'csr' && analysis.confidence !== 'low') {
     const howToFixByFramework = analysis.frameworkDetected === 'React'
-      ? 'Add react-snap to pre-render pages: npm install -D react-snap, then add "postbuild": "react-snap" to package.json scripts. No code changes needed.'
+      ? 'Use Vike (vike.dev) to add SSR/SSG to your Vite React app: npm install vike vike-react, then follow the setup guide. Alternatively, migrate to Next.js or Remix.'
       : analysis.frameworkDetected === 'Vue'
-      ? 'Add prerender-spa-plugin to pre-render pages at build time. Alternatively, use Vike for SSR/SSG.'
-      : 'Pre-render your pages using react-snap, prerender-spa-plugin, or similar build-time tools.';
+      ? 'Use Vike (vike.dev) to add SSR/SSG to your Vite Vue app: npm install vike vike-vue, then follow the setup guide. Alternatively, migrate to Nuxt.'
+      : 'Use Vike (vike.dev) for SSR/SSG with Vite-based frameworks, or use a framework with built-in SSR support (Next.js, Nuxt, Remix, SvelteKit).';
 
     issues.push({
       code: 'CLIENT_SIDE_RENDERING',
@@ -431,8 +431,8 @@ export function analyzeClientRendering(
         'Single Page Applications without SSR have slower time-to-content for search crawlers.',
       howToFix:
         analysis.frameworkDetected === 'React'
-          ? 'Quick fix: Add react-snap (npm install -D react-snap) to pre-render at build time. Alternative: Use Vike for SSR/SSG.'
-          : 'Quick fix: Add prerender-spa-plugin to pre-render at build time. Alternative: Use Vike for SSR/SSG.',
+          ? 'Add SSR/SSG using Vike (vike.dev): npm install vike vike-react. Alternative: migrate to Next.js or Remix.'
+          : 'Add SSR/SSG using Vike (vike.dev): npm install vike vike-vue. Alternative: migrate to Nuxt.',
       affectedUrls: [url],
       details: {
         framework: analysis.frameworkDetected,
