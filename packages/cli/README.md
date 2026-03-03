@@ -12,7 +12,7 @@ Developer-first SEO. CLI-native. Optimizes for Google *and* ChatGPT, Perplexity,
 | **MCP Server** | ✅ AI assistants can run audits | ❌ |
 | **Framework Fixes** | ✅ 25+ frameworks | ❌ |
 | **CLI/CI Native** | ✅ Built for developers | ❌ |
-| **Price** | **$15/mo** | $99-500/mo |
+| **Price** | **From $9/mo** | $99-500/mo |
 
 ## Installation
 
@@ -201,7 +201,7 @@ jobs:
 
 ## Pricing
 
-| Feature | Free | Pro ($15/mo) |
+| Feature | Free | Solo+ (from $9/mo) |
 |---------|------|--------------|
 | SEO Checks | 100 | 280+ |
 | GEO Analysis | Basic | Full |
