@@ -158,65 +158,59 @@ export class RankTracker {
    * Save a ranking result to the database
    */
   private async saveRanking(keywordId: string, result: RankCheckResult): Promise<void> {
-    // Insert ranking record
-    const { error: rankingError } = await this.supabase
-      .from('rankings')
-      .insert({
-        keyword_id: keywordId,
-        position: result.position,
-        url: result.url,
-        serp_features: result.serpFeatures,
-        competitor_urls: result.topResults,
-        recorded_at: result.checkedAt.toISOString(),
-      });
+    // Get current position to set as previous
+    const { data: currentKeyword } = await this.supabase
+      .from('keywords')
+      .select('current_position, best_position')
+      .eq('id', keywordId)
+      .single();
 
-    if (rankingError) {
-      console.error(`Failed to save ranking for ${result.keyword}:`, rankingError);
-    }
+    const previousPosition = currentKeyword?.current_position;
+    const bestPosition = currentKeyword?.best_position;
+    const newBestPosition = result.position !== null && 
+      (bestPosition === null || result.position < bestPosition) 
+      ? result.position 
+      : bestPosition;
 
-    // Update keyword current position
-    const { error: keywordError } = await this.supabase.rpc('update_keyword_rank', {
-      p_keyword_id: keywordId,
-      p_position: result.position,
-      p_url: result.url,
-      p_serp_features: result.serpFeatures,
-      p_competitor_urls: result.topResults,
-    });
+    // Update keyword with new position
+    const { error: updateError } = await this.supabase
+      .from('keywords')
+      .update({
+        previous_position: previousPosition,
+        current_position: result.position,
+        best_position: newBestPosition,
+        last_checked: result.checkedAt.toISOString(),
+      })
+      .eq('id', keywordId);
 
-    if (keywordError) {
-      // Fallback to direct update if RPC doesn't exist
-      await this.supabase
-        .from('keywords')
-        .update({
-          current_position: result.position,
-          last_checked: result.checkedAt.toISOString(),
-        })
-        .eq('id', keywordId);
+    if (updateError) {
+      console.error(`Failed to save ranking for ${result.keyword}:`, updateError);
     }
   }
 
   /**
    * Get ranking history for a keyword
+   * Note: Full history requires keyword_ranking_history table with keyword_ranking_id
+   * For now, returns current state as single history entry
    */
-  async getHistory(keywordId: string, days = 30): Promise<RankHistory[]> {
+  async getHistory(keywordId: string, _days = 30): Promise<RankHistory[]> {
     const { data, error } = await this.supabase
-      .from('rankings')
-      .select('position, url, serp_features, recorded_at')
-      .eq('keyword_id', keywordId)
-      .gte('recorded_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
-      .order('recorded_at', { ascending: false });
+      .from('keywords')
+      .select('current_position, target_url, last_checked')
+      .eq('id', keywordId)
+      .single();
 
-    if (error) {
-      throw new Error(`Failed to get history: ${error.message}`);
+    if (error || !data) {
+      return [];
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data || []).map((row: any) => ({
-      position: row.position,
-      url: row.url,
-      serpFeatures: row.serp_features || [],
-      recordedAt: new Date(row.recorded_at),
-    }));
+    // Return current position as single history entry
+    return [{
+      position: data.current_position,
+      url: data.target_url,
+      serpFeatures: [],
+      recordedAt: data.last_checked ? new Date(data.last_checked) : new Date(),
+    }];
   }
 
   /**
