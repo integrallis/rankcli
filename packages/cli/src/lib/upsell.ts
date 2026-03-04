@@ -129,6 +129,24 @@ const UPSELL_MESSAGES: Record<string, (ctx: UpsellContext) => string[]> = {
     '',
   ],
 
+  // Keyword tracking limit reached
+  keyword_limit: (ctx) => [
+    '',
+    chalk.red('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
+    chalk.red.bold('  ✗ Keyword tracking limit reached'),
+    chalk.dim(`  Your ${ctx.tier} plan allows ${ctx.limit || ctx.max} tracked keywords.`),
+    chalk.dim(`  Currently tracking: ${ctx.current}`),
+    '',
+    chalk.dim('  Upgrade for more keywords:'),
+    chalk.dim('    • Solo ($9/mo): 100 keywords'),
+    chalk.dim('    • Pro ($29/mo): 500 keywords'),
+    chalk.dim('    • Agency ($99/mo): 2,000 keywords'),
+    '',
+    chalk.cyan(`  → ${WEB_APP_URL}/pricing?from=cli_keyword_limit`),
+    chalk.red('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
+    '',
+  ],
+
   // Rate limit exceeded
   rate_limit: (ctx) => [
     '',

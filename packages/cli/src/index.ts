@@ -5,6 +5,8 @@ import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit } from './commands/audit.js';
 import { apply } from './commands/apply.js';
+import { fix } from './commands/fix.js';
+import { trackAdd, trackStatus, trackHistory, trackExport, trackCheck } from './commands/track.js';
 import { geo } from './commands/geo.js';
 import { keywords, keywordsQuick, keywordsCompetitor, keywordsAI } from './commands/keywords.js';
 import { analyzeContent, analyzeIntent } from './commands/content.js';
@@ -72,6 +74,31 @@ program
   .action(apply);
 
 program
+  .command('fix')
+  .description('Agentic SEO fixer - detect, fix, commit, and push')
+  .option('-u, --url <url>', 'URL to analyze')
+  .option('--auto', 'Auto-apply fixes without confirmation')
+  .option('--commit', 'Commit changes with conventional commit message')
+  .option('--push', 'Push changes after committing (requires --commit)')
+  .option('--dry-run', 'Preview changes without applying')
+  .option('--only <codes>', 'Fix only specific issue codes (comma-separated)', (val) => val.split(','))
+  .option('-o, --output <format>', 'Output format (text, json)', 'text')
+  .action(async (options) => {
+    const result = await fix({
+      url: options.url,
+      auto: options.auto,
+      commit: options.commit,
+      push: options.push,
+      dryRun: options.dryRun,
+      only: options.only,
+      output: options.output,
+    });
+    if (options.output === 'json' && result.json) {
+      console.log(result.json);
+    }
+  });
+
+program
   .command('geo')
   .description('GEO analysis - Check AI search visibility (ChatGPT, Perplexity, Claude)')
   .option('-u, --url <url>', 'URL to analyze')
@@ -134,11 +161,80 @@ program
     console.log('Competitor analysis coming soon...');
   });
 
-program
-  .command('rank')
-  .description('Check current keyword rankings')
-  .action(() => {
-    console.log('Rank tracking coming soon...');
+// Track command group
+const trackCmd = program
+  .command('track')
+  .description('Keyword rank tracking');
+
+trackCmd
+  .command('add <keywords...>')
+  .description('Add keywords to track')
+  .option('-u, --url <url>', 'URL to track rankings for')
+  .option('-e, --engine <engine>', 'Search engine (google, bing)', 'google')
+  .option('-c, --country <country>', 'Country code (US, UK, DE, etc.)', 'US')
+  .option('-l, --language <lang>', 'Language code (en, de, fr, etc.)', 'en')
+  .action(async (keywords: string[], options) => {
+    await trackAdd({
+      keywords,
+      url: options.url,
+      searchEngine: options.engine,
+      country: options.country,
+      language: options.language,
+    });
+  });
+
+trackCmd
+  .command('status')
+  .description('Show current keyword rankings')
+  .option('-u, --url <url>', 'URL to show rankings for')
+  .option('-o, --output <format>', 'Output format (text, json)', 'text')
+  .action(async (options) => {
+    await trackStatus({
+      url: options.url,
+      output: options.output,
+    });
+  });
+
+trackCmd
+  .command('history')
+  .description('Show keyword position history')
+  .option('-u, --url <url>', 'URL to show history for')
+  .option('-k, --keyword <keyword>', 'Keyword to show history for')
+  .option('-d, --days <days>', 'Number of days of history', '30')
+  .option('-o, --output <format>', 'Output format (text, json)', 'text')
+  .action(async (options) => {
+    await trackHistory({
+      url: options.url,
+      keyword: options.keyword,
+      days: parseInt(options.days, 10),
+      output: options.output,
+    });
+  });
+
+trackCmd
+  .command('check')
+  .description('Check current rankings (calls SERP API)')
+  .option('-u, --url <url>', 'URL to check rankings for')
+  .option('-f, --force', 'Force check even if rate limited')
+  .action(async (options) => {
+    await trackCheck({
+      url: options.url,
+      force: options.force,
+    });
+  });
+
+trackCmd
+  .command('export')
+  .description('Export tracking data')
+  .option('-u, --url <url>', 'URL to export data for')
+  .option('-f, --format <format>', 'Export format (csv, json)', 'csv')
+  .option('-d, --days <days>', 'Number of days of history', '30')
+  .action(async (options) => {
+    await trackExport({
+      url: options.url,
+      format: options.format,
+      days: parseInt(options.days, 10),
+    });
   });
 
 program

@@ -62,6 +62,9 @@ export * from './reports/index.js';
 // GEO (Generative Engine Optimization) tracking
 export * from './geo/index.js';
 
+// Keyword Rank Tracking
+export * from './ranking/index.js';
+
 // Advanced Analyzers (GEO, CWV, Security, Schema, Images, Links, Mobile)
 export * as analyzers from './analyzers/index.js';
 
