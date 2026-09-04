@@ -50,10 +50,17 @@ echo "==> [$LABEL] Bundling CLI entry point (esbuild, full bundle - no node_modu
 # limitation: the `open` package reads import.meta.url at module scope
 # (to locate a sidecar xdg-open script on Linux, a feature this build
 # doesn't need), and esbuild's CJS shim leaves it undefined, crashing on
-# load. A synthetic but valid file:// URL keeps the module loadable.
+# load. A synthetic but valid file:// URL keeps the module loadable -
+# Windows specifically needs a drive letter or fileURLToPath() rejects
+# it as "not absolute" (a bare /path form is only valid on POSIX).
+if [[ "$LABEL" == windows-* ]]; then
+  FAKE_MODULE_URL='file:///C:/rankcli-sea/index.js'
+else
+  FAKE_MODULE_URL='file:///rankcli-sea/index.js'
+fi
 pnpm --dir "$CLI_DIR" exec esbuild "$CLI_DIR/src/index.ts" \
   --bundle --platform=node --format=cjs \
-  --define:import.meta.url='"file:///rankcli-sea/index.js"' \
+  --define:import.meta.url="\"$FAKE_MODULE_URL\"" \
   --define:process.env.RANKCLI_SUPABASE_URL="\"${RANKCLI_SUPABASE_URL:-}\"" \
   --define:process.env.RANKCLI_SUPABASE_ANON_KEY="\"${RANKCLI_SUPABASE_ANON_KEY:-}\"" \
   --define:process.env.RANKCLI_WEB_URL="\"${RANKCLI_WEB_URL:-https://rankcli.dev}\"" \
