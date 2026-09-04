@@ -17,6 +17,7 @@ use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=../../agent-runtime/dist/wasm/wasm-adapter.global.js");
+    println!("cargo:rerun-if-changed=../node_modules/@rankcli/agent-runtime/dist/index.mjs");
     println!("cargo:rerun-if-env-changed=RANKCLI_BUILD_KEY");
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -61,26 +62,38 @@ pub const ORIGINAL_SIZE: usize = {};
 }
 
 fn read_js_bundle() -> String {
-    // The agent-runtime package contains the SEO checks
-    // We use the IIFE bundle that sets globalThis.RankCLI
-    let iife_bundle_path = Path::new("../../agent-runtime/dist/wasm/wasm-adapter.global.js");
-    let wasm_bundle_path = Path::new("../../agent-runtime/dist/wasm/wasm-entry.mjs");
-    let regular_bundle_path = Path::new("../../agent-runtime/dist/index.mjs");
+    // The agent-runtime package contains the SEO checks. Two possible
+    // layouts:
+    //   - Inside the pnpm monorepo: a sibling `packages/agent-runtime`
+    //     directory, pnpm-workspace-linked, which may also have the
+    //     Deno/WASM-specific bundles built (`pnpm build:wasm`).
+    //   - A standalone repo (e.g. a public mirror of this package)
+    //     installing `@rankcli/agent-runtime` as a normal npm dependency
+    //     into node_modules — that package only ever ships the regular
+    //     `dist/index.mjs` bundle (confirmed via `npm pack --dry-run`:
+    //     no `dist/wasm/*` files are published), so only the third
+    //     candidate in each list below will ever resolve there.
+    // Every candidate is tried in order; the first one that exists wins.
+    let candidates: [(&str, &str); 6] = [
+        ("../../agent-runtime/dist/wasm/wasm-adapter.global.js", "monorepo IIFE bundle"),
+        ("../../agent-runtime/dist/wasm/wasm-entry.mjs", "monorepo ESM WASM bundle"),
+        ("../../agent-runtime/dist/index.mjs", "monorepo regular bundle"),
+        ("../node_modules/@rankcli/agent-runtime/dist/wasm/wasm-adapter.global.js", "npm-installed IIFE bundle"),
+        ("../node_modules/@rankcli/agent-runtime/dist/wasm/wasm-entry.mjs", "npm-installed ESM WASM bundle"),
+        ("../node_modules/@rankcli/agent-runtime/dist/index.mjs", "npm-installed regular bundle"),
+    ];
 
-    if iife_bundle_path.exists() {
-        println!("cargo:warning=Embedding IIFE bundle from agent-runtime/dist/wasm/wasm-adapter.global.js");
-        fs::read_to_string(iife_bundle_path).expect("Failed to read IIFE JS bundle")
-    } else if wasm_bundle_path.exists() {
-        println!("cargo:warning=IIFE bundle not found, using ESM bundle (rebuild with pnpm build:wasm)");
-        fs::read_to_string(wasm_bundle_path).expect("Failed to read WASM JS bundle")
-    } else if regular_bundle_path.exists() {
-        println!("cargo:warning=WASM bundles not found, using regular bundle");
-        fs::read_to_string(regular_bundle_path).expect("Failed to read JS bundle")
-    } else {
-        // Placeholder for local development
-        println!("cargo:warning=agent-runtime not built - using placeholder checks");
-        include_str!("src/placeholder_checks.js").to_string()
+    for (candidate, description) in candidates {
+        let path = Path::new(candidate);
+        if path.exists() {
+            println!("cargo:warning=Embedding {} from {}", description, candidate);
+            return fs::read_to_string(path).expect("Failed to read JS bundle");
+        }
     }
+
+    // Placeholder for local development — neither layout found a bundle.
+    println!("cargo:warning=agent-runtime not found in any known location (monorepo or node_modules) - using placeholder checks. Run `npm install` or `pnpm install` first.");
+    include_str!("src/placeholder_checks.js").to_string()
 }
 
 fn get_encryption_key() -> [u8; 32] {
