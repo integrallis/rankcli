@@ -85,16 +85,17 @@ pnpm add @rankcli/agent-runtime
 ### Full Audit
 
 ```typescript
-import { runAudit, generateFixes } from '@rankcli/agent-runtime';
+import { runFullAudit, generateFixes } from '@rankcli/agent-runtime';
 
-const audit = await runAudit({
+const audit = await runFullAudit({
   url: 'https://example.com',
   maxPages: 5,
-  options: { geo: true }
 });
 
-const fixes = await generateFixes(audit.issues);
+const fixes = await generateFixes(audit.issues, { cwd: process.cwd(), url: 'https://example.com' });
 ```
+
+GEO/AI-readiness checks (crawler access, LLM content signals, citation readiness) run as part of every full audit — no separate flag needed.
 
 ### Generate AI-Friendly robots.txt
 

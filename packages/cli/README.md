@@ -16,6 +16,17 @@ Developer-first SEO. CLI-native. Optimizes for Google *and* ChatGPT, Perplexity,
 
 ## Installation
 
+Standalone binary, no Node required:
+
+```bash
+brew install integrallis/tap/rankcli
+# or on Windows:
+scoop bucket add integrallis https://github.com/integrallis/scoop-bucket
+scoop install rankcli
+```
+
+Or via npm (requires Node 18+):
+
 ```bash
 npm install -g @rankcli/cli
 # or
@@ -59,23 +70,22 @@ Analyzes:
 
 ### 🔌 MCP Server (For AI Assistants)
 
-Let Claude, Cursor, or any MCP-compatible AI run SEO audits for you. **No installation required** — just add your API key:
+Let Claude, Cursor, or any MCP-compatible AI run SEO audits for you. **Free, local, no signup**:
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
     "rankcli": {
-      "url": "https://rankcli-audit-worker.fly.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
+      "command": "npx",
+      "args": ["@rankcli/mcp-server"]
     }
   }
 }
 ```
 
-Get your API key at [rankcli.dev/dashboard](https://rankcli.dev/dashboard).
+Nothing is sent to RankCLI's servers — see [`@rankcli/mcp-server`](https://www.npmjs.com/package/@rankcli/mcp-server).
+A hosted endpoint (with your [API key](https://rankcli.dev/dashboard)) is also available for teams that want dashboard sync.
 
 **Available tools:**
 - `seo_audit` — Full 280+ check audit on any URL
@@ -207,12 +217,12 @@ jobs:
 | GEO Analysis | Basic | Full |
 | Framework Fixes | - | ✅ 25+ |
 | Auto-Fix PRs | - | ✅ |
-| Sites | 1 | 10 |
+| Sites | 1 | 3+ |
 
 ## Links
 
 - **Docs**: [rankcli.dev/docs](https://rankcli.dev/docs)
-- **GitHub**: [github.com/rankcli/rankcli](https://github.com/rankcli/rankcli)
+- **GitHub**: [github.com/integrallis/rankcli-cli](https://github.com/integrallis/rankcli-cli)
 - **Support**: support@rankcli.dev
 
 ## License
