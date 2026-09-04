@@ -20,6 +20,7 @@
 import * as vm from 'vm';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import type { AuditIssue } from '@rankcli/agent-runtime';
 
 export type PremiumCheckFn = (html: string, url: string) => { issues: AuditIssue[]; data: unknown };
@@ -63,10 +64,31 @@ let wasmModule: WasmEngine | null = null;
 let auditContext: vm.Context | null = null;
 
 /**
- * Load the WASM module
+ * Load the WASM module.
+ *
+ * Node's Single Executable Application (SEA) build - used for the
+ * Homebrew/Scoop native binary - bundles this whole file into one
+ * standalone executable with no sibling files on disk, so the normal
+ * npm-package lookup below (relative to __dirname) can never find
+ * anything there. That build embeds the WASM glue JS + .wasm binary as
+ * SEA assets instead (see scripts/build-sea.sh's sea-config.json) and
+ * extracts them to a real temp file on first use, after which the
+ * extracted glue file's own (unmodified, wasm-pack-generated)
+ * sibling-file lookup works exactly like the npm-package case.
  */
 async function loadWasm(): Promise<WasmEngine> {
   if (wasmModule) return wasmModule;
+
+  const sea = require('node:sea') as typeof import('node:sea');
+  if (sea.isSea()) {
+    // A SEA main script's plain require() only loads built-in modules -
+    // loading the extracted file from disk needs its own createRequire(),
+    // per Node's own error message when this was first tried directly.
+    const gluePath = extractSeaWasmAssets();
+    const dynamicRequire = require('module').createRequire(gluePath);
+    wasmModule = dynamicRequire(gluePath) as WasmEngine;
+    return wasmModule;
+  }
 
   // Try to load from pkg directory (development) or wasm directory (production)
   const possiblePaths = [
@@ -86,6 +108,36 @@ async function loadWasm(): Promise<WasmEngine> {
     'WASM engine not found. Run `npm run build:wasm` first.\n' +
     `Searched: ${possiblePaths.join(', ')}`
   );
+}
+
+/**
+ * Extract the SEA-embedded WASM glue JS + binary to a real directory on
+ * disk (skipping re-extraction if a same-size copy is already there -
+ * cheap and avoids rewriting on every invocation of an installed
+ * binary), and return the extracted glue file's path to require().
+ */
+function extractSeaWasmAssets(): string {
+  const sea = require('node:sea') as typeof import('node:sea');
+  const dir = path.join(os.tmpdir(), 'rankcli-wasm-sea');
+  fs.mkdirSync(dir, { recursive: true });
+
+  const glueAsset = sea.getRawAsset('rankcli_audit_engine.js');
+  const wasmAsset = sea.getRawAsset('rankcli_audit_engine_bg.wasm');
+  if (typeof glueAsset === 'string' || typeof wasmAsset === 'string') {
+    throw new Error('SEA assets returned as string, expected binary ArrayBuffer');
+  }
+  const glueBuffer = Buffer.from(glueAsset);
+  const wasmBuffer = Buffer.from(wasmAsset);
+  const gluePath = path.join(dir, 'rankcli_audit_engine.js');
+  const wasmPath = path.join(dir, 'rankcli_audit_engine_bg.wasm');
+
+  const existingSize = fs.existsSync(wasmPath) ? fs.statSync(wasmPath).size : -1;
+  if (existingSize !== wasmBuffer.length) {
+    fs.writeFileSync(gluePath, glueBuffer);
+    fs.writeFileSync(wasmPath, wasmBuffer);
+  }
+
+  return gluePath;
 }
 
 /**
