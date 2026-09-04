@@ -46,8 +46,21 @@ pub struct AuditIssue {
     pub how_to_fix: Option<String>,
 }
 
-/// Initialize the engine with a license key.
+/// Initialize the engine with the build-time decrypt passphrase.
 /// Decrypts the embedded checks and stores them for execution.
+///
+/// The `license_key` parameter is misleadingly named for what it does
+/// now: entitlement (is this user actually paid?) is decided in
+/// TypeScript, from the real Supabase-backed apiKey/plan the CLI already
+/// validates on login - not by anything checkable here. The caller only
+/// invokes this at all once it has confirmed a paid apiKey, always
+/// passing the single build-embedded passphrase (see
+/// scripts/inject-config.js), never a user-supplied string. This
+/// decryption step exists purely to keep the premium check source out of
+/// static analysis of the shipped binary; get_tier()/get_checks_limit()/
+/// validate_license() below are legacy from an earlier signed-license
+/// design that was never finished and should not be trusted as an
+/// entitlement source.
 #[wasm_bindgen]
 pub fn init_engine(license_key: &str) -> Result<bool, JsError> {
     if DECRYPTED_CODE.get().is_some() {

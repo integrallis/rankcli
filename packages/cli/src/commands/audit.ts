@@ -3,8 +3,9 @@ import ora from 'ora';
 import chalk from 'chalk';
 
 const { detectFramework, getFrameworkDisplayName, getFrameworkIssues } = frameworks;
-import { isLoggedIn, getAuthenticatedClient, getUserInfo, WEB_APP_URL } from '../lib/config.js';
+import { isLoggedIn, getAuthenticatedClient, getUserInfo, getDecryptPassphrase, WEB_APP_URL } from '../lib/config.js';
 import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
+import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
 
 interface AuditOptions {
   url?: string;
@@ -321,6 +322,31 @@ export async function audit(options: AuditOptions): Promise<void> {
   // Check login status
   const loggedIn = isLoggedIn();
 
+  // Real entitlement: planId comes from validateApiKey() at login time,
+  // a validated call to the backend - not anything checkable client-side.
+  // Unrecognized/missing planId falls back to registered vs. anonymous
+  // free tiers rather than paid, so a sync gap never grants extra checks.
+  const { planId } = getUserInfo();
+  const tierId: TierId = planId && planId in TIER_LIMITS ? (planId as TierId) : loggedIn ? 'free' : 'free_anon';
+  const checksLimit: number = TIER_LIMITS[tierId].checks;
+
+  // Only paid tiers get premium checks, and only if this build actually
+  // has a decrypt passphrase embedded (local/dev builds may not). A
+  // decrypt failure here falls back to running without premium checks
+  // rather than failing the whole audit.
+  let premiumChecks: PremiumChecks | undefined;
+  if (checksLimit > TIER_LIMITS.free.checks) {
+    const passphrase = getDecryptPassphrase();
+    if (passphrase) {
+      try {
+        await initEngine(passphrase);
+        premiumChecks = await getPremiumChecks();
+      } catch (error) {
+        console.error(chalk.dim(`(premium checks unavailable: ${error instanceof Error ? error.message : error})`));
+      }
+    }
+  }
+
   if (!url) {
     console.log('\n⚠️  Please provide a URL to audit:');
     console.log('   rankcli audit --url https://your-site.com');
@@ -384,6 +410,8 @@ export async function audit(options: AuditOptions): Promise<void> {
           url: pageUrl,
           maxPages: 1,
           checkBrokenLinks: options.checkLinks || false,
+          checksLimit,
+          premiumChecks,
         });
         auditSpinner.text = `Auditing pages... (${index + 1}/${pagesToAudit.length} complete)`;
         return { report, url: pageUrl };

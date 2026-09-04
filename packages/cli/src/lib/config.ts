@@ -26,6 +26,9 @@ interface ProductionConfig {
   supabaseUrl: string;
   supabaseAnonKey: string;
   webAppUrl: string;
+  // Decrypts the WASM-embedded premium check bundle - code protection,
+  // not an access-control secret. See wasm-engine.ts's module doc.
+  decryptPassphrase?: string;
 }
 
 // Try to load build-time injected config (replaced during CI build)
@@ -78,9 +81,19 @@ function getSupabaseAnonKeyLazy(): string {
 }
 
 // Web app URL
-export const WEB_APP_URL = process.env.RANKCLI_WEB_URL 
-  || INJECTED_CONFIG?.webAppUrl 
+export const WEB_APP_URL = process.env.RANKCLI_WEB_URL
+  || INJECTED_CONFIG?.webAppUrl
   || 'https://rankcli.dev';
+
+/**
+ * Passphrase that decrypts the WASM-embedded premium check bundle. Only
+ * call wasm-engine.ts's initEngine() with this after independently
+ * confirming the user has a valid paid apiKey - this value alone grants
+ * nothing, it only unlocks code that was already shipped to everyone.
+ */
+export function getDecryptPassphrase(): string | undefined {
+  return process.env.RANKCLI_BUILD_KEY || INJECTED_CONFIG?.decryptPassphrase;
+}
 
 // API base URL for validation (lazy)
 function getApiUrl(): string {
@@ -274,10 +287,11 @@ export function clearCredentials(): void {
 }
 
 // Get user info
-export function getUserInfo(): { userId?: string; email?: string; planName?: string; sitesLimit?: number } {
+export function getUserInfo(): { userId?: string; email?: string; planId?: string; planName?: string; sitesLimit?: number } {
   return {
     userId: config.get('userId'),
     email: config.get('email'),
+    planId: config.get('planId'),
     planName: config.get('planName') || 'Free',
     sitesLimit: config.get('sitesLimit') || 1,
   };

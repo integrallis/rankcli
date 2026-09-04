@@ -9,7 +9,11 @@
  *   RANKCLI_SUPABASE_URL - Supabase project URL
  *   RANKCLI_SUPABASE_ANON_KEY - Supabase anon/public key
  *   RANKCLI_WEB_URL - Web app URL (default: https://rankcli.dev)
- * 
+ *   RANKCLI_BUILD_KEY - Passphrase that decrypts the WASM-embedded
+ *     premium checks (same value native/build.rs used to encrypt them).
+ *     Optional here - if unset, premium checks stay undecryptable for
+ *     this build, same as if RANKCLI_BUILD_KEY was unset for build.rs.
+ *
  * Usage:
  *   node scripts/inject-config.js
  */
@@ -42,10 +46,16 @@ function main() {
     process.exit(1);
   }
 
+  const decryptPassphrase = process.env.RANKCLI_BUILD_KEY;
+  if (!decryptPassphrase) {
+    console.warn('⚠️  RANKCLI_BUILD_KEY not set - premium checks will be undecryptable in this build');
+  }
+
   const config = {
     supabaseUrl,
     supabaseAnonKey,
     webAppUrl,
+    ...(decryptPassphrase ? { decryptPassphrase } : {}),
   };
 
   const replacement = JSON.stringify(config);

@@ -9,7 +9,6 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
 use rand::Rng;
 use std::env;
 use std::fs;
@@ -98,9 +97,17 @@ fn read_js_bundle() -> String {
 
 fn get_encryption_key() -> [u8; 32] {
     match env::var("RANKCLI_BUILD_KEY") {
-        Ok(key_b64) => {
-            let bytes = STANDARD.decode(&key_b64).expect("Invalid base64 key");
-            bytes.try_into().expect("Key must be 32 bytes")
+        Ok(passphrase) => {
+            // RANKCLI_BUILD_KEY is a passphrase, run through the SAME
+            // derive_key() as the dev-key fallback below and as
+            // decrypt.rs's runtime path. Previously this branch treated
+            // the value as raw base64-encoded AES key bytes while
+            // decrypt::derive_key() always FNV-hashes whatever string
+            // init_engine() is called with - the two could never produce
+            // the same key, so no license/passphrase could ever
+            // successfully decrypt a production build. Routing both sides
+            // through derive_key() makes them match by construction.
+            derive_key(&passphrase)
         }
         Err(_) => {
             println!("cargo:warning=Using dev key! Set RANKCLI_BUILD_KEY in production");

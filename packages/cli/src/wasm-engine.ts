@@ -1,51 +1,59 @@
 /**
  * WASM Engine Wrapper
  *
- * This module bridges the WASM binary (which contains encrypted checks)
- * with Node.js execution. The flow is:
+ * Bridges the WASM binary (which contains AES-encrypted paid-tier check
+ * source) with Node.js execution:
  *
- * 1. WASM decrypts the JS code using the license key
+ * 1. WASM decrypts the JS code using a fixed, build-embedded passphrase
  * 2. We get the decrypted code from WASM
  * 3. We execute it in a Node.js VM sandbox
- * 4. Results are returned to the caller
+ * 4. Individual premium check functions are called from that sandbox
  *
- * Security: The JS source code only exists in memory briefly during execution.
- * Users cannot extract it from node_modules - they only see the WASM binary.
+ * This is code protection, not access control: entitlement (is this user
+ * actually paid?) is decided by the caller, from the real Supabase-backed
+ * apiKey/plan the CLI validates on login - see commands/audit.ts. This
+ * module should only ever be initialized after that check passes; there
+ * is no per-user license key, and passing an arbitrary string here does
+ * not grant anything a validated apiKey didn't already grant.
  */
 
 import * as vm from 'vm';
 import * as path from 'path';
 import * as fs from 'fs';
+import type { AuditIssue } from '@rankcli/agent-runtime';
 
-// Types
-export interface AuditResult {
-  success: boolean;
-  score: number;
-  issues: AuditIssue[];
-  checksRun: number;
-  tier: string;
-}
+export type PremiumCheckFn = (html: string, url: string) => { issues: AuditIssue[]; data: unknown };
 
-export interface AuditIssue {
-  code: string;
-  severity: 'error' | 'warning' | 'notice';
-  category: string;
-  title: string;
-  description?: string;
-  impact?: string;
-  howToFix?: string;
-  affectedUrls?: string[];
-}
+const PREMIUM_CHECK_NAMES = [
+  'analyzeFeaturedSnippet',
+  'analyzeInternalLinkGraph',
+  'analyzeEEATSignals',
+  'analyzeContentScience',
+  'analyzeKeywordCannibalizationSinglePage',
+  'analyzeConversionElements',
+  'analyzeKeywordPlacement',
+  'analyzeTopicalClusters',
+  'analyzePlatformPresence',
+  'analyzeInteractiveTools',
+  'analyzeFunnelIntent',
+  'analyzeNavBoostSignals',
+  'analyzeEntitySEO',
+  'analyzeFreshnessSignals',
+  'analyzeAIContentStructure',
+  'analyzeRAGChunkReadiness',
+  'analyzeCitationQuality',
+  'analyzeAnswerConciseness',
+  'analyzeBrandMentionOptimization',
+  'analyzeAICitationWorthiness',
+  'analyzeReviewEcosystem',
+] as const;
 
-export type Tier = 'free' | 'registered' | 'solo' | 'pro' | 'agency';
+export type PremiumChecks = Record<(typeof PREMIUM_CHECK_NAMES)[number], PremiumCheckFn>;
 
 // WASM module interface
 interface WasmEngine {
-  init_engine(licenseKey: string): boolean;
+  init_engine(passphrase: string): boolean;
   get_decrypted_code(): string;
-  validate_license(licenseKey: string): string;
-  get_checks_limit(): number;
-  get_tier(): string;
   version(): string;
   is_initialized(): boolean;
   get_encrypted_size(): number;
@@ -81,22 +89,24 @@ async function loadWasm(): Promise<WasmEngine> {
 }
 
 /**
- * Initialize the engine with a license key
+ * Decrypt the embedded premium checks and prepare them for execution.
+ * Only call this once the caller has independently confirmed the user is
+ * entitled to premium checks (a validated paid apiKey) - see the module
+ * doc comment above.
  */
-export async function initEngine(licenseKey?: string): Promise<void> {
+export async function initEngine(decryptPassphrase: string): Promise<void> {
   const wasm = await loadWasm();
-  const key = licenseKey || process.env.RANKCLI_LICENSE_KEY || '';
 
   try {
-    wasm.init_engine(key);
+    wasm.init_engine(decryptPassphrase);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Invalid license')) {
-      throw new Error('Invalid license key. Get one at https://rankcli.dev/pricing');
-    }
-    throw error;
+    throw new Error(`Failed to decrypt premium checks: ${error}`);
   }
 
-  // Get decrypted code and create execution context
+  if (!wasm.is_initialized()) {
+    throw new Error('Failed to decrypt premium checks: engine did not initialize');
+  }
+
   const jsCode = wasm.get_decrypted_code();
   createExecutionContext(jsCode);
 }
@@ -159,79 +169,44 @@ function createExecutionContext(jsCode: string): void {
 }
 
 /**
- * Run an SEO audit on a URL
+ * Call one premium check function living inside the sandbox. Arguments
+ * and the result cross the VM boundary as JSON, matching every premium
+ * check's (html, url) -> { issues, data } shape.
  */
-export async function runAudit(url: string, html: string): Promise<AuditResult> {
-  const wasm = await loadWasm();
+function callSandboxCheck(fnName: string, html: string, url: string): { issues: AuditIssue[]; data: unknown } {
+  if (!auditContext) {
+    throw new Error('Engine not initialized. Call initEngine() first.');
+  }
 
+  const script = new vm.Script(`
+    (function() {
+      if (typeof RankCLI.${fnName} !== 'function') {
+        throw new Error('RankCLI.${fnName} not found in decrypted code');
+      }
+      return JSON.stringify(RankCLI.${fnName}(${JSON.stringify(html)}, ${JSON.stringify(url)}));
+    })()
+  `);
+
+  const resultJson = script.runInContext(auditContext, { timeout: 10000 }) as string;
+  return JSON.parse(resultJson) as { issues: AuditIssue[]; data: unknown };
+}
+
+/**
+ * Build a PremiumChecks object (matching agent-runtime's
+ * premium-checks.types.ts) whose methods each call into the decrypted
+ * VM sandbox. Pass the result as runFullAudit({ premiumChecks }).
+ */
+export async function getPremiumChecks(): Promise<PremiumChecks> {
+  const wasm = await loadWasm();
   if (!wasm.is_initialized()) {
     throw new Error('Engine not initialized. Call initEngine() first.');
   }
 
-  if (!auditContext) {
-    throw new Error('Execution context not ready');
+  const checks = {} as PremiumChecks;
+  for (const name of PREMIUM_CHECK_NAMES) {
+    checks[name] = (html: string, url: string) => callSandboxCheck(name, html, url);
   }
-
-  const checksLimit = wasm.get_checks_limit();
-  const tier = wasm.get_tier();
-
-  // Execute the audit in the sandbox
-  try {
-    const script = new vm.Script(`
-      (function() {
-        const url = ${JSON.stringify(url)};
-        const html = ${JSON.stringify(html)};
-        const checksLimit = ${checksLimit};
-
-        if (typeof RankCLI.runAudit === 'function') {
-          return JSON.stringify(RankCLI.runAudit(url, html, checksLimit));
-        } else if (typeof RankCLI.runFullAudit === 'function') {
-          // Synchronous wrapper for async function
-          return JSON.stringify({
-            success: true,
-            score: 85,
-            issues: [],
-            checksRun: checksLimit,
-            tier: "${tier}"
-          });
-        } else {
-          throw new Error('RankCLI.runAudit not found in decrypted code');
-        }
-      })()
-    `);
-
-    const resultJson = script.runInContext(auditContext, {
-      timeout: 30000, // 30 second timeout for audit
-    }) as string;
-
-    return JSON.parse(resultJson) as AuditResult;
-  } catch (error) {
-    throw new Error(`Audit execution failed: ${error}`);
-  }
-}
-
-/**
- * Get the current tier
- */
-export async function getTier(): Promise<Tier> {
-  const wasm = await loadWasm();
-  return wasm.get_tier() as Tier;
-}
-
-/**
- * Get the checks limit for the current tier
- */
-export async function getChecksLimit(): Promise<number> {
-  const wasm = await loadWasm();
-  return wasm.get_checks_limit();
-}
-
-/**
- * Validate a license key without initializing
- */
-export async function validateLicense(licenseKey: string): Promise<Tier> {
-  const wasm = await loadWasm();
-  return wasm.validate_license(licenseKey) as Tier;
+  return checks;
 }
 
 /**

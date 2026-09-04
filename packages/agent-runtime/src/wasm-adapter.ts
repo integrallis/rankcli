@@ -320,11 +320,37 @@ function runSyncAudit(url: string, html: string, checksLimit: number): SyncAudit
   };
 }
 
-// Create global RankCLI object for VM execution
+// Create global RankCLI object for VM execution. Individual premium check
+// functions are exposed directly (not just the combined runSyncAudit) so
+// wasm-engine.ts's getPremiumChecks() can call each one separately and
+// feed the results into engine.ts's runFullAudit({ premiumChecks })
+// injection point - matching PremiumChecks in premium-checks.types.ts
+// exactly, rather than recomputing core+extended checks a second time.
 declare const globalThis: {
   RankCLI?: {
     runAudit: typeof runSyncAudit;
     version: string;
+    analyzeFeaturedSnippet: typeof analyzeFeaturedSnippet;
+    analyzeInternalLinkGraph: typeof analyzeInternalLinkGraph;
+    analyzeEEATSignals: typeof analyzeEEATSignals;
+    analyzeContentScience: typeof analyzeContentScience;
+    analyzeKeywordCannibalizationSinglePage: typeof analyzeKeywordCannibalizationSinglePage;
+    analyzeConversionElements: typeof analyzeConversionElements;
+    analyzeKeywordPlacement: typeof analyzeKeywordPlacement;
+    analyzeTopicalClusters: typeof analyzeTopicalClusters;
+    analyzePlatformPresence: typeof analyzePlatformPresence;
+    analyzeInteractiveTools: typeof analyzeInteractiveTools;
+    analyzeFunnelIntent: typeof analyzeFunnelIntent;
+    analyzeNavBoostSignals: typeof analyzeNavBoostSignals;
+    analyzeEntitySEO: typeof analyzeEntitySEO;
+    analyzeFreshnessSignals: typeof analyzeFreshnessSignals;
+    analyzeAIContentStructure: typeof analyzeAIContentStructure;
+    analyzeRAGChunkReadiness: typeof analyzeRAGChunkReadiness;
+    analyzeCitationQuality: typeof analyzeCitationQuality;
+    analyzeAnswerConciseness: typeof analyzeAnswerConciseness;
+    analyzeBrandMentionOptimization: typeof analyzeBrandMentionOptimization;
+    analyzeAICitationWorthiness: typeof analyzeAICitationWorthiness;
+    analyzeReviewEcosystem: typeof analyzeReviewEcosystem;
   };
 };
 
@@ -332,6 +358,27 @@ if (typeof globalThis !== 'undefined') {
   globalThis.RankCLI = {
     runAudit: runSyncAudit,
     version: '0.1.0',
+    analyzeFeaturedSnippet,
+    analyzeInternalLinkGraph,
+    analyzeEEATSignals,
+    analyzeContentScience,
+    analyzeKeywordCannibalizationSinglePage,
+    analyzeConversionElements,
+    analyzeKeywordPlacement,
+    analyzeTopicalClusters,
+    analyzePlatformPresence,
+    analyzeInteractiveTools,
+    analyzeFunnelIntent,
+    analyzeNavBoostSignals,
+    analyzeEntitySEO,
+    analyzeFreshnessSignals,
+    analyzeAIContentStructure,
+    analyzeRAGChunkReadiness,
+    analyzeCitationQuality,
+    analyzeAnswerConciseness,
+    analyzeBrandMentionOptimization,
+    analyzeAICitationWorthiness,
+    analyzeReviewEcosystem,
   };
 }
 

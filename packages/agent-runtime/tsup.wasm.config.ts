@@ -11,16 +11,9 @@ export default defineConfig({
   platform: 'browser',
   target: 'es2020',
   globalName: '__rankcli__',
-  esbuildOptions(options) {
-    // Set global RankCLI at the end
-    options.footer = {
-      js: `
-        if (typeof globalThis !== 'undefined') {
-          globalThis.RankCLI = __rankcli__.runSyncAudit ?
-            { runAudit: __rankcli__.runSyncAudit, version: '0.1.0' } :
-            __rankcli__;
-        }
-      `,
-    };
-  },
+  // wasm-adapter.ts sets globalThis.RankCLI itself (runAudit, version, and
+  // each individual premium check function) - no footer needed here. A
+  // previous version of this footer ran after that assignment and
+  // clobbered it back down to just { runAudit, version }, silently
+  // hiding every individually-callable premium check from the sandbox.
 });
