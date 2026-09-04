@@ -20,6 +20,23 @@ CLI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Git Bash on Windows represents paths as MSYS POSIX-style (e.g.
+# /tmp/xyz) internally, and auto-translates them for command-line
+# arguments passed to native .exe tools - but NOT for paths written into
+# a file's *content*. node.exe reading sea-config.json's "main"/"output"/
+# "assets" fields needs real Windows paths there, or it can't find what
+# esbuild (also a native .exe) actually wrote using that same MSYS path.
+to_native_path() {
+  if [[ "$LABEL" == windows-* ]]; then
+    # -m (not -w): forward slashes, so the result drops straight into
+    # JSON without backslash-escaping, and Windows APIs accept
+    # forward-slash paths natively.
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 echo "==> [$LABEL] Bundling CLI entry point (esbuild, full bundle - no node_modules at runtime)"
 # This bundles directly from src/index.ts, bypassing dist/index.js
 # entirely - so inject-config.js's regex patch (which only touches the
@@ -56,12 +73,12 @@ if [[ ! -f "$WASM_JS" || ! -f "$WASM_BIN" ]]; then
 fi
 cat > "$WORK/sea-config.json" <<EOF
 {
-  "main": "$WORK/bundle.cjs",
-  "output": "$WORK/sea-prep.blob",
+  "main": "$(to_native_path "$WORK/bundle.cjs")",
+  "output": "$(to_native_path "$WORK/sea-prep.blob")",
   "disableExperimentalSEAWarning": true,
   "assets": {
-    "rankcli_audit_engine.js": "$WASM_JS",
-    "rankcli_audit_engine_bg.wasm": "$WASM_BIN"
+    "rankcli_audit_engine.js": "$(to_native_path "$WASM_JS")",
+    "rankcli_audit_engine_bg.wasm": "$(to_native_path "$WASM_BIN")"
   }
 }
 EOF
