@@ -5,6 +5,7 @@ import { httpGet } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
+import { checkAgentExperience, type AgentExperienceData } from './agent-experience.js';
 
 // Known AI bot user agents
 const AI_BOTS = {
@@ -34,10 +35,18 @@ export interface AIBotBlockingResult {
   allBlocked: boolean;
 }
 
+export interface CloudflareAICrawlerGateResult {
+  behindCloudflare: boolean;
+  hasExplicitAIRules: boolean;
+  ambiguous: boolean; // behind Cloudflare with no explicit AI crawler rules
+}
+
 export interface AIReadinessData {
   llmsTxt: LlmsTxtResult;
   botBlocking: AIBotBlockingResult;
   jsRenderingRatio: number; // 0-100%
+  cloudflareAIGate: CloudflareAICrawlerGateResult;
+  agentExperience: AgentExperienceData;
 }
 
 /**
@@ -308,6 +317,54 @@ export function checkJSRenderingRatio(
 }
 
 /**
+ * Check whether a Cloudflare-fronted site has explicit AI crawler rules.
+ *
+ * Cloudflare blocks "mixed-use" AI crawlers by default on ad-hosting zones
+ * starting September 15, 2026, and is expanding Pay Per Crawl into a
+ * broader Pay Per Use gating model. A site with no explicit robots.txt
+ * stance on AI crawlers is now relying on whatever Cloudflare's
+ * account-level bot-management default happens to be — invisible from
+ * the codebase, and liable to change without a corresponding commit.
+ */
+export async function checkCloudflareAICrawlerGate(
+  baseUrl: string,
+  botBlocking: AIBotBlockingResult
+): Promise<{ issues: AuditIssue[]; data: CloudflareAICrawlerGateResult }> {
+  const issues: AuditIssue[] = [];
+
+  let behindCloudflare = false;
+  try {
+    const response = await httpGet<string>(baseUrl, {
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+    const server = response.headers['server'] || '';
+    behindCloudflare = server.toLowerCase().includes('cloudflare') || 'cf-ray' in response.headers;
+  } catch {
+    behindCloudflare = false;
+  }
+
+  // "Explicit" means robots.txt exists and names at least one AI crawler
+  // specifically, rather than relying purely on a bare wildcard rule or
+  // the absence of a file.
+  const hasExplicitAIRules = botBlocking.robotsExists && botBlocking.blockedBots.length > 0;
+
+  const ambiguous = behindCloudflare && !hasExplicitAIRules;
+
+  if (ambiguous) {
+    issues.push({
+      ...ISSUE_DEFINITIONS.CLOUDFLARE_AI_CRAWLER_GATE_AMBIGUOUS,
+      affectedUrls: [baseUrl],
+    });
+  }
+
+  return {
+    issues,
+    data: { behindCloudflare, hasExplicitAIRules, ambiguous },
+  };
+}
+
+/**
  * Run all AI readiness checks
  */
 export async function runAIReadinessChecks(
@@ -328,12 +385,22 @@ export async function runAIReadinessChecks(
   const jsResult = checkJSRenderingRatio(html, baseUrl);
   allIssues.push(...jsResult.issues);
 
+  // Check Cloudflare AI-crawler-access gating posture
+  const cfGateResult = await checkCloudflareAICrawlerGate(baseUrl, botResult.data);
+  allIssues.push(...cfGateResult.issues);
+
+  // Check agent-facing discovery surface (llms-full.txt, SKILL.md, MCP, OpenAPI)
+  const agentExperienceResult = await checkAgentExperience(baseUrl);
+  allIssues.push(...agentExperienceResult.issues);
+
   return {
     issues: allIssues,
     data: {
       llmsTxt: llmsResult.data,
       botBlocking: botResult.data,
       jsRenderingRatio: jsResult.data.ratio,
+      cloudflareAIGate: cfGateResult.data,
+      agentExperience: agentExperienceResult.data,
     },
   };
 }

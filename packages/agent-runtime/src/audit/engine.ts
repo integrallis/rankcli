@@ -56,6 +56,7 @@ import { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 // AI Search Optimization checks (2026 - ChatGPT, AI Overviews)
 import { analyzeBingOptimization } from './checks/bing-optimization.js';
 import { analyzeAIContentStructure } from './checks/ai-content-structure.js';
+import { analyzeRAGChunkReadiness } from './checks/rag-chunk-readiness.js';
 import { analyzeCitationQuality } from './checks/citation-quality.js';
 import { analyzeAnswerConciseness } from './checks/answer-conciseness.js';
 // AI SEO Skills checks (brand narrative, citation worthiness, review ecosystem)
@@ -109,10 +110,13 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const parsedUrl = new URL(url);
   const domain = parsedUrl.hostname;
 
-  console.log(`\n🔍 Running comprehensive SEO audit on ${url}...\n`);
+  // Progress messages go to stderr, not stdout: stdout is reserved for the
+  // audit's actual JSON output (`rankcli audit --output json > file.json`),
+  // and printing progress via console.log here corrupts that redirect.
+  console.error(`\n🔍 Running comprehensive SEO audit on ${url}...\n`);
 
   // ========== PHASE 1: CRAWLABILITY + FETCH (PARALLEL) ==========
-  console.log('📋 Phase 1: Crawlability checks + page fetch (parallel)...');
+  console.error('📋 Phase 1: Crawlability checks + page fetch (parallel)...');
 
   const [crawlabilityResult, fetchResult] = await Promise.all([
     runCrawlabilityChecks(url).catch(err => {
@@ -155,7 +159,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const headers = fetchResult.headers;
 
   // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
-  console.log(`📝 Phase 2: Running synchronous HTML checks (tier: ${tier}, limit: ${checksLimit})...`);
+  console.error(`📝 Phase 2: Running synchronous HTML checks (tier: ${tier}, limit: ${checksLimit})...`);
 
   // ===== CORE CHECKS (all tiers) =====
   const onPageResult = analyzeOnPage(html, url);
@@ -206,6 +210,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const qdfFreshnessResult = runPremiumChecks ? analyzeFreshnessSignals(html, url) : { issues: [], data: {} };
   // AI Search Optimization (2026) - Premium only
   const aiContentStructureResult = runPremiumChecks ? analyzeAIContentStructure(html, url) : { issues: [], data: {} };
+  const ragChunkReadinessResult = runPremiumChecks ? analyzeRAGChunkReadiness(html, url) : { issues: [], data: {} };
   const citationQualityResult = runPremiumChecks ? analyzeCitationQuality(html, url) : { issues: [], data: {} };
   const answerConcisenessResult = runPremiumChecks ? analyzeAnswerConciseness(html, url) : { issues: [], data: {} };
   // AI SEO Skills - Premium only
@@ -247,6 +252,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...entityResult.issues,
     ...qdfFreshnessResult.issues,
     ...aiContentStructureResult.issues,
+    ...ragChunkReadinessResult.issues,
     ...citationQualityResult.issues,
     ...answerConcisenessResult.issues,
     ...brandMentionResult.issues,
@@ -274,7 +280,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   }
 
   // ========== PHASE 3: ASYNC CHECKS (PARALLEL) ==========
-  console.log('🔗 Phase 3: Running async checks (parallel)...');
+  console.error('🔗 Phase 3: Running async checks (parallel)...');
 
   // Helper to safely run async checks with error handling and timeout
   const safeAsync = async <T>(
@@ -418,7 +424,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     issues: allIssues.map(i => i.code),
   });
 
-  console.log('\n✅ Audit complete!\n');
+  console.error('\n✅ Audit complete!\n');
 
   return createReport(url, domain, allIssues, pages);
 }

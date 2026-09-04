@@ -994,6 +994,30 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     impact: 'Your content will not be used for Bard/Gemini AI training (regular search unaffected).',
     howToFix: 'Remove "User-agent: Google-Extended Disallow: /" if you want Google AI visibility.',
   },
+  CLOUDFLARE_AI_CRAWLER_GATE_AMBIGUOUS: {
+    code: 'CLOUDFLARE_AI_CRAWLER_GATE_AMBIGUOUS',
+    severity: 'warning',
+    category: 'ai-readiness',
+    title: 'No explicit AI crawler rules on a Cloudflare-fronted site',
+    description:
+      'This site appears to be served through Cloudflare but robots.txt has no explicit Allow/Disallow rules for AI crawlers. Cloudflare blocks "mixed-use" AI crawlers by default on ad-hosting zones starting September 15, 2026, and is rolling out Pay Per Crawl / Pay Per Use gating beyond that.',
+    impact:
+      'Without an explicit rule, whether AI crawlers (and future citation opportunities in ChatGPT, Claude, Perplexity, etc.) can reach this site now depends on Cloudflare account-level bot-management defaults, not on this codebase — a silent, invisible-to-git failure mode.',
+    howToFix:
+      'Add explicit User-agent rules for GPTBot, Claude-Web/ClaudeBot, PerplexityBot, and Google-Extended in robots.txt, and confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
+  },
+  NO_AGENT_EXPERIENCE_SURFACE: {
+    code: 'NO_AGENT_EXPERIENCE_SURFACE',
+    severity: 'notice',
+    category: 'ai-readiness',
+    title: 'No agent-facing discovery surface found',
+    description:
+      'None of the emerging AI-agent discovery conventions were found: llms-full.txt, SKILL.md, a discoverable MCP server, or an OpenAPI spec. This is a genuinely new, low-adoption category as of 2026 — most sites have none of these yet — so this is an opportunity, not a compliance failure.',
+    impact:
+      'AI agents (not just chatbots answering questions, but agents that browse and act on a user\'s behalf) increasingly prefer sites that expose machine-readable capabilities over ones that require scraping and guessing at HTML structure. Being an early, discoverable site in this space is a low-competition differentiator right now.',
+    howToFix:
+      'Start with whichever fits your site: llms-full.txt (a single Markdown dump of your key content — measured as fetched roughly 2x more than plain llms.txt), a SKILL.md capability manifest, or an OpenAPI spec at /openapi.json if you already have an API. A discoverable MCP server is the highest-effort, highest-payoff option if your product has one to expose.',
+  },
   HIGH_JS_RENDERING_RATIO: {
     code: 'HIGH_JS_RENDERING_RATIO',
     severity: 'warning',
