@@ -1,5 +1,6 @@
 import { httpGet } from '../utils/http.js';
 import type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';
+import type { PremiumChecks } from './premium-checks.types.js';
 import { runCrawlabilityChecks } from './checks/crawlability.js';
 import { analyzeOnPage } from './checks/on-page.js';
 import { analyzeLinks } from './checks/links.js';
@@ -28,41 +29,16 @@ import { detectTechnologies } from './checks/tech-detection.js';
 import { analyzeKeywords } from './checks/keyword-analysis.js';
 import { runAdditionalChecks } from './checks/additional-checks.js';
 // Advanced checks from SEO research
-import { analyzeFeaturedSnippet } from './checks/featured-snippet.js';
-import { analyzeInternalLinkGraph } from './checks/internal-link-graph.js';
 import { analyzeResourceHints } from './checks/resource-hints.js';
-import { analyzeEEATSignals } from './checks/eeat-signals.js';
 import { analyzeIndexNow } from './checks/indexnow.js';
-import { analyzeContentScience } from './checks/content-science.js';
 import { analyzeSiteMaturity } from './checks/site-maturity.js';
-import { analyzeKeywordCannibalizationSinglePage } from './checks/keyword-cannibalization.js';
 // New checks from Technical SEO for Developers & Best SEO Strategies 2025
 import { analyzeTrackerBloat } from './checks/tracker-bloat.js';
 import { analyzeClientRendering } from './checks/client-rendering.js';
 import { analyzeRedirectChain } from './checks/redirect-chain.js';
 import { analyzeResponsiveImages } from './checks/responsive-images.js';
-// New checks from 2026 SEO transcripts (Nathan Gotch & Neil Patel)
-import { analyzeConversionElements } from './checks/conversion-elements.js';
-import { analyzeKeywordPlacement } from './checks/keyword-placement.js';
-import { analyzeTopicalClusters } from './checks/topical-clusters.js';
-import { analyzePlatformPresence } from './checks/platform-presence.js';
-// Advanced SEO Tips 2026 & React SEO
-import { analyzeInteractiveTools } from './checks/interactive-tools.js';
-import { analyzeFunnelIntent } from './checks/funnel-intent.js';
-// Cutting-edge differentiating checks (Google leak, Entity SEO, QDF)
-import { analyzeNavBoostSignals } from './checks/navboost-signals.js';
-import { analyzeEntitySEO } from './checks/entity-seo.js';
-import { analyzeFreshnessSignals } from './checks/freshness-signals.js';
 // AI Search Optimization checks (2026 - ChatGPT, AI Overviews)
 import { analyzeBingOptimization } from './checks/bing-optimization.js';
-import { analyzeAIContentStructure } from './checks/ai-content-structure.js';
-import { analyzeRAGChunkReadiness } from './checks/rag-chunk-readiness.js';
-import { analyzeCitationQuality } from './checks/citation-quality.js';
-import { analyzeAnswerConciseness } from './checks/answer-conciseness.js';
-// AI SEO Skills checks (brand narrative, citation worthiness, review ecosystem)
-import { analyzeBrandMentionOptimization } from './checks/brand-mention-optimization.js';
-import { analyzeAICitationWorthiness } from './checks/ai-citation-worthiness.js';
-import { analyzeReviewEcosystem } from './checks/review-ecosystem.js';
 // Competitor-parity checks (from missing-checks.md analysis)
 import { validateRobotsTxt } from './checks/robots-validation.js';
 import { analyzeLlmsTxt } from './checks/llms-txt.js';
@@ -94,17 +70,23 @@ export interface AuditOptions {
    * - 280+: Paid users (all checks)
    */
   checksLimit?: number;
+  /**
+   * Paid-tier check implementations, supplied by the caller. This package
+   * never bundles them itself (see premium-checks.types.ts) - without this,
+   * checksLimit alone cannot unlock premium checks, regardless of its value.
+   */
+  premiumChecks?: PremiumChecks;
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
-  const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280 } = options;
+  const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks } = options;
   const allIssues: AuditIssue[] = [];
   const pages: PageAudit[] = [];
 
   // Determine tier based on checksLimit
   // Free unregistered: 50, Free registered: 100, Paid: 280+
   const tier = checksLimit <= 50 ? 'free' : checksLimit <= 100 ? 'registered' : 'paid';
-  const runPremiumChecks = tier === 'paid';
+  const runPremiumChecks = tier === 'paid' && !!premiumChecks;
   const runExtendedChecks = tier !== 'free'; // registered + paid
 
   const parsedUrl = new URL(url);
@@ -194,29 +176,29 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const pageResourcesResult = runExtendedChecks ? analyzePageResources(html, url) : { issues: [], data: {} };
 
   // ===== PREMIUM CHECKS (paid tier only) =====
-  const snippetResult = runPremiumChecks ? analyzeFeaturedSnippet(html, url) : { issues: [], data: {} };
-  const linkGraphResult = runPremiumChecks ? analyzeInternalLinkGraph(html, url) : { issues: [], data: {} };
-  const eeatResult = runPremiumChecks ? analyzeEEATSignals(html, url) : { issues: [], data: {} };
-  const contentScienceResult = runPremiumChecks ? analyzeContentScience(html, url) : { issues: [], data: {} };
-  const cannibalizationResult = runPremiumChecks ? analyzeKeywordCannibalizationSinglePage(html, url) : { issues: [], data: {} };
-  const conversionResult = runPremiumChecks ? analyzeConversionElements(html, url) : { issues: [], data: {} };
-  const keywordPlacementResult = runPremiumChecks ? analyzeKeywordPlacement(html, url) : { issues: [], data: {} };
-  const clusterResult = runPremiumChecks ? analyzeTopicalClusters(html, url) : { issues: [], data: {} };
-  const platformResult = runPremiumChecks ? analyzePlatformPresence(html, url) : { issues: [], data: {} };
-  const toolResult = runPremiumChecks ? analyzeInteractiveTools(html, url) : { issues: [], data: {} };
-  const funnelResult = runPremiumChecks ? analyzeFunnelIntent(html, url) : { issues: [], data: {} };
-  const navboostResult = runPremiumChecks ? analyzeNavBoostSignals(html, url) : { issues: [], data: {} };
-  const entityResult = runPremiumChecks ? analyzeEntitySEO(html, url) : { issues: [], data: {} };
-  const qdfFreshnessResult = runPremiumChecks ? analyzeFreshnessSignals(html, url) : { issues: [], data: {} };
+  const snippetResult = runPremiumChecks ? premiumChecks!.analyzeFeaturedSnippet(html, url) : { issues: [], data: {} };
+  const linkGraphResult = runPremiumChecks ? premiumChecks!.analyzeInternalLinkGraph(html, url) : { issues: [], data: {} };
+  const eeatResult = runPremiumChecks ? premiumChecks!.analyzeEEATSignals(html, url) : { issues: [], data: {} };
+  const contentScienceResult = runPremiumChecks ? premiumChecks!.analyzeContentScience(html, url) : { issues: [], data: {} };
+  const cannibalizationResult = runPremiumChecks ? premiumChecks!.analyzeKeywordCannibalizationSinglePage(html, url) : { issues: [], data: {} };
+  const conversionResult = runPremiumChecks ? premiumChecks!.analyzeConversionElements(html, url) : { issues: [], data: {} };
+  const keywordPlacementResult = runPremiumChecks ? premiumChecks!.analyzeKeywordPlacement(html, url) : { issues: [], data: {} };
+  const clusterResult = runPremiumChecks ? premiumChecks!.analyzeTopicalClusters(html, url) : { issues: [], data: {} };
+  const platformResult = runPremiumChecks ? premiumChecks!.analyzePlatformPresence(html, url) : { issues: [], data: {} };
+  const toolResult = runPremiumChecks ? premiumChecks!.analyzeInteractiveTools(html, url) : { issues: [], data: {} };
+  const funnelResult = runPremiumChecks ? premiumChecks!.analyzeFunnelIntent(html, url) : { issues: [], data: {} };
+  const navboostResult = runPremiumChecks ? premiumChecks!.analyzeNavBoostSignals(html, url) : { issues: [], data: {} };
+  const entityResult = runPremiumChecks ? premiumChecks!.analyzeEntitySEO(html, url) : { issues: [], data: {} };
+  const qdfFreshnessResult = runPremiumChecks ? premiumChecks!.analyzeFreshnessSignals(html, url) : { issues: [], data: {} };
   // AI Search Optimization (2026) - Premium only
-  const aiContentStructureResult = runPremiumChecks ? analyzeAIContentStructure(html, url) : { issues: [], data: {} };
-  const ragChunkReadinessResult = runPremiumChecks ? analyzeRAGChunkReadiness(html, url) : { issues: [], data: {} };
-  const citationQualityResult = runPremiumChecks ? analyzeCitationQuality(html, url) : { issues: [], data: {} };
-  const answerConcisenessResult = runPremiumChecks ? analyzeAnswerConciseness(html, url) : { issues: [], data: {} };
+  const aiContentStructureResult = runPremiumChecks ? premiumChecks!.analyzeAIContentStructure(html, url) : { issues: [], data: {} };
+  const ragChunkReadinessResult = runPremiumChecks ? premiumChecks!.analyzeRAGChunkReadiness(html, url) : { issues: [], data: {} };
+  const citationQualityResult = runPremiumChecks ? premiumChecks!.analyzeCitationQuality(html, url) : { issues: [], data: {} };
+  const answerConcisenessResult = runPremiumChecks ? premiumChecks!.analyzeAnswerConciseness(html, url) : { issues: [], data: {} };
   // AI SEO Skills - Premium only
-  const brandMentionResult = runPremiumChecks ? analyzeBrandMentionOptimization(html, url) : { issues: [], data: {} };
-  const citationWorthinessResult = runPremiumChecks ? analyzeAICitationWorthiness(html, url) : { issues: [], data: {} };
-  const reviewEcosystemResult = runPremiumChecks ? analyzeReviewEcosystem(html, url) : { issues: [], data: {} };
+  const brandMentionResult = runPremiumChecks ? premiumChecks!.analyzeBrandMentionOptimization(html, url) : { issues: [], data: {} };
+  const citationWorthinessResult = runPremiumChecks ? premiumChecks!.analyzeAICitationWorthiness(html, url) : { issues: [], data: {} };
+  const reviewEcosystemResult = runPremiumChecks ? premiumChecks!.analyzeReviewEcosystem(html, url) : { issues: [], data: {} };
 
   // Collect all sync check issues
   allIssues.push(

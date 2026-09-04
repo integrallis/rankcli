@@ -6,6 +6,10 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/wasm"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -33,6 +37,7 @@
     "yaml": "^2.3.0"
   },
   "devDependencies": {
+    "@rankcli/agent-runtime-premium": "workspace:*",
     "@types/node": "^20.0.0",
     "esbuild": "^0.20.0",
     "tsup": "^8.0.0",

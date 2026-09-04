@@ -49,15 +49,20 @@ export { analyzeTrackerBloat } from './checks/tracker-bloat.js';
 export { analyzeClientRendering } from './checks/client-rendering.js';
 export { analyzeRedirectChain } from './checks/redirect-chain.js';
 export { analyzeResponsiveImages } from './checks/responsive-images.js';
-export { analyzeConversionElements } from './checks/conversion-elements.js';
-export { analyzeKeywordPlacement } from './checks/keyword-placement.js';
-export { analyzeTopicalClusters } from './checks/topical-clusters.js';
-export { analyzePlatformPresence } from './checks/platform-presence.js';
-export { analyzeInteractiveTools } from './checks/interactive-tools.js';
-export { analyzeFunnelIntent } from './checks/funnel-intent.js';
-export { analyzeNavBoostSignals } from './checks/navboost-signals.js';
-export { analyzeEntitySEO } from './checks/entity-seo.js';
-export { analyzeFreshnessSignals } from './checks/freshness-signals.js';
+// Paid-tier checks - re-exported from the private premium package (never
+// published; only usable here because this bundle runs first-party,
+// server-side in a Supabase edge function, not distributed to end users).
+export {
+  analyzeConversionElements,
+  analyzeKeywordPlacement,
+  analyzeTopicalClusters,
+  analyzePlatformPresence,
+  analyzeInteractiveTools,
+  analyzeFunnelIntent,
+  analyzeNavBoostSignals,
+  analyzeEntitySEO,
+  analyzeFreshnessSignals,
+} from '@rankcli/agent-runtime-premium';
 
 // Page discovery (multi-page crawling)
 export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';

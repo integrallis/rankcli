@@ -33,22 +33,33 @@ import { analyzeClientRendering } from './audit/checks/client-rendering.js';
 import { analyzeResponsiveImages } from './audit/checks/responsive-images.js';
 import { analyzeColorContrast } from './audit/checks/color-contrast.js';
 import { analyzePageResources } from './audit/checks/page-resources.js';
-// Premium checks
-import { analyzeFeaturedSnippet } from './audit/checks/featured-snippet.js';
-import { analyzeInternalLinkGraph } from './audit/checks/internal-link-graph.js';
-import { analyzeEEATSignals } from './audit/checks/eeat-signals.js';
-import { analyzeContentScience } from './audit/checks/content-science.js';
-import { analyzeConversionElements } from './audit/checks/conversion-elements.js';
-import { analyzeKeywordPlacement } from './audit/checks/keyword-placement.js';
-import { analyzeNavBoostSignals } from './audit/checks/navboost-signals.js';
-import { analyzeEntitySEO } from './audit/checks/entity-seo.js';
-import { analyzeFreshnessSignals } from './audit/checks/freshness-signals.js';
-import { analyzeAIContentStructure } from './audit/checks/ai-content-structure.js';
-import { analyzeCitationQuality } from './audit/checks/citation-quality.js';
-import { analyzeAnswerConciseness } from './audit/checks/answer-conciseness.js';
-import { analyzeBrandMentionOptimization } from './audit/checks/brand-mention-optimization.js';
-import { analyzeAICitationWorthiness } from './audit/checks/ai-citation-worthiness.js';
-import { analyzeReviewEcosystem } from './audit/checks/review-ecosystem.js';
+// Premium checks - the whole point of this file is to bundle these for
+// AES-256 encryption (build.rs) and embedding in the CLI's WASM binary.
+// Sourced from the private, never-published premium package - see
+// packages/agent-runtime-premium/package.json.
+import {
+  analyzeFeaturedSnippet,
+  analyzeInternalLinkGraph,
+  analyzeEEATSignals,
+  analyzeContentScience,
+  analyzeKeywordCannibalizationSinglePage,
+  analyzeConversionElements,
+  analyzeKeywordPlacement,
+  analyzeTopicalClusters,
+  analyzePlatformPresence,
+  analyzeInteractiveTools,
+  analyzeFunnelIntent,
+  analyzeNavBoostSignals,
+  analyzeEntitySEO,
+  analyzeFreshnessSignals,
+  analyzeAIContentStructure,
+  analyzeRAGChunkReadiness,
+  analyzeCitationQuality,
+  analyzeAnswerConciseness,
+  analyzeBrandMentionOptimization,
+  analyzeAICitationWorthiness,
+  analyzeReviewEcosystem,
+} from '@rankcli/agent-runtime-premium';
 import type { AuditIssue } from './audit/types.js';
 
 interface SyncAuditResult {
@@ -208,6 +219,11 @@ function runSyncAudit(url: string, html: string, checksLimit: number): SyncAudit
     } catch (e) { /* ignore */ }
 
     try {
+      const cannibalization = analyzeKeywordCannibalizationSinglePage(html, url);
+      allIssues.push(...cannibalization.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
       const conversion = analyzeConversionElements(html, url);
       allIssues.push(...conversion.issues);
     } catch (e) { /* ignore */ }
@@ -215,6 +231,26 @@ function runSyncAudit(url: string, html: string, checksLimit: number): SyncAudit
     try {
       const placement = analyzeKeywordPlacement(html, url);
       allIssues.push(...placement.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
+      const clusters = analyzeTopicalClusters(html, url);
+      allIssues.push(...clusters.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
+      const platform = analyzePlatformPresence(html, url);
+      allIssues.push(...platform.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
+      const tools = analyzeInteractiveTools(html, url);
+      allIssues.push(...tools.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
+      const funnel = analyzeFunnelIntent(html, url);
+      allIssues.push(...funnel.issues);
     } catch (e) { /* ignore */ }
 
     try {
@@ -235,6 +271,11 @@ function runSyncAudit(url: string, html: string, checksLimit: number): SyncAudit
     try {
       const aiContent = analyzeAIContentStructure(html, url);
       allIssues.push(...aiContent.issues);
+    } catch (e) { /* ignore */ }
+
+    try {
+      const ragChunk = analyzeRAGChunkReadiness(html, url);
+      allIssues.push(...ragChunk.issues);
     } catch (e) { /* ignore */ }
 
     try {
@@ -262,7 +303,7 @@ function runSyncAudit(url: string, html: string, checksLimit: number): SyncAudit
       allIssues.push(...review.issues);
     } catch (e) { /* ignore */ }
 
-    coreChecks += 15;
+    coreChecks += 21;
   }
 
   // Calculate score

@@ -36,6 +36,7 @@
     "build:wasm:dev": "cd native && wasm-pack build --target nodejs --dev && mkdir -p ../wasm && cp -r pkg/* ../wasm/",
     "prebuild:wasm": "mkdir -p wasm",
     "inject-config": "node scripts/inject-config.js",
+    "build:sea": "bash scripts/build-sea.sh",
     "prepublishOnly": "npm run build && npm run inject-config",
     "start": "node dist/index.js",
     "lint": "eslint src/",
@@ -59,6 +60,8 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.0",
     "@types/node": "^20.0.0",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0",

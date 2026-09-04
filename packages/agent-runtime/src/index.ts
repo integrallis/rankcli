@@ -72,5 +72,9 @@ export * as analyzers from './analyzers/index.js';
 // Note: Export as namespace to avoid conflict with tools/detectFramework
 export * as frameworks from './frameworks/index.js';
 
-// WASM Adapter (sync audit for embedded execution)
-export { runSyncAudit } from './wasm-adapter.js';
+// wasm-adapter.ts (runSyncAudit, premium check logic) is deliberately NOT
+// exported here. It's built separately via `build:wasm` and consumed only
+// by the CLI's build.rs, which encrypts it into the WASM binary at compile
+// time. Re-exporting it from the public entry point would ship every
+// premium check's source, unencrypted, in this package's normal npm
+// publish - see packaging.test.ts for the regression test.
