@@ -14,7 +14,7 @@
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/integrallis/rankcli.dev/releases/download/v$version/rankcli-windows-x86_64.exe"
+        "url": "https://github.com/integrallis/rankcli-cli/releases/download/v$version/rankcli-windows-x86_64.exe"
       }
     }
   }
