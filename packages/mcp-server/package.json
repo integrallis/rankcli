@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/mcp-server",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "MCP (Model Context Protocol) server for RankCLI SEO analysis",
   "type": "module",
   "main": "dist/index.js",
@@ -26,8 +26,9 @@
   "author": "Integrallis",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@rankcli/agent-runtime": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@rankcli/agent-runtime": "workspace:*",
+    "conf": "^12.0.0"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
