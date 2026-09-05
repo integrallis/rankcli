@@ -195,9 +195,12 @@ async function syncToCloud(
   if (!userId) return null;
 
   try {
-    // Parse URL to get domain
+    // Parse URL to get domain. Include the port when present - otherwise
+    // two unrelated local dev servers (http://localhost:3000 vs :3001) hash
+    // to the same "localhost" domain and silently share one project, mixing
+    // their audit history together.
     const parsedUrl = new URL(url);
-    const domain = parsedUrl.hostname;
+    const domain = parsedUrl.port ? `${parsedUrl.hostname}:${parsedUrl.port}` : parsedUrl.hostname;
 
     // Check if project exists for this URL
     const { data: existingProject } = await supabase
