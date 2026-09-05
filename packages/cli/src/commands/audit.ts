@@ -410,6 +410,11 @@ export async function audit(options: AuditOptions): Promise<void> {
           url: pageUrl,
           maxPages: 1,
           checkBrokenLinks: options.checkLinks || false,
+          // Bundled with --check-links: both mean "verify actual link
+          // targets, which costs real requests" - hreflang reciprocity and
+          // broken-target checks were previously unreachable from any real
+          // caller since nothing ever set this true.
+          checkHreflangUrls: options.checkLinks || false,
           checksLimit,
           premiumChecks,
         });
