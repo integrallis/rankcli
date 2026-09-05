@@ -1,6 +1,6 @@
 # @rankcli/mcp-server
 
-Free, local SEO + GEO (AI-search-citation) analysis as an MCP tool. No signup, no API key, nothing sent to RankCLI's servers — it runs entirely inside your MCP host (Claude Code, Claude Desktop, Cursor, etc.) against HTML you already have or that your host fetches for you.
+Free, local SEO + GEO (AI-search-citation) analysis as an MCP tool. No signup, no API key, nothing sent to RankCLI's servers — it runs entirely inside your MCP host (Claude Code, Claude Desktop, Cursor, etc.) against HTML you already have or that your host fetches for you. The one exception is `rankcli_connect`, an explicit opt-in tool that links this server to a RankCLI account.
 
 ```bash
 npx @rankcli/mcp-server
@@ -36,6 +36,12 @@ npx @rankcli/mcp-server
 | `seo_internal_links` | Anchor text quality, orphan-page risk |
 | `seo_mobile` | Viewport, touch targets, PWA readiness |
 | `seo_ai_crawlers` | Reference list of known AI crawler user agents |
+| `rankcli_connect` | Link this server to a RankCLI account for GitHub auto-fix PRs, scheduled monitoring, and a dashboard with audit history. Opens a browser tab to approve; the only tool here that contacts rankcli.dev |
+| `rankcli_disconnect` | Unlink this server from your RankCLI account (local only — doesn't touch the account itself) |
+
+## Connecting your account
+
+Ask Claude to "connect my RankCLI account," or call `rankcli_connect` directly. It opens rankcli.dev in your browser to approve (or asks for permission first, on MCP hosts that support that inline) - once approved, this server and the `rankcli` CLI on the same machine both use the connection, with nothing further to configure. It works the same on the free plan: connect a BYOK AI provider key at [rankcli.dev/account?tab=ai-provider](https://rankcli.dev/account?tab=ai-provider) and auto-fix PRs run on your own key at no cost, including several providers with genuinely free tiers.
 
 ## Example
 

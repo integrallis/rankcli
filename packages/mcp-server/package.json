@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/mcp-server",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "MCP (Model Context Protocol) server for RankCLI SEO analysis",
   "type": "module",
   "main": "dist/index.js",
