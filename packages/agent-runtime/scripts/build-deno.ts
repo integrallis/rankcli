@@ -23,7 +23,6 @@ const buildOptions = {
   target: 'es2022',
   outfile: join(OUTPUT_DIR, 'engine.bundle.js'),
   external: ['cheerio'], // Will be imported from esm.sh in Deno
-  loader: { '.yaml': 'text' as const }, // embed-recipes.ts inlines recipe content this way
   minify: false,
   sourcemap: false,
   define: {

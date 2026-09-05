@@ -1,5 +1,14 @@
 // Agent runtime for SEO Autopilot
 
+// Side-effecting: registers every framework recipe's YAML content via
+// embedRecipe(). loadRecipe()'s fs.readFileSync fallback only resolves
+// recipes/*.yaml when running directly against source (tsx) - both real
+// shipped forms of this package (the tsup-bundled dist/ the published npm
+// package and CLI SEA binary actually run, and the separate Deno edge-
+// function bundle) collapse everything into one file with no adjacent
+// recipes/ directory, so that path never exists at runtime otherwise.
+import './frameworks/embedded-recipes.generated.js';
+
 // Types
 export * from './types.js';
 

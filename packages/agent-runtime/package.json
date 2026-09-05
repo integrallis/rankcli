@@ -18,11 +18,12 @@
     }
   },
   "scripts": {
-    "dev": "pnpm build:deno && tsup src/index.ts --watch --onSuccess 'pnpm build:deno'",
-    "dev:node": "tsup src/index.ts --watch",
+    "dev": "pnpm generate:recipes && pnpm build:deno && tsup src/index.ts --watch --onSuccess 'pnpm build:deno'",
+    "dev:node": "pnpm generate:recipes && tsup src/index.ts --watch",
     "dev:deno": "tsx scripts/build-deno.ts --watch",
-    "build": "tsup src/index.ts --format cjs,esm --dts && pnpm build:deno",
+    "build": "pnpm generate:recipes && tsup src/index.ts --format cjs,esm --dts && pnpm build:deno",
     "build:deno": "tsx scripts/build-deno.ts",
+    "generate:recipes": "tsx scripts/generate-embedded-recipes.ts",
     "build:wasm": "tsup --config tsup.wasm.config.ts",
     "lint": "eslint src/",
     "test": "vitest run",

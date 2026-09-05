@@ -6,7 +6,7 @@
 // Side-effecting: registers every framework recipe's YAML content via
 // embedRecipe() so runFullAudit's framework-issue check works in this
 // bundle, where the recipes/*.yaml files themselves are never deployed.
-import '../frameworks/embed-recipes.js';
+import '../frameworks/embedded-recipes.generated.js';
 
 // Types
 export type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';

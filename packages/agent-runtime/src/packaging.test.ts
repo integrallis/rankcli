@@ -92,3 +92,21 @@ describe('npm package boundary (no premium-check leak)', () => {
     expect(pkg.files).toContain('!dist/wasm');
   });
 });
+
+describe('framework recipes reachable from the built dist (not just source)', () => {
+  // Regression test for a real bug: loadRecipe()'s fs.readFileSync fallback
+  // resolves recipes/*.yaml relative to the running module's own location,
+  // which only exists when executing directly against source (tsx/vitest).
+  // Once bundled into dist/index.js - what the published package and every
+  // real caller actually runs - that relative path silently doesn't exist,
+  // and every framework-specific check returned nothing. Source-only tests
+  // never catch this because they never touch dist/.
+  it('returns real framework issues for a known signature via the built dist', async () => {
+    const mod = await import('../dist/index.js');
+    const html = '<html><body><div id="root"></div><script src="/app.js"></script></body></html>';
+    const info = mod.frameworks.detectFramework({ html });
+    expect(info.framework).toBe('react');
+    const issues = await mod.frameworks.getFrameworkIssues(info, html, 'https://example.com/');
+    expect(issues.map((i: { code: string }) => i.code)).toContain('REACT_CSR_DETECTED');
+  });
+});
