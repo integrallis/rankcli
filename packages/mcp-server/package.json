@@ -1,7 +1,7 @@
 {
   "name": "@rankcli/mcp-server",
   "version": "0.0.4",
-  "description": "MCP (Model Context Protocol) server for RankCLI SEO analysis",
+  "description": "Free, local SEO + GEO (AI-search-citation) analysis for AI assistants - audits GEO/AI-crawler access, Core Web Vitals, structured data, security headers, mobile, and images with no signup or API key.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,14 +17,27 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "seo",
+    "geo",
+    "generative-engine-optimization",
+    "ai-search",
     "ai",
     "claude",
     "rankcli"
   ],
   "author": "Integrallis",
   "license": "MIT",
+  "homepage": "https://rankcli.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/integrallis/rankcli.dev",
+    "directory": "packages/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli.dev/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@rankcli/agent-runtime": "workspace:*",
