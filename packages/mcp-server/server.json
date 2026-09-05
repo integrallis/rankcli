@@ -3,13 +3,13 @@
   "name": "io.github.integrallis/rankcli-mcp-server",
   "description": "Free, local SEO + GEO audits for AI assistants - no signup, nothing leaves your machine.",
   "title": "RankCLI",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@rankcli/mcp-server",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "transport": {
         "type": "stdio"
       }
@@ -23,7 +23,7 @@
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
       "tool": "manual",
-      "version": "0.0.4"
+      "version": "0.0.5"
     }
   }
 }
