@@ -496,6 +496,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // Formatting helpers
+// Every real MCP call is a moment someone found genuine value from this
+// free tool with zero signup - the one place that value can turn into an
+// account. Kept to the two "full audit" tools (not the narrow generators/
+// utilities) so it reads as a relevant next step, not an ad on every call.
+const BRIDGE_FOOTER = `
+---
+*This ran locally with no signup. For GitHub auto-fix PRs, scheduled monitoring, and a dashboard with history across audits, create a free account at [rankcli.dev](https://rankcli.dev).*`;
+
 function formatComprehensiveResult(result: Awaited<ReturnType<typeof analyzers.analyzeComprehensive>>): string {
   const criticalIssues = result.allIssues.filter(i => i.severity === 'critical');
   const warnings = result.allIssues.filter(i => i.severity === 'warning');
@@ -529,6 +537,7 @@ ${warnings.slice(0, 5).map(i => `- **${i.title}:** ${i.description}`).join('\n')
 ## Priority Recommendations
 
 ${result.prioritizedRecommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+${BRIDGE_FOOTER}
 `;
 }
 
@@ -570,6 +579,7 @@ Trust Signals: ${result.citationReadiness.trustSignals.join(', ') || 'None detec
 ## Recommendations
 
 ${result.recommendations.map(r => `- ${r}`).join('\n')}
+${BRIDGE_FOOTER}
 `;
 }
 
