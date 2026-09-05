@@ -124,7 +124,9 @@ async function interactiveSetup(projectPath: string): Promise<void> {
 
       const siteUrl = await ask('Enter your site URL (https://example.com): ');
       if (siteUrl) {
-        await setupGitHubAction(projectPath, schedule, siteUrl);
+        const syncChoice = await ask('Send scheduled audits to your RankCLI dashboard? (y/n): ');
+        const syncToDashboard = syncChoice.toLowerCase() === 'y' || syncChoice.toLowerCase() === 'yes';
+        await setupGitHubAction(projectPath, schedule, siteUrl, syncToDashboard);
       }
     } else {
       console.log('Skipping GitHub Action setup.\n');
@@ -198,10 +200,11 @@ async function setupGSC(projectPath: string, verificationCode: string): Promise<
   console.log('');
 }
 
-async function setupGitHubAction(
+export async function setupGitHubAction(
   projectPath: string,
   schedule: 'daily' | 'weekly' | 'monthly',
-  siteUrl?: string
+  siteUrl?: string,
+  syncToDashboard?: boolean
 ): Promise<void> {
   console.log(`Setting up GitHub Action (${schedule} schedule)...`);
 
@@ -210,11 +213,11 @@ async function setupGitHubAction(
     siteUrl: siteUrl || 'https://example.com',
     features: {
       audit: true,
-      tracking: true,
       autoFix: true,
       createIssues: true,
       createPRs: true,
     },
+    syncToDashboard,
   };
 
   const { files, instructions } = writeGitHubActionFiles(projectPath, config);
