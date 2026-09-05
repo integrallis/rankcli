@@ -24,6 +24,10 @@ checks:
       Option 3: Use prerendering with prerender-spa-plugin
 
       For Nuxt migration, most Vue components work directly.
+    detection:
+      html_patterns:
+        - '<div id="app"></div>'
+      missing_content: true
 
   - code: VUE_NO_META_MANAGEMENT
     severity: error

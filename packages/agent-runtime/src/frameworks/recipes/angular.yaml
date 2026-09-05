@@ -26,6 +26,10 @@ checks:
       ```
 
       This adds server-side rendering to your Angular app.
+    detection:
+      html_patterns:
+        - '<app-root></app-root>'
+      missing_content: true
 
   - code: ANGULAR_NO_TITLE_SERVICE
     severity: error

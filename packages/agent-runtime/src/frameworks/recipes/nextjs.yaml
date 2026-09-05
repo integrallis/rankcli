@@ -48,6 +48,10 @@ checks:
       }
       ```
     app_router_only: true
+    detection:
+      html_missing_patterns:
+        - 'property="og:title"'
+        - 'property="og:description"'
 
   - code: NEXTJS_GENERATESTATICPARAMS_MISSING
     severity: warning

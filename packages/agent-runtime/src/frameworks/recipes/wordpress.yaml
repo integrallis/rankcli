@@ -42,6 +42,12 @@ checks:
       - XML sitemap generation
       - Schema markup
       - Content analysis
+    detection:
+      html_missing_patterns:
+        - 'Yoast SEO'
+        - 'seo-by-rank-math'
+        - 'The SEO Framework'
+        - 'All in One SEO'
 
   - code: WORDPRESS_OUTDATED
     severity: error

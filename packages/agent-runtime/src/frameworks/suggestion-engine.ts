@@ -18,6 +18,7 @@ export interface FrameworkCheck {
   impact?: string;
   detection?: {
     html_patterns?: string[];
+    html_missing_patterns?: string[];
     missing_content?: boolean;
     title_in_js?: boolean;
     title_not_in_html?: boolean;
@@ -195,11 +196,13 @@ function evaluateCheck(
   html: string,
   frameworkInfo: FrameworkInfo
 ): boolean {
-  // Skip router-specific checks
-  if (check.app_router_only && !html.includes('__next')) {
+  // Skip router-specific checks. Pages Router renders a <div id="__next">
+  // hydration root; App Router does not use that wrapper at all - so its
+  // presence is the Pages Router signal, not the App Router one.
+  if (check.app_router_only && html.includes('__next')) {
     return false;
   }
-  if (check.pages_router_only && html.includes('__next')) {
+  if (check.pages_router_only && !html.includes('__next')) {
     return false;
   }
 
@@ -215,6 +218,16 @@ function evaluateCheck(
       if (html.includes(pattern)) {
         return true;
       }
+    }
+  }
+
+  // Inverse: fires when NONE of the expected patterns are present (e.g.
+  // "no SEO plugin's meta signature found" for server-rendered frameworks
+  // where a thin-body/SPA-style check doesn't apply).
+  if (detection.html_missing_patterns) {
+    const anyPresent = detection.html_missing_patterns.some(pattern => html.includes(pattern));
+    if (!anyPresent) {
+      return true;
     }
   }
 

@@ -128,6 +128,9 @@ checks:
         "description" => @product.description
       }) %>
       ```
+    detection:
+      html_missing_patterns:
+        - 'application/ld+json'
 
   - code: RAILS_SLOW_QUERIES
     severity: warning

@@ -62,6 +62,10 @@ checks:
 
       <slot />
       ```
+    detection:
+      html_missing_patterns:
+        - '<title>'
+        - 'name="description"'
 
   - code: SVELTEKIT_NO_PRERENDER
     severity: notice

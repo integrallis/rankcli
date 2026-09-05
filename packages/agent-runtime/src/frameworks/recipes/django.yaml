@@ -82,6 +82,10 @@ checks:
           def get_meta_description(self):
               return self.object.excerpt
       ```
+    detection:
+      html_missing_patterns:
+        - 'property="og:'
+        - 'name="twitter:'
 
   - code: DJANGO_DEBUG_TRUE
     severity: error

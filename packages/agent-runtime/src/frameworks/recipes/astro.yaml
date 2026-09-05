@@ -129,6 +129,9 @@ checks:
         }}
       />
       ```
+    detection:
+      html_missing_patterns:
+        - 'rel="canonical"'
 
   - code: ASTRO_IMAGE_NOT_OPTIMIZED
     severity: warning

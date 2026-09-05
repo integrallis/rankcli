@@ -145,6 +145,10 @@ checks:
         <BrowserOnlyWidget />
       </ClientOnly>
       ```
+    detection:
+      html_patterns:
+        - '<div id="__nuxt">'
+      missing_content: true
 
   - code: NUXT_NO_PRERENDER
     severity: notice
