@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.integrallis/rankcli-mcp-server",
-  "description": "Free, local SEO + GEO (AI-search-citation) analysis for AI assistants. Audits GEO/AI-crawler access, Core Web Vitals, structured data, security headers, mobile, images, and internal links entirely inside the MCP host - no signup, no API key, nothing sent to RankCLI's servers except through the explicit opt-in rankcli_connect tool.",
+  "description": "Free, local SEO + GEO audits for AI assistants - no signup, nothing leaves your machine.",
   "title": "RankCLI",
   "version": "0.0.4",
   "packages": [
