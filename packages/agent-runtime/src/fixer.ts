@@ -32,6 +32,12 @@ export async function generateFixes(
   }
 
   const fixes: GeneratedFix[] = [];
+  // Many distinct issue codes (e.g. OG_IMAGE_MISSING, OG_URL_MISSING,
+  // OG_TITLE_MISSING) map to the same fix generator, which inserts the
+  // whole block (all OG tags, the whole Twitter Card, etc). Without this,
+  // a site missing several sub-tags in one family gets that block
+  // re-inserted once per matching issue.
+  const seenFixCodes = new Set<string>();
 
   // Find the HTML entry point for Vite/React apps
   const htmlEntry = await findHtmlEntry({ cwd });
@@ -47,7 +53,8 @@ export async function generateFixes(
       htmlContent,
     });
 
-    if (fix) {
+    if (fix && !seenFixCodes.has(fix.issue.code)) {
+      seenFixCodes.add(fix.issue.code);
       fixes.push(fix);
     }
   }
