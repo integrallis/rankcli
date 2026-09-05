@@ -14,13 +14,92 @@ import {
   validateApiKey,
   getUserInfo,
   getAuthenticatedClient,
+  getApiUrl,
   WEB_APP_URL,
 } from '../lib/config.js';
 
 export interface LoginOptions {
   email?: string;
-  browser?: boolean;
+  browser?: boolean; // commander --no-browser: true unless --no-browser is passed
   token?: string; // API key for non-interactive auth
+}
+
+interface ConnectStartResponse {
+  connectId: string;
+  url: string;
+  expiresInSeconds: number;
+}
+
+interface ConnectStatusResponse {
+  status: 'pending' | 'claimed' | 'expired' | 'not_found';
+  email?: string;
+  apiKey?: string;
+  apiKeyName?: string;
+}
+
+// Device-flow login shared with the MCP server's rankcli_connect tool
+// (same mcp-connect-start/mcp-connect-status backend, see
+// packages/mcp-server/src/index.ts) - mint a connect id, open the approval
+// page in the user's browser, poll until they approve it there, save the
+// resulting API key. Replaces the old --browser flow, which opened a page
+// that had nothing on it to copy - it prompted for a "CLI token" the site
+// never actually displayed anywhere.
+async function browserLogin(spinner: ReturnType<typeof ora>): Promise<void> {
+  spinner.start('Starting login...');
+
+  let start: ConnectStartResponse;
+  try {
+    const res = await fetch(`${getApiUrl()}/functions/v1/mcp-connect-start`, { method: 'POST' });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    start = await res.json() as ConnectStartResponse;
+  } catch (err) {
+    spinner.fail('Could not start login');
+    console.log(chalk.red(err instanceof Error ? err.message : 'Network error'));
+    return;
+  }
+
+  spinner.text = 'Opening browser to approve...';
+  try {
+    await open(start.url);
+  } catch {
+    // Fall through - the link below still works if a browser couldn't
+    // be launched (e.g. a headless/SSH session).
+  }
+  console.log(chalk.dim(`\nIf a browser didn't open, visit:\n${start.url}\n`));
+
+  const deadline = Date.now() + start.expiresInSeconds * 1000;
+  spinner.text = 'Waiting for approval in your browser...';
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    let status: ConnectStatusResponse;
+    try {
+      const res = await fetch(`${getApiUrl()}/functions/v1/mcp-connect-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectId: start.connectId }),
+      });
+      status = await res.json() as ConnectStatusResponse;
+    } catch {
+      continue; // transient network error - keep polling until the deadline
+    }
+
+    if (status.status === 'claimed' && status.apiKey) {
+      saveApiKey(status.apiKey, status.apiKeyName, status.email);
+      await fetchAndSaveSubscription();
+      spinner.succeed(`Logged in as ${chalk.green(status.email)}`);
+      return;
+    }
+    if (status.status === 'expired' || status.status === 'not_found') {
+      spinner.fail('Login link expired');
+      console.log(chalk.dim('Run "rankcli login" again.'));
+      return;
+    }
+  }
+
+  spinner.fail('Timed out waiting for approval');
+  console.log(chalk.dim('Run "rankcli login" again when you\'re ready.'));
 }
 
 export async function login(options: LoginOptions): Promise<void> {
@@ -69,54 +148,14 @@ export async function login(options: LoginOptions): Promise<void> {
       return;
     }
 
-    if (options.browser) {
-      // Browser-based login
-      console.log(chalk.cyan('\nOpening browser for login...'));
-      console.log(chalk.dim('Complete the login in your browser, then return here.\n'));
-
-      // Open login page with CLI callback
-      const loginUrl = `${WEB_APP_URL}/login?cli=true`;
-      await open(loginUrl);
-
-      // Wait for user to complete login and paste token
-      const { token } = await inquirer.prompt([
-        {
-          type: 'password',
-          name: 'token',
-          message: 'Paste your CLI token from the browser:',
-          mask: '*',
-        },
-      ]);
-
-      spinner.start('Verifying token...');
-
-      // Verify and exchange token
-      const supabase = getSupabaseClient();
-      const { data, error } = await supabase.auth.getUser(token);
-
-      if (error || !data.user) {
-        spinner.fail('Invalid token');
-        console.log(chalk.red('The token is invalid or expired. Please try again.'));
-        return;
-      }
-
-      // Get full session
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: token,
-        refresh_token: '', // Will need to handle this differently
-      });
-
-      if (sessionError || !sessionData.session) {
-        spinner.fail('Failed to establish session');
-        return;
-      }
-
-      saveSession(sessionData.session);
-      await fetchAndSaveSubscription();
-
-      spinner.succeed(`Logged in as ${chalk.green(data.user.email)}`);
+    if (options.browser !== false && !options.email) {
+      // Browser-based login (the default - reduces this to zero typing for
+      // anyone with a browser handy). Same device-flow backend as the MCP
+      // server's rankcli_connect tool: mint a connect id, open the
+      // approval page, poll until claimed, save the resulting API key.
+      await browserLogin(spinner);
     } else {
-      // Email/password login
+      // Email/password login (opt-in via --email or --no-browser)
       let email = options.email;
 
       if (!email) {

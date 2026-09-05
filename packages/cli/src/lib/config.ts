@@ -101,7 +101,7 @@ export function getDecryptPassphrase(): string | undefined {
 }
 
 // API base URL for validation (lazy)
-function getApiUrl(): string {
+export function getApiUrl(): string {
   return process.env.RANKCLI_API_URL || getSupabaseUrlLazy();
 }
 
@@ -169,11 +169,17 @@ export function getApiKey(): string | null {
   return process.env.RANKCLI_API_KEY || config.get('apiKey') || null;
 }
 
-// Save API key to config
-export function saveApiKey(apiKey: string, keyName?: string): void {
+// Save API key to config. Also accepts email so `whoami` and friends can
+// show something better than "N/A" for a key obtained via a flow (like
+// browser login or MCP connect) that already knows it, without needing a
+// separate validate-api-key round trip just to display it.
+export function saveApiKey(apiKey: string, keyName?: string, email?: string): void {
   config.set('apiKey', apiKey);
   if (keyName) {
     config.set('apiKeyName', keyName);
+  }
+  if (email) {
+    config.set('email', email);
   }
 }
 

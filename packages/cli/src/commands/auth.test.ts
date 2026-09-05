@@ -43,6 +43,7 @@ const mockIsApiKeyAuth = vi.fn();
 const mockGetApiKey = vi.fn();
 const mockSaveApiKey = vi.fn();
 const mockValidateApiKey = vi.fn();
+const mockGetApiUrl = vi.fn(() => 'http://localhost:54321');
 
 vi.mock('../lib/config.js', () => ({
   isLoggedIn: () => mockIsLoggedIn(),
@@ -54,13 +55,15 @@ vi.mock('../lib/config.js', () => ({
   getAuthenticatedClient: () => mockGetAuthenticatedClient(),
   isApiKeyAuth: () => mockIsApiKeyAuth(),
   getApiKey: () => mockGetApiKey(),
-  saveApiKey: (key: string, name?: string) => mockSaveApiKey(key, name),
+  saveApiKey: (key: string, name?: string, email?: string) => mockSaveApiKey(key, name, email),
   validateApiKey: (key: string) => mockValidateApiKey(key),
+  getApiUrl: () => mockGetApiUrl(),
   WEB_APP_URL: 'http://localhost:3005',
 }));
 
 import { login, logout, whoami } from './auth.js';
 import inquirer from 'inquirer';
+import open from 'open';
 
 describe('Auth Commands', () => {
   let consoleLogSpy: MockInstance<any[], any>;
@@ -121,13 +124,47 @@ describe('Auth Commands', () => {
         }),
       });
 
-      await login({});
+      await login({ browser: false });
 
       expect(inquirer.prompt).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ name: 'email' }),
         ])
       );
+    });
+
+    it('defaults to browser login and saves the resulting API key', async () => {
+      mockIsLoggedIn.mockReturnValue(false);
+
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            connectId: 'conn-1',
+            url: 'https://rankcli.dev/connect?id=conn-1',
+            expiresInSeconds: 600,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            status: 'claimed',
+            email: 'browser@test.com',
+            apiKey: 'rankcli_abc123',
+            apiKeyName: 'CLI Connect',
+          }),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+      vi.stubGlobal('setTimeout', ((fn: () => void) => { fn(); return 0; }) as unknown as typeof setTimeout);
+
+      mockGetAuthenticatedClient.mockResolvedValue(null);
+
+      await login({});
+
+      expect(open).toHaveBeenCalledWith('https://rankcli.dev/connect?id=conn-1');
+      expect(mockSaveApiKey).toHaveBeenCalledWith('rankcli_abc123', 'CLI Connect', 'browser@test.com');
+
+      vi.unstubAllGlobals();
     });
 
     it('handles login error gracefully', async () => {

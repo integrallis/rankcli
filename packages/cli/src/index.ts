@@ -25,9 +25,9 @@ program
 // Auth commands
 program
   .command('login')
-  .description('Log in to your RankCLI account')
-  .option('-e, --email <email>', 'Email address')
-  .option('-b, --browser', 'Open browser for login')
+  .description('Log in to your RankCLI account (opens your browser by default)')
+  .option('-e, --email <email>', 'Log in with email/password instead of the browser')
+  .option('--no-browser', 'Skip the browser and log in with email/password interactively')
   .option('-t, --token <apiKey>', 'API key for non-interactive authentication')
   .action(login);
 
