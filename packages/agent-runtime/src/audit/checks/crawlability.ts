@@ -15,6 +15,29 @@ export interface SitemapResult {
   url?: string;
   urlCount: number;
   errors: string[];
+  lastmodCount?: number;
+  invalidLastmodCount?: number;
+}
+
+// Sitemap protocol requires W3C Datetime (a subset of ISO 8601): full date,
+// or full date plus time with a timezone. Reject anything else outright
+// rather than relying on Date's lenient/inconsistent free-form parsing.
+const LASTMOD_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?$/;
+
+export function validateLastmodValues(content: string): { count: number; invalidCount: number } {
+  const matches = content.match(/<lastmod>([^<]*)<\/lastmod>/g) || [];
+  let invalidCount = 0;
+  const now = Date.now();
+
+  for (const match of matches) {
+    const value = match.replace(/<\/?lastmod>/g, '').trim();
+    const parsed = LASTMOD_PATTERN.test(value) ? new Date(value) : null;
+    if (!parsed || isNaN(parsed.getTime()) || parsed.getTime() > now) {
+      invalidCount++;
+    }
+  }
+
+  return { count: matches.length, invalidCount };
 }
 
 export async function checkRobotsTxt(baseUrl: string): Promise<{ issues: AuditIssue[]; data: RobotsTxtResult }> {
@@ -112,9 +135,9 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
         validateStatus: () => true,
       });
 
-      if (response.status === 200 && (response.data as string).includes('<urlset') || (response.data as string).includes('<sitemapindex')) {
+      const content = response.data as string;
+      if (response.status === 200 && (content.includes('<urlset') || content.includes('<sitemapindex'))) {
         // Count URLs in sitemap
-        const content = response.data as string;
         const urlMatches = content.match(/<loc>/g);
         const urlCount = urlMatches ? urlMatches.length : 0;
 
@@ -126,9 +149,24 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
           });
         }
 
+        const { count: lastmodCount, invalidCount: invalidLastmodCount } = validateLastmodValues(content);
+
+        if (lastmodCount === 0) {
+          issues.push({
+            ...ISSUE_DEFINITIONS.SITEMAP_LASTMOD_MISSING,
+            affectedUrls: [sitemapUrl],
+          });
+        } else if (invalidLastmodCount > 0) {
+          issues.push({
+            ...ISSUE_DEFINITIONS.SITEMAP_LASTMOD_INVALID,
+            affectedUrls: [sitemapUrl],
+            details: { invalidCount: invalidLastmodCount, totalCount: lastmodCount },
+          });
+        }
+
         return {
           issues,
-          data: { exists: true, url: sitemapUrl, urlCount, errors: [] }
+          data: { exists: true, url: sitemapUrl, urlCount, errors: [], lastmodCount, invalidLastmodCount }
         };
       }
     } catch {
