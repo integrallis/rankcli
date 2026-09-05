@@ -1022,7 +1022,7 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     impact:
       'Without an explicit rule, whether AI crawlers (and future citation opportunities in ChatGPT, Claude, Perplexity, etc.) can reach this site now depends on Cloudflare account-level bot-management defaults, not on this codebase — a silent, invisible-to-git failure mode.',
     howToFix:
-      'Add explicit User-agent rules for GPTBot, Claude-Web/ClaudeBot, PerplexityBot, and Google-Extended in robots.txt, and confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
+      'Two ways to make your stance explicit, either works: (1) add a Content-Signal line to robots.txt - e.g. "Content-Signal: search=yes,ai-train=no,use=reference" - the format Cloudflare\'s AI Crawl Control update actually reads, or (2) add explicit User-agent rules for GPTBot, Claude-Web/ClaudeBot, PerplexityBot, and Google-Extended. Either way, confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
   },
   NO_AGENT_EXPERIENCE_SURFACE: {
     code: 'NO_AGENT_EXPERIENCE_SURFACE',

@@ -33,6 +33,11 @@ export interface AIBotBlockingResult {
   blockedBots: string[];
   allowedBots: string[];
   allBlocked: boolean;
+  // The Content Signals robots.txt extension (Content-Signal: search=yes,
+  // ai-train=no,use=reference) - the mechanism Cloudflare's Sep 2026 AI
+  // Crawl Control update actually reads, distinct from and in addition to
+  // per-bot User-agent/Disallow rules. Null if no such line is present.
+  contentSignal: string | null;
 }
 
 export interface CloudflareAICrawlerGateResult {
@@ -124,6 +129,24 @@ export async function checkLlmsTxt(baseUrl: string): Promise<{ issues: AuditIssu
 }
 
 /**
+ * Extract a robots.txt Content-Signal line, if present.
+ * https://contentsignals.org - "Content-Signal: search=yes,ai-train=no,use=reference"
+ * Returns the raw value (original casing/spacing preserved) of the first
+ * such line, or null if none is present. Matches on any line prefix, same
+ * tolerance as the User-agent/Disallow parsing below - Content-Signal can
+ * appear under a specific User-agent block or standalone.
+ */
+export function parseContentSignal(robotsTxtContent: string): string | null {
+  for (const line of robotsTxtContent.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.toLowerCase().startsWith('content-signal:')) {
+      return trimmed.substring(trimmed.indexOf(':') + 1).trim();
+    }
+  }
+  return null;
+}
+
+/**
  * Check robots.txt for AI bot blocking
  */
 export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: AuditIssue[]; data: AIBotBlockingResult }> {
@@ -148,12 +171,14 @@ export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: Aud
           blockedBots: [],
           allowedBots: Object.keys(AI_BOTS),
           allBlocked: false,
+          contentSignal: null,
         },
       };
     }
 
     const content = response.data as string;
     const lines = content.split('\n');
+    const contentSignal = parseContentSignal(content);
 
     // Parse robots.txt for AI bot rules
     let currentUserAgent = '';
@@ -162,7 +187,11 @@ export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: Aud
     for (const line of lines) {
       const trimmed = line.trim().toLowerCase();
 
-      if (trimmed.startsWith('user-agent:')) {
+      if (trimmed.startsWith('content-signal:')) {
+        // Already captured by parseContentSignal above; skip so it isn't
+        // also mistaken for an unrecognized directive by anything below.
+        continue;
+      } else if (trimmed.startsWith('user-agent:')) {
         currentUserAgent = trimmed.split(':')[1].trim();
       } else if (trimmed.startsWith('disallow:')) {
         const path = trimmed.split(':')[1]?.trim() || '';
@@ -245,6 +274,7 @@ export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: Aud
         blockedBots,
         allowedBots,
         allBlocked: blockedBots.length === Object.keys(AI_BOTS).length,
+        contentSignal,
       },
     };
   } catch (error) {
@@ -255,6 +285,7 @@ export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: Aud
         blockedBots: [],
         allowedBots: Object.keys(AI_BOTS),
         allBlocked: false,
+        contentSignal: null,
       },
     };
   }
@@ -344,10 +375,13 @@ export async function checkCloudflareAICrawlerGate(
     behindCloudflare = false;
   }
 
-  // "Explicit" means robots.txt exists and names at least one AI crawler
-  // specifically, rather than relying purely on a bare wildcard rule or
-  // the absence of a file.
-  const hasExplicitAIRules = botBlocking.robotsExists && botBlocking.blockedBots.length > 0;
+  // "Explicit" means robots.txt exists and either names at least one AI
+  // crawler specifically via User-agent/Disallow, or declares a
+  // Content-Signal line - the newer, Cloudflare-recognized mechanism for
+  // stating AI-training/search/reference intent without per-bot rules.
+  // Bare wildcard rules or a missing file don't count either way.
+  const hasExplicitAIRules =
+    botBlocking.robotsExists && (botBlocking.blockedBots.length > 0 || !!botBlocking.contentSignal);
 
   const ambiguous = behindCloudflare && !hasExplicitAIRules;
 
