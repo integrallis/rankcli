@@ -32,6 +32,47 @@ export interface LlmsTxtData {
     linkCount: number;
   };
   contentLength: number;
+  brokenLinks?: string[];
+}
+
+// Bounds how many links we probe per audit - llms.txt files are meant to be
+// short curated indexes, not full sitemaps, so this should never legitimately
+// truncate a well-formed file.
+const MAX_LINKS_TO_CHECK = 20;
+
+export function extractLlmsTxtLinks(content: string, baseUrl: string): string[] {
+  const linkMatches = content.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g);
+  const urls: string[] = [];
+  for (const match of linkMatches) {
+    try {
+      const resolved = new URL(match[2], baseUrl);
+      // Skip mailto:, tel:, etc - only http(s) links are worth link-checking.
+      if (resolved.protocol === 'http:' || resolved.protocol === 'https:') {
+        urls.push(resolved.href);
+      }
+    } catch {
+      // Malformed link - skip.
+    }
+  }
+  return urls;
+}
+
+async function findBrokenLinks(urls: string[]): Promise<string[]> {
+  const toCheck = urls.slice(0, MAX_LINKS_TO_CHECK);
+  const results = await Promise.all(
+    toCheck.map(async (linkUrl) => {
+      try {
+        const response = await httpGet<string>(linkUrl, {
+          timeout: 8000,
+          validateStatus: () => true,
+        });
+        return response.status >= 400 ? linkUrl : null;
+      } catch {
+        return linkUrl;
+      }
+    })
+  );
+  return results.filter((url): url is string => url !== null);
 }
 
 export async function analyzeLlmsTxt(
@@ -56,6 +97,7 @@ export async function analyzeLlmsTxt(
     linkCount: 0,
   };
   let contentLength = 0;
+  let brokenLinks: string[] = [];
 
   try {
     // Check main llms.txt
@@ -165,6 +207,22 @@ export async function analyzeLlmsTxt(
         affectedUrls: [llmsTxtUrl],
       });
     }
+
+    if (structure.hasLinks && content) {
+      brokenLinks = await findBrokenLinks(extractLlmsTxtLinks(content, baseUrl));
+      if (brokenLinks.length > 0) {
+        issues.push({
+          code: 'AI_LLMS_TXT_BROKEN_LINKS',
+          severity: 'warning',
+          category: 'ai-readiness',
+          title: 'llms.txt links to broken pages',
+          description: `${brokenLinks.length} of the links in your llms.txt return an error or don't resolve: ${brokenLinks.slice(0, 5).join(', ')}${brokenLinks.length > 5 ? ', ...' : ''}`,
+          impact: 'LLMs following these links to understand your site will hit dead ends, undermining the whole point of curating this file.',
+          howToFix: 'Fix or remove the broken links so llms.txt stays an accurate, trustworthy index of your content.',
+          affectedUrls: brokenLinks,
+        });
+      }
+    }
   }
 
   return {
@@ -175,6 +233,7 @@ export async function analyzeLlmsTxt(
       content: content?.substring(0, 1000), // Truncate for data
       structure,
       contentLength,
+      ...(brokenLinks.length > 0 ? { brokenLinks } : {}),
     },
   };
 }
