@@ -602,27 +602,6 @@ async function pollConnectStatus(
   return null;
 }
 
-// Polls in the background (not awaited by the tool call) and, on success,
-// stores the key locally and fires the elicitation-complete notification -
-// the spec-intended pattern for URL-mode elicitation, matching the SDK's
-// own examples: the tool call returns as soon as the user accepts opening
-// the link, completion is signaled later, out of band.
-function backgroundAwaitConnect(connectId: string): void {
-  pollConnectStatus(connectId, 5 * 60_000)
-    .then(async (claimed) => {
-      if (claimed) {
-        localConfig.set('apiKey', claimed.apiKey);
-        localConfig.set('apiKeyName', claimed.apiKeyName);
-        localConfig.set('email', claimed.email);
-        if (localConfig.get('pendingConnectId') === connectId) clearPendingConnect();
-      }
-      await server.createElicitationCompletionNotifier(connectId)().catch(() => {});
-    })
-    .catch((err) => {
-      console.error('rankcli_connect: background poll failed:', err);
-    });
-}
-
 function clearPendingConnect(): void {
   localConfig.delete('pendingConnectId');
   localConfig.delete('pendingConnectUrl');
@@ -693,8 +672,21 @@ async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> 
         elicitationId: connectId,
       });
       if (result.action === 'accept') {
-        backgroundAwaitConnect(connectId);
-        return { text: "Opening rankcli.dev to connect your account - I'll let you know as soon as it's done." };
+        // A short synchronous wait, not a background timer outliving this
+        // call - MCP has no guarantee this process (or even this specific
+        // connection) is still around later to receive an out-of-band
+        // notification, and nothing here needs one: the same pending-check
+        // path a few lines above already makes a second rankcli_connect
+        // call resume exactly where this leaves off.
+        const claimed = await pollConnectStatus(connectId, 10_000);
+        if (claimed) {
+          localConfig.set('apiKey', claimed.apiKey);
+          localConfig.set('apiKeyName', claimed.apiKeyName);
+          localConfig.set('email', claimed.email);
+          clearPendingConnect();
+          return { text: `Connected as ${claimed.email}! Your dashboard, GitHub auto-fix PRs, and audit history are now linked to this AI assistant.` };
+        }
+        return { text: `Opened rankcli.dev in your browser. Still waiting for approval - run rankcli_connect again once you've approved it (expires in ${expiresMinutes} minutes).` };
       }
       clearPendingConnect();
       return { text: 'Connection cancelled.' };
