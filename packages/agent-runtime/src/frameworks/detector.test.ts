@@ -52,6 +52,14 @@ describe('Framework Detector', () => {
       expect(result?.framework).toBe('react');
     });
 
+    it('detects React 18+ (createRoot) from an empty #root div', () => {
+      // React 18's createRoot() never adds data-reactroot - a modern
+      // CRA/Vite React app's unhydrated HTML is just an empty root div.
+      const html = '<html><body><div id="root"></div><script src="/assets/index.js"></script></body></html>';
+      const result = detectFromHtml(html);
+      expect(result?.framework).toBe('react');
+    });
+
     it('detects Vue from data-v- attributes', () => {
       const html = '<div data-v-abc123><h1>Hello</h1></div>';
       const result = detectFromHtml(html);

@@ -149,7 +149,10 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'react',
     language: 'javascript',
-    patterns: [/data-reactroot/, /data-react-helmet/, /_react/, /react-app/],
+    // data-reactroot/data-react-helmet are React <=15 hydration markers -
+    // React 18's createRoot() never adds them, so every modern CRA/Vite
+    // React app (an empty <div id="root">) went undetected from HTML alone.
+    patterns: [/data-reactroot/, /data-react-helmet/, /_react/, /react-app/, /<div id="root"><\/div>/],
     confidence: 'medium',
   },
   // Vue (generic - lower priority)
