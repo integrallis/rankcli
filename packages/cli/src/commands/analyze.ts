@@ -79,7 +79,7 @@ function extractKeywords(text: string): string[] {
 }
 
 function loadConfig(): { name: string; framework: string | null } | null {
-  const configPath = join(process.cwd(), 'seo-autopilot.config.json');
+  const configPath = join(process.cwd(), 'rankcli.config.json');
   if (existsSync(configPath)) {
     try {
       return JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -191,5 +191,5 @@ export async function analyze(options: AnalyzeOptions): Promise<void> {
     console.log('\n✅ No critical SEO issues found!');
   }
 
-  console.log('\n📈 Next: Run "seo audit --url <your-deployed-site>" for a full technical audit\n');
+  console.log('\n📈 Next: Run "rankcli audit --url <your-deployed-site>" for a full technical audit\n');
 }

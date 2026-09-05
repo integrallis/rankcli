@@ -29,7 +29,7 @@ interface ContentOptions {
 }
 
 export async function analyzeContent(options: ContentOptions): Promise<void> {
-  console.log('\n📝 SEO Autopilot - Content Analysis\n');
+  console.log('\n📝 RankCLI - Content Analysis\n');
 
   const mode = options.mode || 'full';
 

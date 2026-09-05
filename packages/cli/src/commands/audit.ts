@@ -52,6 +52,18 @@ async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
   }
 }
 
+// OpenAI, OpenRouter, Groq, and Gemini (via its OpenAI-compatibility
+// endpoint) all speak the same /chat/completions shape - only the base URL
+// and model differ. Anthropic's Messages API is genuinely different (system
+// is top-level, x-api-key auth, content comes back as typed blocks) and
+// gets its own branch below, same split used throughout the saas backend.
+const AI_PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1:free' },
+  groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
+};
+
 /**
  * Run AI analysis on the audit results
  */
@@ -62,9 +74,10 @@ async function runAIAnalysis(
   apiKey: string
 ): Promise<AIAnalysis | null> {
   const isAnthropic = provider === 'anthropic';
+  const providerConfig = AI_PROVIDER_DEFAULTS[provider] || AI_PROVIDER_DEFAULTS.openai;
   const apiUrl = isAnthropic
     ? 'https://api.anthropic.com/v1/messages'
-    : 'https://api.openai.com/v1/chat/completions';
+    : `${providerConfig.baseUrl}/chat/completions`;
 
   const prompt = `Analyze these SEO audit results and provide prioritized recommendations:
 
@@ -99,14 +112,23 @@ Return JSON with:
       });
     } else {
       headers['Authorization'] = `Bearer ${apiKey}`;
+      if (provider === 'openrouter') {
+        // Attributes usage to RankCLI in OpenRouter's dashboard - harmless
+        // to omit for other providers, so only set it for that one.
+        headers['HTTP-Referer'] = 'https://rankcli.dev';
+        headers['X-Title'] = 'RankCLI';
+      }
       body = JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: providerConfig.model,
         messages: [
           { role: 'system', content: 'You are an SEO expert. Respond with valid JSON only.' },
           { role: 'user', content: prompt },
         ],
         max_tokens: 1500,
-        response_format: { type: 'json_object' },
+        // json_object mode is an OpenAI-specific extension - Groq supports
+        // it too, but not every OpenAI-compatible server does, so only
+        // request it for providers confirmed to support it.
+        ...(provider === 'openai' || provider === 'groq' ? { response_format: { type: 'json_object' } } : {}),
       });
     }
 
@@ -314,10 +336,27 @@ export async function audit(options: AuditOptions): Promise<void> {
   const url = options.url;
   const maxPages = parseInt(options.maxPages || '5', 10);
   const enableAI = options.ai || false;
-  const aiProvider = options.aiProvider || 'openai';
-  // Use provider-specific key when available
-  const aiKey = options.aiKey || 
-    (aiProvider === 'anthropic' ? (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY) : (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) || '';
+  // Auto-detect provider from whichever key is actually set, when not
+  // given explicitly - free/cheap providers first (OpenRouter, Groq,
+  // Gemini all have genuinely free tiers), OpenAI/Anthropic as the
+  // familiar fallback. `--ai-key` alone (no --ai-provider) still assumes
+  // OpenAI, matching this flag's original meaning.
+  const detectedProvider = options.aiProvider || (
+    process.env.OPENROUTER_API_KEY ? 'openrouter' :
+    process.env.GROQ_API_KEY ? 'groq' :
+    (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? 'gemini' :
+    process.env.ANTHROPIC_API_KEY ? 'anthropic' :
+    'openai'
+  );
+  const aiProvider = detectedProvider;
+  const providerEnvKey: Record<string, string | undefined> = {
+    openai: process.env.OPENAI_API_KEY,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    openrouter: process.env.OPENROUTER_API_KEY,
+    groq: process.env.GROQ_API_KEY,
+    gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+  };
+  const aiKey = options.aiKey || providerEnvKey[aiProvider] || '';
 
   // Check login status
   const loggedIn = isLoggedIn();
@@ -353,8 +392,8 @@ export async function audit(options: AuditOptions): Promise<void> {
     console.log('\nOptions:');
     console.log('   --max-pages <n>     Max pages to crawl (default: 5)');
     console.log('   --ai                Enable AI analysis');
-    console.log('   --ai-provider <p>   AI provider: openai or anthropic');
-    console.log('   --ai-key <key>      API key (or set OPENAI_API_KEY/ANTHROPIC_API_KEY)');
+    console.log('   --ai-provider <p>   AI provider: openai, anthropic, openrouter, groq, or gemini (auto-detected from env if omitted)');
+    console.log('   --ai-key <key>      API key (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY)');
     console.log('   --output json       Output as JSON');
     if (!loggedIn) {
       console.log(chalk.dim('\nTip: Log in to sync results to the web dashboard:'));
@@ -473,7 +512,7 @@ export async function audit(options: AuditOptions): Promise<void> {
       }
     } else if (enableAI && !aiKey) {
       console.log(chalk.yellow('\n⚠️  AI analysis requested but no API key provided'));
-      console.log(chalk.dim('   Set OPENAI_API_KEY or ANTHROPIC_API_KEY, or use --ai-key'));
+      console.log(chalk.dim('   Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY, or use --ai-key'));
     }
 
     // ===== PHASE 4: Output results =====

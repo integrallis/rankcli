@@ -34,7 +34,7 @@ async function askYesNo(rl: readline.Interface, question: string, defaultYes = t
 }
 
 export async function alerts(options: AlertsOptions): Promise<void> {
-  console.log('\n🔔 SEO Autopilot - Alert Configuration\n');
+  console.log('\n🔔 RankCLI - Alert Configuration\n');
 
   const rl = readline.createInterface({
     input: process.stdin,

@@ -22,7 +22,7 @@ interface SetupOptions {
 }
 
 export async function setup(options: SetupOptions): Promise<void> {
-  console.log('\n🔧 SEO Autopilot - Setup\n');
+  console.log('\n🔧 RankCLI - Setup\n');
 
   const projectPath = process.cwd();
 

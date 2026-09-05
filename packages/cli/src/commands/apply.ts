@@ -57,7 +57,7 @@ export async function apply(options: ApplyOptions): Promise<void> {
   const cwd = process.cwd();
 
   // Check for config file
-  const configPath = join(cwd, 'seo-autopilot.config.json');
+  const configPath = join(cwd, 'rankcli.config.json');
   let config: ProjectConfig | null = null;
 
   if (existsSync(configPath)) {
@@ -76,8 +76,8 @@ export async function apply(options: ApplyOptions): Promise<void> {
 
   if (!url) {
     console.log('\n\u26A0\uFE0F  Please provide a URL to analyze:');
-    console.log('   seo apply --url https://your-site.com');
-    console.log('\n   Or set a URL in your seo-autopilot.config.json\n');
+    console.log('   rankcli apply --url https://your-site.com');
+    console.log('\n   Or set a URL in your rankcli.config.json\n');
     return;
   }
 
@@ -89,7 +89,7 @@ export async function apply(options: ApplyOptions): Promise<void> {
     return;
   }
 
-  console.log('\n\u{1F680} SEO Autopilot - Apply Fixes');
+  console.log('\n\u{1F680} RankCLI - Apply Fixes');
   console.log('═'.repeat(50));
 
   // Check if user has access to auto-fix feature
@@ -250,6 +250,6 @@ export async function apply(options: ApplyOptions): Promise<void> {
   console.log('\n2. Commit the SEO improvements:');
   console.log('   git add -A && git commit -m "feat(seo): add meta tags and structured data"');
   console.log('\n3. Re-run the audit to verify:');
-  console.log(`   seo audit --url ${url}`);
+  console.log(`   rankcli audit --url ${url}`);
   console.log('');
 }

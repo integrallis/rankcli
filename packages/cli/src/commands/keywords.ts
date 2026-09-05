@@ -25,7 +25,7 @@ interface KeywordsOptions {
 }
 
 export async function keywords(options: KeywordsOptions): Promise<void> {
-  console.log('\n🔑 SEO Autopilot - Keyword Research\n');
+  console.log('\n🔑 RankCLI - Keyword Research\n');
   console.log('This tool helps you find keywords you can actually rank for,');
   console.log('based on your site\'s current authority and competition level.\n');
 

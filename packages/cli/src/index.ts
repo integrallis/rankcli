@@ -43,7 +43,7 @@ program
 
 program
   .command('init')
-  .description('Initialize SEO Autopilot in your project')
+  .description('Set up RankCLI in your project (detects framework, git/GitHub, AI keys)')
   .option('-y, --yes', 'Skip prompts and use defaults')
   .action(init);
 
@@ -61,8 +61,8 @@ program
   .option('--check-links', 'Check for broken internal/external links (slower)')
   .option('--max-pages <n>', 'Max pages to crawl (default: 5)')
   .option('--ai', 'Enable AI analysis')
-  .option('--ai-provider <provider>', 'AI provider: openai or anthropic')
-  .option('--ai-key <key>', 'API key (or set OPENAI_API_KEY/ANTHROPIC_API_KEY)')
+  .option('--ai-provider <provider>', 'AI provider: openai, anthropic, openrouter, groq, or gemini (auto-detected from env if omitted)')
+  .option('--ai-key <key>', 'API key (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY)')
   .action(audit);
 
 program
