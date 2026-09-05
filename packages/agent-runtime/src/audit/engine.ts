@@ -139,7 +139,14 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     return createReport(url, domain, allIssues, pages);
   }
 
-  const html = fetchResult.data;
+  // cheerio (htmlparser2) treats <noscript> contents as opaque text, not
+  // parseable markup - so a legitimate <noscript> fallback (which sites
+  // add specifically for non-JS clients/crawlers) is invisible to every
+  // check below, and a CSR page with a real, complete noscript fallback
+  // gets scored as if it has no title/H1/links at all. Strip just the
+  // wrapper tags (keeping their inner markup in place) so the fallback
+  // content is credited like any other real HTML on the page.
+  const html = fetchResult.data.replace(/<\/?noscript[^>]*>/gi, '');
   const headers = fetchResult.headers;
 
   // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
