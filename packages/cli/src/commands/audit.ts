@@ -2,7 +2,7 @@ import { runFullAudit, formatReport, discoverPagesFromLinks, frameworks, type Au
 import ora from 'ora';
 import chalk from 'chalk';
 
-const { detectFramework, getFrameworkDisplayName, getFrameworkIssues } = frameworks;
+const { detectFramework, getFrameworkDisplayName } = frameworks;
 import { isLoggedIn, getAuthenticatedClient, getUserInfo, getDecryptPassphrase, WEB_APP_URL } from '../lib/config.js';
 import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
 import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
@@ -454,20 +454,11 @@ export async function audit(options: AuditOptions): Promise<void> {
 
     auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
 
-    // Merge issues from all pages
-    let mergedIssues = mergeIssues(allIssues);
-
-    // ===== PHASE 2.5: Add framework-specific issues =====
-    if (detectedFramework.framework !== 'unknown' && homepageHtml) {
-      try {
-        const frameworkIssues = await getFrameworkIssues(detectedFramework, homepageHtml, url);
-        if (frameworkIssues.length > 0) {
-          mergedIssues = [...mergedIssues, ...frameworkIssues];
-        }
-      } catch {
-        // Framework-specific issues are optional, continue without them
-      }
-    }
+    // Merge issues from all pages. Framework-specific issues (React/Next.js/
+    // WordPress/etc recipes) come from runFullAudit itself now - engine.ts
+    // runs the same getFrameworkIssues() this used to call separately here,
+    // so server-side audits (free-audit, run-audit) get them too.
+    const mergedIssues = mergeIssues(allIssues);
 
     // ===== PHASE 3: AI Analysis (optional) =====
     let aiAnalysis: AIAnalysis | null = null;

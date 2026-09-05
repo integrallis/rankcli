@@ -1,6 +1,8 @@
 import { httpGet } from '../utils/http.js';
 import type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';
 import type { PremiumChecks } from './premium-checks.types.js';
+import { detectFramework } from '../frameworks/detector.js';
+import { getFrameworkIssues } from '../frameworks/suggestion-engine.js';
 import { runCrawlabilityChecks } from './checks/crawlability.js';
 import { analyzeOnPage } from './checks/on-page.js';
 import { analyzeLinks } from './checks/links.js';
@@ -325,6 +327,16 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
   asyncChecks.push(safeAsync('Robots Validation', () => validateRobotsTxt(url)));
   asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
+  // Framework-specific checks (React/Next.js/WordPress/etc recipes) - this
+  // was previously CLI-only (packages/cli/src/commands/audit.ts ran it as
+  // its own separate "Phase 2.5" on top of runFullAudit's results); every
+  // server-side audit (free-audit, run-audit, webhook-triggered CI audits)
+  // never got framework-specific issues at all.
+  asyncChecks.push(safeAsyncIssues('Framework Detection', async () => {
+    const frameworkInfo = detectFramework({ html, headers });
+    if (frameworkInfo.framework === 'unknown') return [];
+    return getFrameworkIssues(frameworkInfo, html, url);
+  }));
 
   // ===== EXTENDED ASYNC CHECKS (registered + paid tiers) =====
   if (runExtendedChecks) {
