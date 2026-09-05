@@ -274,7 +274,14 @@ async function fetchAndSaveSubscription(): Promise<void> {
     .single();
 
   if (subscription?.plan) {
-    const plan = subscription.plan as { plan_id: string; name: string; sites_limit: number };
+    // Without generated Database types, supabase-js infers this many-to-one
+    // embed (subscription_plans is the "one" side of the FK) as an array -
+    // a known limitation, not the real shape; PostgREST returns a single
+    // object here, same as the identical pattern in
+    // supabase/functions/validate-api-key/index.ts. Cast through unknown
+    // since the inferred array type doesn't structurally overlap enough
+    // for a direct assertion.
+    const plan = subscription.plan as unknown as { plan_id: string; name: string; sites_limit: number };
     saveSubscription({
       planId: plan.plan_id,
       planName: plan.name,

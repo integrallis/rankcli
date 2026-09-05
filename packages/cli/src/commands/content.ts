@@ -14,6 +14,11 @@ import {
   analyzeKeywordDensity,
   formatKeywordDensityReport,
   crawlUrl,
+  extractMeta,
+  analyzeHeadings,
+  type CrawlResult,
+  type MetaData,
+  type HeadingStructure,
 } from '@rankcli/agent-runtime';
 
 interface ContentOptions {
@@ -57,18 +62,26 @@ export async function analyzeContent(options: ContentOptions): Promise<void> {
     console.log(`Fetching content from ${options.url}...`);
 
     try {
-      const result = await crawlUrl(options.url);
+      const crawlResult = await crawlUrl({ url: options.url });
 
-      if (!result.html) {
+      if (!crawlResult.success || !crawlResult.data) {
         console.log('❌ Could not fetch content from URL');
         return;
       }
+      const { html } = crawlResult.data as CrawlResult;
+
+      const [metaResult, headingsResult] = await Promise.all([
+        extractMeta({ html, url: options.url }),
+        analyzeHeadings({ html }),
+      ]);
+      const meta = metaResult.success ? (metaResult.data as MetaData) : undefined;
+      const headingStructure = headingsResult.success ? (headingsResult.data as HeadingStructure[]) : [];
 
       // Extract content elements
-      const title = result.meta?.title || '';
-      const h1 = result.headings?.find(h => h.level === 1)?.text || '';
-      const headings = result.headings?.map(h => h.text) || [];
-      const bodyText = extractBodyText(result.html);
+      const title = meta?.title || '';
+      const h1 = headingStructure.find(h => h.level === 1)?.text || '';
+      const headings = headingStructure.map(h => h.text);
+      const bodyText = extractBodyText(html);
       const paragraphs = bodyText.split(/\n\n+/);
 
       console.log(`\nAnalyzing: "${title || options.url}"\n`);

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock, type MockInstance } from 'vitest';
 
 // Mock dependencies before importing
 vi.mock('chalk', () => ({
@@ -63,8 +63,8 @@ import { login, logout, whoami } from './auth.js';
 import inquirer from 'inquirer';
 
 describe('Auth Commands', () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleLogSpy: MockInstance<any[], any>;
+  let consoleErrorSpy: MockInstance<any[], any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,8 +91,8 @@ describe('Auth Commands', () => {
 
     it('prompts for email when not provided', async () => {
       mockIsLoggedIn.mockReturnValue(false);
-      (inquirer.prompt as Mock).mockResolvedValueOnce({ email: 'user@test.com' });
-      (inquirer.prompt as Mock).mockResolvedValueOnce({ password: 'secret' });
+      (inquirer.prompt as unknown as Mock).mockResolvedValueOnce({ email: 'user@test.com' });
+      (inquirer.prompt as unknown as Mock).mockResolvedValueOnce({ password: 'secret' });
 
       const mockSignIn = vi.fn().mockResolvedValue({
         data: {
@@ -132,8 +132,8 @@ describe('Auth Commands', () => {
 
     it('handles login error gracefully', async () => {
       mockIsLoggedIn.mockReturnValue(false);
-      (inquirer.prompt as Mock).mockResolvedValueOnce({ email: 'user@test.com' });
-      (inquirer.prompt as Mock).mockResolvedValueOnce({ password: 'wrong' });
+      (inquirer.prompt as unknown as Mock).mockResolvedValueOnce({ email: 'user@test.com' });
+      (inquirer.prompt as unknown as Mock).mockResolvedValueOnce({ password: 'wrong' });
 
       mockGetSupabaseClient.mockReturnValue({
         auth: {
@@ -153,7 +153,7 @@ describe('Auth Commands', () => {
 
     it('saves session on successful login', async () => {
       mockIsLoggedIn.mockReturnValue(false);
-      (inquirer.prompt as Mock).mockResolvedValue({ password: 'correct' });
+      (inquirer.prompt as unknown as Mock).mockResolvedValue({ password: 'correct' });
 
       const mockSession = {
         access_token: 'token-123',

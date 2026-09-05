@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 
 // Mock chalk with chainable methods
 vi.mock('chalk', () => {
@@ -87,8 +87,8 @@ global.fetch = mockFetch as unknown as typeof fetch;
 import { audit } from './audit.js';
 
 describe('Audit Command', () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleLogSpy: MockInstance<any[], any>;
+  let consoleErrorSpy: MockInstance<any[], any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -225,7 +225,7 @@ describe('Audit Command', () => {
 });
 
 describe('Cloud Sync Integration', () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleLogSpy: MockInstance<any[], any>;
 
   beforeEach(() => {
     vi.clearAllMocks();

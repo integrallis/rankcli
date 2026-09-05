@@ -128,12 +128,21 @@ export async function apply(options: ApplyOptions): Promise<void> {
       generateFixes: true,
     });
     issues = auditResult.report.issues.map(issue => ({
-      severity: issue.severity,
+      // Squash the audit engine's 5-level severity into generateFixes's
+      // 3-level SEOIssue scheme - matches how audit.ts already treats
+      // 'error' as critical-weight (red ✗) and 'notice' as info-weight.
+      severity: issue.severity === 'error' ? 'critical' as const
+        : issue.severity === 'notice' ? 'info' as const
+        : issue.severity,
       category: issue.category,
       code: issue.code,
       message: issue.title,
       impact: issue.description || undefined,
-    }));
+      // Cast covers `category`: the audit engine's categories (17 values,
+      // e.g. 'crawlability', 'links') don't map cleanly onto SEOIssue's
+      // narrower set - generateFixes never reads category off its input
+      // (each fixer hardcodes its own), so this is safe, not just silenced.
+    })) as SEOAnalysisResult['issues'];
     score = auditResult.score;
   } catch (error) {
     console.log(`\n\u274C Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);

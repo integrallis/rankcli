@@ -271,7 +271,10 @@ export async function keywordsAI(
         });
 
         if (response.ok) {
-          const result = await response.json();
+          // Same loosely-typed shape displayAIKeywordResults already accepts
+          // as `any` below - this endpoint's response isn't typed elsewhere
+          // in this file either.
+          const result = await response.json() as any;
 
           if (result.tier === 'free' && result.teaser) {
             // Show teaser for free tier
@@ -357,13 +360,13 @@ function displayAIKeywordResults(result: any): void {
     console.log('─'.repeat(60));
 
     for (const rec of result.recommendations.slice(0, 15)) {
-      const actionEmoji = {
+      const actionEmoji = ({
         'create-page': '📄',
         'build-tool': '🛠️',
         'optimize-existing': '📈',
         'needs-input': '❓',
         'skip': '⏭️',
-      }[rec.action] || '•';
+      } as Record<string, string>)[rec.action] || '•';
 
       console.log(`\n${actionEmoji} ${rec.keyword}`);
       console.log(`   Action: ${rec.action.replace('-', ' ')}`);

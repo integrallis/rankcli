@@ -31,8 +31,13 @@ interface ProductionConfig {
   decryptPassphrase?: string;
 }
 
-// Try to load build-time injected config (replaced during CI build)
-const INJECTED_CONFIG: ProductionConfig | null = null; // __INJECT_PRODUCTION_CONFIG__
+// Try to load build-time injected config (replaced during CI build). Cast
+// on the initializer, not just the declaration - a bare `= null` narrows
+// same-scope top-level reads (like WEB_APP_URL below) to exactly `null`
+// via control-flow analysis, even with the wider annotation on the
+// binding; reads inside function bodies aren't affected, which is why
+// only the top-level access below ever surfaced this.
+const INJECTED_CONFIG = null as ProductionConfig | null; // __INJECT_PRODUCTION_CONFIG__
 
 // Supabase configuration priority:
 // 1. Environment variables (highest priority - for local dev and CI)
@@ -188,7 +193,11 @@ export async function validateApiKey(apiKey: string): Promise<{
       },
     });
 
-    const data = await response.json();
+    const data = await response.json() as {
+      error?: string;
+      user?: { id: string; email: string };
+      subscription?: { planId: string; planName: string; sitesLimit: number };
+    };
 
     if (!response.ok) {
       return { valid: false, error: data.error || 'Invalid API key' };

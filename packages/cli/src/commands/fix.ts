@@ -70,13 +70,14 @@ function generateCommitMessage(fixes: GeneratedFix[], url: string): string {
   );
   
   const type = isAddingNew ? 'feat' : 'fix';
-  
-  // Group fixes by category
-  const categories = new Set(applied.map(f => f.issue.category || 'seo'));
-  const categoryStr = categories.size === 1 
-    ? Array.from(categories)[0] 
-    : 'seo';
-  
+
+  // Fix.issue never carries a category (see agent-runtime's fixer.ts -
+  // every generated fix's issue is a hardcoded { code, message, severity }
+  // literal), so this has only ever produced 'seo'. Keep that behavior
+  // explicit rather than a dead Set-based grouping over a field that
+  // doesn't exist.
+  const categoryStr = 'seo';
+
   // Build commit title
   const issueCount = applied.length;
   const title = `${type}(${categoryStr}): fix ${issueCount} SEO issue${issueCount > 1 ? 's' : ''}`;
@@ -225,7 +226,7 @@ export async function fix(options: FixOptions): Promise<FixResult> {
   let score: number;
 
   try {
-    const analysis = await runDirectAnalysis({ url });
+    const analysis = await runDirectAnalysis(url);
     issues = analysis.issues;
     score = analysis.score;
   } catch (error) {

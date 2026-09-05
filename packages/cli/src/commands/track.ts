@@ -199,7 +199,7 @@ export async function trackAdd(options: TrackAddOptions): Promise<TrackResult> {
 
     if (existingCount + newCount > maxKeywords) {
       spinner.fail(`Keyword limit reached (${existingCount}/${maxKeywords})`);
-      showUpsell('keyword_limit', { tier, current: existingCount, limit: maxKeywords });
+      showUpsell('keyword_limit', { tier, current: existingCount, max: maxKeywords });
       return { success: false, error: `Keyword limit reached. Upgrade to track more keywords.` };
     }
 
