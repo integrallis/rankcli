@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/mcp-server",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "mcpName": "io.github.integrallis/rankcli-mcp-server",
   "description": "Free, local SEO + GEO (AI-search-citation) analysis for AI assistants - audits GEO/AI-crawler access, Core Web Vitals, structured data, security headers, mobile, and images with no signup or API key.",
   "type": "module",
