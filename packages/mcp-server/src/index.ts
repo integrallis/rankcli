@@ -53,6 +53,21 @@ interface LocalConfigSchema {
 // server should never risk validating those fields away.
 const localConfig = new Conf<LocalConfigSchema>({ projectName: 'rankcli' });
 
+// seo_analyze and seo_geo_check both declare html as "optional if URL is
+// provided" in their schema, but had no code path that ever fetched it -
+// every call with just a url failed with "HTML content is required."
+// Fetches happen from this local process (wherever the MCP client is
+// running), never through a RankCLI server.
+async function fetchHtml(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'RankCLI/1.0 (+https://rankcli.dev)' },
+  });
+  if (!res.ok) {
+    throw new Error(`Fetching ${url} returned ${res.status} ${res.statusText}`);
+  }
+  return res.text();
+}
+
 // Tool definitions
 const TOOLS: Tool[] = [
   {
@@ -359,19 +374,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'seo_analyze': {
-        const { url, html, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
-        
-        if (!html) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'HTML content is required for analysis. Please provide the HTML of the page.',
-              },
-            ],
-          };
-        }
-        
+        const { url, html: providedHtml, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
+        const html = providedHtml ?? await fetchHtml(url);
+
         const result = await analyzers.analyzeComprehensive(html, url, { robotsTxt });
         return {
           content: [
@@ -384,14 +389,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       case 'seo_geo_check': {
-        const { url, html, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
-        
-        if (!html) {
-          return {
-            content: [{ type: 'text', text: 'HTML content required for GEO analysis.' }],
-          };
-        }
-        
+        const { url, html: providedHtml, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
+        const html = providedHtml ?? await fetchHtml(url);
+
         const result = await analyzers.analyzeGEO(html, url, robotsTxt);
         return {
           content: [{ type: 'text', text: formatGEOResult(result) }],
