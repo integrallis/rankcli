@@ -3,7 +3,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 
 const { detectFramework, getFrameworkDisplayName } = frameworks;
-import { isLoggedIn, getAuthenticatedClient, getUserInfo, getDecryptPassphrase, WEB_APP_URL } from '../lib/config.js';
+import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl } from '../lib/config.js';
 import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
 import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
 
@@ -188,147 +188,74 @@ async function syncToCloud(
   durationMs: number,
   checksRun: number
 ): Promise<{ projectId: string; auditId: string } | null> {
-  const supabase = await getAuthenticatedClient();
-  if (!supabase) return null;
+  // Resolve the caller's own credential rather than requiring a Supabase
+  // session specifically - the default login path (browser device-flow,
+  // and MCP's rankcli_connect) only ever stores an API key, which
+  // getAuthenticatedClient()/RLS can't see, so a direct client-side
+  // .from(...) write here silently did nothing for most real users. The
+  // sync-audit edge function resolves either credential type itself and
+  // does the writes with the service role.
+  let authHeader: Record<string, string> | null = null;
+  if (isApiKeyAuth()) {
+    const apiKey = getApiKey();
+    if (apiKey) authHeader = { 'X-API-Key': apiKey };
+  } else {
+    const session = await getSession();
+    if (session) authHeader = { Authorization: `Bearer ${session.access_token}` };
+  }
+  if (!authHeader) return null;
 
-  const { userId, sitesLimit } = getUserInfo();
-  if (!userId) return null;
+  const score = report.healthScore?.overall || 0;
+  const healthScores = {
+    overall: score,
+    crawlability: report.healthScore?.crawlability || 0,
+    onPage: report.healthScore?.onPage || 0,
+    content: report.healthScore?.content || 0,
+    performance: report.healthScore?.performance || 0,
+    security: report.healthScore?.security || 0,
+    localSeo: report.healthScore?.localSeo || 0,
+    aiReadiness: report.healthScore?.aiReadiness || 0,
+  };
 
   try {
-    // Parse URL to get domain. Include the port when present - otherwise
-    // two unrelated local dev servers (http://localhost:3000 vs :3001) hash
-    // to the same "localhost" domain and silently share one project, mixing
-    // their audit history together.
-    const parsedUrl = new URL(url);
-    const domain = parsedUrl.port ? `${parsedUrl.hostname}:${parsedUrl.port}` : parsedUrl.hostname;
+    const res = await fetch(`${getApiUrl()}/functions/v1/sync-audit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify({
+        url,
+        issues: mergedIssues,
+        pagesAudited,
+        checksRun,
+        durationMs,
+        healthScores,
+        aiAnalysis,
+      }),
+    });
 
-    // Check if project exists for this URL
-    const { data: existingProject } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('domain', domain)
-      .eq('is_active', true)
-      .single();
-
-    let projectId: string;
-
-    if (existingProject) {
-      projectId = existingProject.id;
-    } else {
-      // Check project limit
-      const { count } = await supabase
-        .from('projects')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('is_active', true);
-
-      const limit = sitesLimit ?? 1;
-      if (count !== null && count >= limit) {
-        console.log(chalk.yellow(`\n⚠️  Project limit reached (${count}/${limit})`));
-        console.log(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
-        return null;
-      }
-
-      // Create new project
-      const { data: newProject, error: projectError } = await supabase
-        .from('projects')
-        .insert({
-          user_id: userId,
-          name: domain,
-          url: url,
-          domain: domain,
-        })
-        .select('id')
-        .single();
-
-      if (projectError || !newProject) {
-        console.error(chalk.dim('Failed to create project'));
-        return null;
-      }
-
-      projectId = newProject.id;
-    }
-
-    // Create audit record
-    const score = report.healthScore?.overall || 0;
-    const healthScores = {
-      overall: score,
-      crawlability: report.healthScore?.crawlability || 0,
-      onPage: report.healthScore?.onPage || 0,
-      content: report.healthScore?.content || 0,
-      performance: report.healthScore?.performance || 0,
-      security: report.healthScore?.security || 0,
-      localSeo: report.healthScore?.localSeo || 0,
-      aiReadiness: report.healthScore?.aiReadiness || 0,
+    const data = await res.json() as {
+      error?: string;
+      count?: number;
+      limit?: number;
+      projectId?: string;
+      auditId?: string;
     };
 
-    const now = new Date().toISOString();
-    const { data: audit, error: auditError } = await supabase
-      .from('audits')
-      .insert({
-        project_id: projectId,
-        triggered_by: 'cli',
-        triggered_by_user: userId,
-        status: 'completed',
-        score,
-        pages_crawled: pagesAudited,
-        issues_found: mergedIssues.length,
-        checks_run: checksRun,
-        health_scores: healthScores,
-        started_at: new Date(Date.now() - durationMs).toISOString(),
-        completed_at: now,
-        duration_ms: durationMs,
-        summary: {
-          errors: mergedIssues.filter(i => i.severity === 'error').length,
-          warnings: mergedIssues.filter(i => i.severity === 'warning').length,
-          notices: mergedIssues.filter(i => i.severity === 'notice').length,
-          pagesAudited,
-          checksRun,
-          source: 'cli',
-        },
-        ai_analysis: aiAnalysis,
-      })
-      .select('id')
-      .single();
-
-    if (auditError || !audit) {
-      console.error(chalk.dim('Failed to save audit'));
+    if (!res.ok) {
+      if (data.error === 'project_limit_reached') {
+        console.log(chalk.yellow(`\n⚠️  Project limit reached (${data.count}/${data.limit})`));
+        console.log(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
+      } else {
+        console.error(chalk.dim(data.error || 'Cloud sync failed'));
+      }
       return null;
     }
 
-    // Save issues
-    if (mergedIssues.length > 0) {
-      const issueRecords = mergedIssues.map(issue => ({
-        audit_id: audit.id,
-        project_id: projectId,
-        code: issue.code,
-        severity: issue.severity,
-        category: issue.category,
-        title: issue.title,
-        description: issue.description || '',
-        impact: issue.impact || '',
-        how_to_fix: issue.howToFix || '',
-        affected_urls: issue.affectedUrls || [],
-        details: issue.details || {},
-        status: 'open',
-      }));
-
-      await supabase.from('audit_issues').insert(issueRecords);
+    if (!data.projectId || !data.auditId) {
+      console.error(chalk.dim('Cloud sync returned an unexpected response'));
+      return null;
     }
 
-    // Update project last audit info (including schedule tracking for rate limits)
-    await supabase
-      .from('projects')
-      .update({
-        last_audit_at: now,
-        last_audit_score: score,
-        last_scheduled_audit_at: now,
-        scheduled_audit_source: 'cli',
-      })
-      .eq('id', projectId);
-
-    return { projectId, auditId: audit.id };
+    return { projectId: data.projectId, auditId: data.auditId };
   } catch (error) {
     console.error(chalk.dim('Cloud sync failed'));
     return null;
