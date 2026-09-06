@@ -19,6 +19,18 @@ npx @rankcli/mcp-server
 }
 ```
 
+**Prefer not to run anything locally?** The same tools are available at a free hosted HTTP endpoint, no npx and no signup:
+
+```json
+{
+  "mcpServers": {
+    "rankcli": {
+      "url": "https://mcp.rankcli.dev/mcp/free"
+    }
+  }
+}
+```
+
 ## Available Tools
 
 | Tool | Description |
@@ -59,7 +71,7 @@ This local server works from HTML/robots.txt you or your MCP host supply. For **
 {
   "mcpServers": {
     "rankcli-hosted": {
-      "url": "https://rankcli-audit-worker.fly.dev/mcp",
+      "url": "https://mcp.rankcli.dev/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
       }
