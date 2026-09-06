@@ -70,13 +70,19 @@ vi.mock('@rankcli/agent-runtime', () => ({
 // Mock config
 const mockIsLoggedIn = vi.fn();
 const mockGetUserInfo = vi.fn();
-const mockGetAuthenticatedClient = vi.fn();
+const mockIsApiKeyAuth = vi.fn();
+const mockGetApiKey = vi.fn();
+const mockGetSession = vi.fn();
 
 vi.mock('../lib/config.js', () => ({
   isLoggedIn: () => mockIsLoggedIn(),
   getUserInfo: () => mockGetUserInfo(),
-  getAuthenticatedClient: () => mockGetAuthenticatedClient(),
   WEB_APP_URL: 'http://localhost:3005',
+  isApiKeyAuth: () => mockIsApiKeyAuth(),
+  getApiKey: () => mockGetApiKey(),
+  getSession: () => mockGetSession(),
+  getDecryptPassphrase: () => undefined,
+  getApiUrl: () => 'http://localhost:3005',
 }));
 
 // Mock global fetch
@@ -98,6 +104,9 @@ describe('Audit Command', () => {
     // Default mocks
     mockIsLoggedIn.mockReturnValue(false);
     mockGetUserInfo.mockReturnValue({ planName: 'Free', sitesLimit: 1 });
+    mockIsApiKeyAuth.mockReturnValue(false);
+    mockGetApiKey.mockReturnValue(null);
+    mockGetSession.mockResolvedValue(null);
     mockDiscoverPagesFromLinks.mockReturnValue([]); // Returns DiscoveredPage[]
     mockFetch.mockResolvedValue({
       ok: true,
@@ -232,15 +241,40 @@ describe('Cloud Sync Integration', () => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     mockDiscoverPagesFromLinks.mockReturnValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      text: () => Promise.resolve('<html><body>Test</body></html>'),
+    mockIsApiKeyAuth.mockReturnValue(false);
+    mockGetApiKey.mockReturnValue(null);
+    mockGetSession.mockResolvedValue(null);
+    // Default fetch mock: page-content fetches get raw HTML, the
+    // sync-audit edge function call (see syncToCloud in audit.ts) gets a
+    // successful { projectId, auditId } response - tests that need a
+    // different sync-audit outcome (limit reached, network error, etc.)
+    // override this per-test.
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('sync-audit')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ projectId: 'proj-test', auditId: 'audit-test' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html><body>Test</body></html>'),
+      });
     });
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
   });
+
+  // syncToCloud() (audit.ts) authenticates via isApiKeyAuth()/getApiKey()
+  // or getSession() - not getAuthenticatedClient(), which the sync path
+  // stopped using because RLS-based direct writes silently did nothing
+  // for API-key users (see the comment on syncToCloud). These tests
+  // exercise that real path: a session token, and the sync-audit edge
+  // function call made via the mocked global fetch.
+  const withSession = () => mockGetSession.mockResolvedValue({ access_token: 'test-token' });
+  const syncAuditCalls = () => mockFetch.mock.calls.filter(([url]) => String(url).includes('sync-audit'));
 
   it('skips cloud sync when not logged in', async () => {
     mockIsLoggedIn.mockReturnValue(false);
@@ -254,8 +288,8 @@ describe('Cloud Sync Integration', () => {
 
     await audit({ url: 'https://example.com' });
 
-    // Should NOT call authenticated client
-    expect(mockGetAuthenticatedClient).not.toHaveBeenCalled();
+    // Should never call the sync-audit endpoint
+    expect(syncAuditCalls().length).toBe(0);
   });
 
   it('attempts sync when logged in', async () => {
@@ -266,12 +300,7 @@ describe('Cloud Sync Integration', () => {
       planName: 'Pro',
       sitesLimit: 10,
     });
-
-    const mockSupabase = createChainableMock({
-      projects: { data: { id: 'proj-123' }, error: null },
-      audits: { data: { id: 'audit-456' }, error: null },
-    });
-    mockGetAuthenticatedClient.mockResolvedValue(mockSupabase);
+    withSession();
 
     mockRunFullAudit.mockResolvedValue({
       url: 'https://example.com',
@@ -283,7 +312,7 @@ describe('Cloud Sync Integration', () => {
 
     await audit({ url: 'https://example.com' });
 
-    expect(mockGetAuthenticatedClient).toHaveBeenCalled();
+    expect(syncAuditCalls().length).toBe(1);
   });
 
   it('shows dashboard link after sync', async () => {
@@ -292,12 +321,7 @@ describe('Cloud Sync Integration', () => {
       userId: 'user-123',
       sitesLimit: 10,
     });
-
-    const mockSupabase = createChainableMock({
-      projects: { data: { id: 'proj-abc' }, error: null },
-      audits: { data: { id: 'audit-xyz' }, error: null },
-    });
-    mockGetAuthenticatedClient.mockResolvedValue(mockSupabase);
+    withSession();
 
     mockRunFullAudit.mockResolvedValue({
       url: 'https://example.com',
@@ -322,28 +346,22 @@ describe('Cloud Sync Integration', () => {
       planName: 'Free',
       sitesLimit: 1,
     });
+    withSession();
 
-    // Mock: no existing project, count shows at limit
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockImplementation((_cols: string, opts?: { count?: string; head?: boolean }) => {
-          if (opts?.count) {
-            // Count query - at limit
-            return {
-              eq: vi.fn().mockReturnThis(),
-              then: vi.fn((resolve) => resolve({ count: 1 })),
-            };
-          }
-          // Project lookup - not found
-          return {
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          };
-        }),
-        eq: vi.fn().mockReturnThis(),
-      }),
-    };
-    mockGetAuthenticatedClient.mockResolvedValue(mockSupabase);
+    // sync-audit rejects with the same shape the real edge function
+    // returns once a plan's project limit is reached.
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('sync-audit')) {
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ error: 'project_limit_reached', count: 1, limit: 1 }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html><body>Test</body></html>'),
+      });
+    });
 
     mockRunFullAudit.mockResolvedValue({
       url: 'https://new-site.com',
@@ -367,9 +385,18 @@ describe('Cloud Sync Integration', () => {
       userId: 'user-123',
       sitesLimit: 10,
     });
+    withSession();
 
-    // Return null to simulate auth failure
-    mockGetAuthenticatedClient.mockResolvedValue(null);
+    // sync-audit call throws (network failure)
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('sync-audit')) {
+        return Promise.reject(new Error('network error'));
+      }
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve('<html><body>Test</body></html>'),
+      });
+    });
 
     mockRunFullAudit.mockResolvedValue({
       url: 'https://example.com',
@@ -383,28 +410,3 @@ describe('Cloud Sync Integration', () => {
     await expect(audit({ url: 'https://example.com' })).resolves.not.toThrow();
   });
 });
-
-// Helper to create chainable Supabase mock
-function createChainableMock(responses: {
-  projects?: { data: unknown; error: unknown };
-  audits?: { data: unknown; error: unknown };
-}) {
-  return {
-    from: vi.fn((table: string) => {
-      const response = responses[table as keyof typeof responses] || { data: null, error: null };
-      return {
-        select: vi.fn().mockReturnThis(),
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue(response),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        }),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue(response),
-      };
-    }),
-  };
-}

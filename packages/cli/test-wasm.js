@@ -6,7 +6,7 @@
  * Run from packages/cli: node test-wasm.js
  */
 
-const { initEngine, runAudit, getTier, getChecksLimit, isReady } = require('./dist/wasm-engine.js');
+const { initEngine, getPremiumChecks, getVersion, isReady } = require('./dist/wasm-engine.js');
 
 const testHtml = `
 <!DOCTYPE html>
@@ -91,14 +91,14 @@ async function runTests() {
         failed++;
     }
 
-    // Test 5: Get tier
+    // Test 5: Get engine version
     try {
-        const tier = await getTier();
-        if (tier === 'registered') {
-            console.log('✓ Test 5: Tier is "registered" for dev key');
+        const version = await getVersion();
+        if (typeof version === 'string' && version.length > 0) {
+            console.log('✓ Test 5: Engine reports a version string:', version);
             passed++;
         } else {
-            console.log('✗ Test 5: Expected tier "registered", got:', tier);
+            console.log('✗ Test 5: Expected a non-empty version string, got:', version);
             failed++;
         }
     } catch (e) {
@@ -106,14 +106,16 @@ async function runTests() {
         failed++;
     }
 
-    // Test 6: Get checks limit
+    // Test 6: Get premium checks returns the expected named functions
+    let premiumChecks;
     try {
-        const limit = await getChecksLimit();
-        if (limit === 100) {
-            console.log('✓ Test 6: Checks limit is 100 for registered tier');
+        premiumChecks = await getPremiumChecks();
+        const names = Object.keys(premiumChecks);
+        if (names.length > 0 && names.every((name) => typeof premiumChecks[name] === 'function')) {
+            console.log(`✓ Test 6: getPremiumChecks returns ${names.length} check functions`);
             passed++;
         } else {
-            console.log('✗ Test 6: Expected limit 100, got:', limit);
+            console.log('✗ Test 6: Expected a non-empty map of check functions, got:', names);
             failed++;
         }
     } catch (e) {
@@ -121,49 +123,50 @@ async function runTests() {
         failed++;
     }
 
-    // Test 7: Run audit returns result
+    // Test 7: A premium check runs and returns { issues, data }
+    let checkResult;
     try {
-        const result = await runAudit('https://example.com/test', testHtml);
-        if (result && typeof result.score === 'number' && Array.isArray(result.issues)) {
-            console.log('✓ Test 7: Audit returns valid result');
-            console.log(`  - Score: ${result.score}`);
-            console.log(`  - Issues: ${result.issues.length}`);
-            console.log(`  - Checks run: ${result.checksRun}`);
+        checkResult = premiumChecks.analyzeFeaturedSnippet(testHtml, 'https://example.com/test');
+        if (checkResult && Array.isArray(checkResult.issues) && 'data' in checkResult) {
+            console.log('✓ Test 7: Premium check returns valid { issues, data } result');
+            console.log(`  - Issues: ${checkResult.issues.length}`);
             passed++;
         } else {
-            console.log('✗ Test 7: Invalid result structure');
+            console.log('✗ Test 7: Invalid result structure:', checkResult);
             failed++;
         }
     } catch (e) {
-        console.log('✗ Test 7: Audit failed:', e.message);
+        console.log('✗ Test 7: Premium check failed:', e.message);
         failed++;
     }
 
-    // Test 8: Audit score is reasonable
+    // Test 8: Every premium check runs without throwing
     try {
-        const result = await runAudit('https://example.com/test', testHtml);
-        if (result.score >= 0 && result.score <= 100) {
-            console.log('✓ Test 8: Score is in valid range (0-100)');
-            passed++;
-        } else {
-            console.log('✗ Test 8: Score out of range:', result.score);
-            failed++;
+        const names = Object.keys(premiumChecks);
+        for (const name of names) {
+            const result = premiumChecks[name](testHtml, 'https://example.com/test');
+            if (!result || !Array.isArray(result.issues)) {
+                throw new Error(`${name} did not return { issues: [] }`);
+            }
         }
+        console.log(`✓ Test 8: All ${names.length} premium checks ran without throwing`);
+        passed++;
     } catch (e) {
         console.log('✗ Test 8: Unexpected error:', e.message);
         failed++;
     }
 
-    // Test 9: Issues have required fields
+    // Test 9: Issues (when present) have required fields
     try {
-        const result = await runAudit('https://example.com/test', testHtml);
-        const issue = result.issues[0];
-        if (issue && issue.code && issue.severity && issue.title) {
+        const names = Object.keys(premiumChecks);
+        const allIssues = names.flatMap((name) => premiumChecks[name](testHtml, 'https://example.com/test').issues);
+        const issue = allIssues[0];
+        if (!issue || (issue.code && issue.severity && issue.title)) {
             console.log('✓ Test 9: Issues have required fields');
-            console.log(`  - Sample: [${issue.severity}] ${issue.title}`);
+            if (issue) console.log(`  - Sample: [${issue.severity}] ${issue.title}`);
             passed++;
         } else {
-            console.log('✗ Test 9: Issues missing required fields');
+            console.log('✗ Test 9: Issues missing required fields:', issue);
             failed++;
         }
     } catch (e) {

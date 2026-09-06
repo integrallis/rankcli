@@ -25,6 +25,13 @@ import type { AuditIssue } from '@rankcli/agent-runtime';
 
 export type PremiumCheckFn = (html: string, url: string) => { issues: AuditIssue[]; data: unknown };
 
+// A non-literal require() specifier so esbuild doesn't rewrite/strip the
+// "node:" prefix at bundle time - it only touches require() calls whose
+// argument is a plain string literal it can statically analyze. `sea` is
+// a prefix-only builtin (unlike `fs`/`path`), so a stripped "sea" fails
+// to resolve at runtime even though the source correctly wrote "node:sea".
+const SEA_MODULE_SPECIFIER = 'node:sea';
+
 const PREMIUM_CHECK_NAMES = [
   'analyzeFeaturedSnippet',
   'analyzeInternalLinkGraph',
@@ -79,7 +86,7 @@ let auditContext: vm.Context | null = null;
 async function loadWasm(): Promise<WasmEngine> {
   if (wasmModule) return wasmModule;
 
-  const sea = require('node:sea') as typeof import('node:sea');
+  const sea = require(SEA_MODULE_SPECIFIER) as typeof import('node:sea');
   if (sea.isSea()) {
     // A SEA main script's plain require() only loads built-in modules -
     // loading the extracted file from disk needs its own createRequire(),
@@ -117,7 +124,7 @@ async function loadWasm(): Promise<WasmEngine> {
  * binary), and return the extracted glue file's path to require().
  */
 function extractSeaWasmAssets(): string {
-  const sea = require('node:sea') as typeof import('node:sea');
+  const sea = require(SEA_MODULE_SPECIFIER) as typeof import('node:sea');
   const dir = path.join(os.tmpdir(), 'rankcli-wasm-sea');
   fs.mkdirSync(dir, { recursive: true });
 
