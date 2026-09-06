@@ -5,6 +5,8 @@
  * recommend or mention your brand for relevant queries.
  */
 
+import { GOOGLE_ENDPOINT, OPENAI_FLAGSHIP } from '../models.js';
+
 export type MentionType = 'brand' | 'domain' | 'alternative';
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'perplexity';
 export type Sentiment = 'positive' | 'negative' | 'neutral';
@@ -305,7 +307,7 @@ function getProviderEndpoint(provider: LLMProvider): string {
     case 'anthropic':
       return 'https://api.anthropic.com/v1/messages';
     case 'google':
-      return 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+      return GOOGLE_ENDPOINT;
     case 'perplexity':
       return 'https://api.perplexity.ai/chat/completions';
     default:
@@ -329,7 +331,7 @@ async function queryProvider(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: provider === 'openai' ? 'gpt-4' : undefined,
+      model: provider === 'openai' ? OPENAI_FLAGSHIP : undefined,
       messages: [
         {
           role: 'user',

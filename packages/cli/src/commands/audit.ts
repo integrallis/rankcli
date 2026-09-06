@@ -6,6 +6,7 @@ const { detectFramework, getFrameworkDisplayName } = frameworks;
 import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl } from '../lib/config.js';
 import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
 import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
+import { OPENAI_FAST, ANTHROPIC_FAST } from '../models.js';
 
 interface AuditOptions {
   url?: string;
@@ -58,7 +59,7 @@ async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
 // is top-level, x-api-key auth, content comes back as typed blocks) and
 // gets its own branch below, same split used throughout the saas backend.
 const AI_PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
-  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  openai: { baseUrl: 'https://api.openai.com/v1', model: OPENAI_FAST },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1:free' },
   groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
   gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
@@ -106,7 +107,7 @@ Return JSON with:
       headers['x-api-key'] = apiKey;
       headers['anthropic-version'] = '2023-06-01';
       body = JSON.stringify({
-        model: 'claude-haiku-4-5',
+        model: ANTHROPIC_FAST,
         max_tokens: 1500,
         messages: [{ role: 'user', content: prompt }],
       });
