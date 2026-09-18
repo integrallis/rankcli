@@ -102,6 +102,8 @@ program
       only: options.only,
       output: options.output,
     });
+    // fix() fills result.json on every path in JSON mode - including "no
+    // fixes" and tier-blocked - so a CI step parsing it never gets ''.
     if (options.output === 'json' && result.json) {
       console.log(result.json);
     }
@@ -269,6 +271,8 @@ program
   .option('--github-action', 'Set up automated GitHub Action')
   .option('--schedule <freq>', 'GitHub Action schedule (daily, weekly, monthly)', 'weekly')
   .option('--all', 'Interactive setup wizard')
+  .option('--url <url>', 'Site URL the GitHub Action audits')
+  .option('--sync', 'GitHub Action: sync audits to your dashboard and enable auto-fix PRs (needs a RANKCLI_API_KEY secret)')
   .action(setup);
 
 program

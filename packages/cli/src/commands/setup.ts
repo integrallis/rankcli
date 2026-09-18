@@ -19,6 +19,8 @@ interface SetupOptions {
   githubAction?: boolean; // Set up GitHub Action
   schedule?: 'daily' | 'weekly' | 'monthly';
   all?: boolean;          // Interactive setup for all
+  url?: string;           // Site URL the GitHub Action audits
+  sync?: boolean;         // GitHub Action: sync to dashboard (RANKCLI_API_KEY secret)
 }
 
 export async function setup(options: SetupOptions): Promise<void> {
@@ -48,7 +50,10 @@ export async function setup(options: SetupOptions): Promise<void> {
   }
 
   if (options.githubAction) {
-    await setupGitHubAction(projectPath, options.schedule || 'weekly');
+    if (!options.url) {
+      console.log('ℹ️  No --url given - the workflow audits https://example.com until you edit SITE_URL in it.\n');
+    }
+    await setupGitHubAction(projectPath, options.schedule || 'weekly', options.url, options.sync);
   }
 }
 
@@ -213,9 +218,12 @@ export async function setupGitHubAction(
     siteUrl: siteUrl || 'https://example.com',
     features: {
       audit: true,
-      autoFix: true,
+      // `rankcli fix --auto` needs a Solo+ plan, which the workflow can
+      // only prove with a RANKCLI_API_KEY secret - without one the step
+      // is always tier-blocked, so don't generate it.
+      autoFix: !!syncToDashboard,
       createIssues: true,
-      createPRs: true,
+      createPRs: !!syncToDashboard,
     },
     syncToDashboard,
   };
