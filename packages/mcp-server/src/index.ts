@@ -46,6 +46,7 @@ interface LocalConfigSchema {
   pendingConnectId?: string;
   pendingConnectUrl?: string;
   pendingConnectExpiresAt?: number;
+  pendingConnectCode?: string;
 }
 // No `schema` option here deliberately - the CLI's Conf store on this same
 // file declares a wider schema (accessToken, refreshToken, ...), and this
@@ -186,6 +187,13 @@ function clearPendingConnect(): void {
   localConfig.delete('pendingConnectId');
   localConfig.delete('pendingConnectUrl');
   localConfig.delete('pendingConnectExpiresAt');
+  localConfig.delete('pendingConnectCode');
+}
+
+// rankcli.dev/connect shows the same code before its Approve button, so the
+// user can tell this request apart from a link someone else sent them.
+function codeLine(userCode: string | undefined): string {
+  return userCode ? `\n\nApprove only if the page shows this code: ${userCode}` : '';
 }
 
 async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> {
@@ -219,12 +227,12 @@ async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> 
       }
       const minutesLeft = Math.max(1, Math.round((pendingExpiresAt - Date.now()) / 60_000));
       return {
-        text: `Still waiting for approval. Open this link if you haven't yet, then run rankcli_connect again:\n\n${pendingUrl}\n\nExpires in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
+        text: `Still waiting for approval. Open this link if you haven't yet, then run rankcli_connect again:\n\n${pendingUrl}${codeLine(localConfig.get('pendingConnectCode'))}\n\nExpires in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
       };
     }
   }
 
-  let startData: { connectId: string; url: string; expiresInSeconds: number };
+  let startData: { connectId: string; userCode?: string; url: string; expiresInSeconds: number };
   try {
     const startRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-connect-start`, { method: 'POST' });
     if (!startRes.ok) throw new Error(`status ${startRes.status}`);
@@ -235,11 +243,12 @@ async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> 
       isError: true,
     };
   }
-  const { connectId, url, expiresInSeconds } = startData;
+  const { connectId, userCode, url, expiresInSeconds } = startData;
   const expiresMinutes = Math.round(expiresInSeconds / 60);
   localConfig.set('pendingConnectId', connectId);
   localConfig.set('pendingConnectUrl', url);
   localConfig.set('pendingConnectExpiresAt', Date.now() + expiresInSeconds * 1000);
+  if (userCode) localConfig.set('pendingConnectCode', userCode);
 
   const supportsUrlElicitation = !!server.getClientCapabilities()?.elicitation?.url;
 
@@ -247,7 +256,7 @@ async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> 
     try {
       const result = await server.elicitInput({
         mode: 'url',
-        message: 'Connect your RankCLI account to enable GitHub auto-fix PRs, scheduled monitoring, and a dashboard with audit history.',
+        message: `Connect your RankCLI account to enable GitHub auto-fix PRs, scheduled monitoring, and a dashboard with audit history.${codeLine(userCode)}`,
         url,
         elicitationId: connectId,
       });
@@ -277,7 +286,7 @@ async function connectToRankCLI(): Promise<{ text: string; isError?: boolean }> 
   }
 
   return {
-    text: `Open this link to connect your RankCLI account:\n\n${url}\n\nThen run rankcli_connect again to finish (link expires in ${expiresMinutes} minutes).`,
+    text: `Open this link to connect your RankCLI account:\n\n${url}${codeLine(userCode)}\n\nThen run rankcli_connect again to finish (link expires in ${expiresMinutes} minutes).`,
   };
 }
 

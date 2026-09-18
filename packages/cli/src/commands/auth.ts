@@ -26,6 +26,7 @@ export interface LoginOptions {
 
 interface ConnectStartResponse {
   connectId: string;
+  userCode?: string; // absent from servers older than the approve step
   url: string;
   expiresInSeconds: number;
 }
@@ -66,6 +67,11 @@ async function browserLogin(spinner: ReturnType<typeof ora>): Promise<void> {
     // be launched (e.g. a headless/SSH session).
   }
   console.log(chalk.dim(`\nIf a browser didn't open, visit:\n${start.url}\n`));
+  if (start.userCode) {
+    // The page shows the same code before its Approve button, so the user can
+    // tell this request apart from a link someone else sent them.
+    console.log(`Approve in your browser only if it shows this code: ${chalk.bold(start.userCode)}\n`);
+  }
 
   const deadline = Date.now() + start.expiresInSeconds * 1000;
   spinner.text = 'Waiting for approval in your browser...';
