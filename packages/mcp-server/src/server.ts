@@ -16,15 +16,63 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { analyzers } from '@rankcli/agent-runtime';
+import { guardedFetch, type FetchGuardOptions } from './fetch-guard.js';
 
-export async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'RankCLI/1.0 (+https://rankcli.dev)' },
-  });
+export { isPrivateAddress, type FetchGuardOptions } from './fetch-guard.js';
+
+/** Options for the analysis tools. Everything defaults off, for local stdio use. */
+export type AnalysisServerOptions = FetchGuardOptions;
+
+export async function fetchHtml(url: string, options: AnalysisServerOptions = {}): Promise<string> {
+  const res = await guardedFetch(url, options);
   if (!res.ok) {
     throw new Error(`Fetching ${url} returned ${res.status} ${res.statusText}`);
   }
   return res.text();
+}
+
+export interface RobotsTxtResult {
+  /** robots.txt body when the site served one (2xx). */
+  content?: string;
+  /** One line for the report: what was found, or why crawler access is unknown. */
+  note: string;
+  /** robots.txt couldn't be read (5xx, 429, network) - access is not known. */
+  unknown?: boolean;
+}
+
+/**
+ * The site's own robots.txt. seo_geo_check / seo_analyze used to skip this
+ * unless the caller pasted robots.txt in, and then reported every AI
+ * crawler as "allowed" - even on sites that block them all.
+ */
+export async function fetchRobotsTxt(pageUrl: string, options: AnalysisServerOptions = {}): Promise<RobotsTxtResult> {
+  let robotsUrl: string;
+  try {
+    robotsUrl = new URL('/robots.txt', pageUrl).href;
+  } catch {
+    return { note: 'robots.txt not checked: invalid URL.' };
+  }
+  try {
+    const res = await guardedFetch(robotsUrl, options);
+    if (res.ok) {
+      return { content: await res.text(), note: `robots.txt fetched from ${robotsUrl}.` };
+    }
+    if (res.status >= 500 || res.status === 429) {
+      return {
+        unknown: true,
+        note: `robots.txt returned HTTP ${res.status}, so crawler access is unknown - Google treats a 5xx robots.txt as "disallow everything" until it answers.`,
+      };
+    }
+    return { note: `No robots.txt (HTTP ${res.status}) - every crawler is allowed by default.` };
+  } catch (error) {
+    return { unknown: true, note: `robots.txt could not be fetched (${error instanceof Error ? error.message : String(error)}), so crawler access is unknown.` };
+  }
+}
+
+/** robots.txt as given by the caller, or fetched from the site. */
+async function resolveRobotsTxt(url: string, provided: string | undefined, options: AnalysisServerOptions): Promise<RobotsTxtResult> {
+  if (provided !== undefined) return { content: provided, note: 'robots.txt as provided.' };
+  return fetchRobotsTxt(url, options);
 }
 
 export const ANALYSIS_TOOLS: Tool[] = [
@@ -53,7 +101,7 @@ Use this for a complete SEO audit.`,
         },
         robotsTxt: {
           type: 'string',
-          description: 'robots.txt content for AI crawler analysis (optional)',
+          description: 'robots.txt content (optional - fetched from the site when omitted)',
         },
       },
       required: ['url'],
@@ -81,11 +129,11 @@ Critical for visibility in ChatGPT, Perplexity, Claude, and Gemini responses.`,
         },
         html: {
           type: 'string',
-          description: 'HTML content of the page',
+          description: 'HTML content of the page (optional - fetched from the URL when omitted)',
         },
         robotsTxt: {
           type: 'string',
-          description: 'robots.txt content',
+          description: 'robots.txt content (optional - fetched from the site when omitted)',
         },
       },
       required: ['url'],
@@ -339,7 +387,13 @@ ${BRIDGE_FOOTER}
 `;
 }
 
-function formatGEOResult(result: Awaited<ReturnType<typeof analyzers.analyzeGEO>>): string {
+function formatGEOResult(result: Awaited<ReturnType<typeof analyzers.analyzeGEO>>, robots: RobotsTxtResult): string {
+  // Without robots.txt the analyzer defaults every crawler to "allowed";
+  // when we couldn't read it, say unknown instead of claiming access.
+  const access = robots.unknown
+    ? `| ❔ Unknown | ${robots.note} |`
+    : `| ✅ Allowed | ${result.aiCrawlerAccess.allowedCrawlers.join(', ') || 'None'} |
+| ❌ Blocked | ${result.aiCrawlerAccess.blockedCrawlers.join(', ') || 'None'} |`;
   return `# GEO Analysis (AI Search Optimization)
 
 **Score:** ${result.score}/100
@@ -348,8 +402,9 @@ function formatGEOResult(result: Awaited<ReturnType<typeof analyzers.analyzeGEO>
 
 | Status | Crawlers |
 |--------|----------|
-| ✅ Allowed | ${result.aiCrawlerAccess.allowedCrawlers.join(', ') || 'None'} |
-| ❌ Blocked | ${result.aiCrawlerAccess.blockedCrawlers.join(', ') || 'None'} |
+${access}
+
+_${robots.note}_
 
 **Server-Side Rendered:** ${result.aiCrawlerAccess.serverSideRendered ? '✅ Yes' : '❌ No'}
 **JS Rendering Required:** ${result.aiCrawlerAccess.jsRenderingRequired ? '⚠️ Yes (AI crawlers may not see content)' : '✅ No'}
@@ -574,20 +629,30 @@ Allow: /
  * one of ANALYSIS_TOOLS, so callers (index.ts's stdio server) can fall
  * through to their own additional tools.
  */
-export async function handleAnalysisTool(name: string, args: Record<string, unknown> | undefined): Promise<CallToolResult | undefined> {
+export async function handleAnalysisTool(
+  name: string,
+  args: Record<string, unknown> | undefined,
+  options: AnalysisServerOptions = {},
+): Promise<CallToolResult | undefined> {
   switch (name) {
     case 'seo_analyze': {
       const { url, html: providedHtml, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
-      const html = providedHtml ?? await fetchHtml(url);
-      const result = await analyzers.analyzeComprehensive(html, url, { robotsTxt });
-      return { content: [{ type: 'text', text: formatComprehensiveResult(result) }] };
+      const [html, robots] = await Promise.all([
+        providedHtml ?? fetchHtml(url, options),
+        resolveRobotsTxt(url, robotsTxt, options),
+      ]);
+      const result = await analyzers.analyzeComprehensive(html, url, { robotsTxt: robots.content });
+      return { content: [{ type: 'text', text: `${formatComprehensiveResult(result)}\n_${robots.note}_\n` }] };
     }
 
     case 'seo_geo_check': {
       const { url, html: providedHtml, robotsTxt } = args as { url: string; html?: string; robotsTxt?: string };
-      const html = providedHtml ?? await fetchHtml(url);
-      const result = await analyzers.analyzeGEO(html, url, robotsTxt);
-      return { content: [{ type: 'text', text: formatGEOResult(result) }] };
+      const [html, robots] = await Promise.all([
+        providedHtml ?? fetchHtml(url, options),
+        resolveRobotsTxt(url, robotsTxt, options),
+      ]);
+      const result = await analyzers.analyzeGEO(html, url, robots.content);
+      return { content: [{ type: 'text', text: formatGEOResult(result, robots) }] };
     }
 
     case 'seo_robots_ai': {
@@ -692,8 +757,12 @@ export async function handleAnalysisTool(name: string, args: Record<string, unkn
  * A fresh Server exposing only the stateless analysis tools - used by the
  * remote HTTP endpoint, one instance per request (see packages/audit-worker),
  * matching the MCP SDK's own stateless-server example.
+ *
+ * A shared deployment should pass { blockPrivateNetworks: true } so callers
+ * can't point the fetching tools at internal addresses. Off by default: the
+ * local stdio server auditing http://localhost:3000 is a feature.
  */
-export function createAnalysisServer(): Server {
+export function createAnalysisServer(options: AnalysisServerOptions = {}): Server {
   const server = new Server(
     { name: 'rankcli', version: '0.0.1' },
     { capabilities: { tools: {} } }
@@ -706,7 +775,7 @@ export function createAnalysisServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     try {
-      const result = await handleAnalysisTool(name, args);
+      const result = await handleAnalysisTool(name, args, options);
       if (result) return result;
       return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
     } catch (error) {
