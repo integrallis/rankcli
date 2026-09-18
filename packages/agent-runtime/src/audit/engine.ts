@@ -321,6 +321,21 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // ========== PHASE 3: ASYNC CHECKS (PARALLEL) ==========
   console.error('🔗 Phase 3: Running async checks (parallel)...');
 
+  // Race a check against a timeout, clearing the timer either way: a
+  // pending timer kept the CLI process alive for up to 10s after every
+  // audit had already finished.
+  const withTimeout = async <R>(name: string, promise: Promise<R>, timeoutMs: number): Promise<R> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   // Helper to safely run async checks with error handling and timeout
   const safeAsync = async <T>(
     name: string,
@@ -328,11 +343,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     timeoutMs: number = 10000, // 10 second default timeout per check
   ): Promise<AuditIssue[]> => {
     try {
-      const resultPromise = fn();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs)
-      );
-      const result = await Promise.race([resultPromise, timeoutPromise]);
+      const result = await withTimeout(name, fn(), timeoutMs);
       return result.issues;
     } catch (err) {
       console.error(`${name} failed:`, err);
@@ -347,11 +358,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     timeoutMs: number = 10000,
   ): Promise<AuditIssue[]> => {
     try {
-      const resultPromise = fn();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs)
-      );
-      return await Promise.race([resultPromise, timeoutPromise]);
+      return await withTimeout(name, fn(), timeoutMs);
     } catch (err) {
       console.error(`${name} failed:`, err);
       return [];
