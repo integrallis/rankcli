@@ -60,7 +60,7 @@ async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
 // gets its own branch below, same split used throughout the saas backend.
 const AI_PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
   openai: { baseUrl: 'https://api.openai.com/v1', model: OPENAI_FAST },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1:free' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'openrouter/free' },
   groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
   gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
 };
