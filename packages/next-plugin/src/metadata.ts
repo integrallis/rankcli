@@ -219,7 +219,25 @@ export function mergeMetadata(...metadataObjects: (Metadata | undefined)[]): Met
 }
 
 /**
- * Create JSON-LD structured data for a page
+ * JSON.stringify, made safe to place inside <script type="application/ld+json">
+ * via dangerouslySetInnerHTML. Plain JSON.stringify leaves "</script>" in
+ * string values intact, so a title like `</script><script>alert(1)</script>`
+ * (from a CMS, a user profile, a query param) closes the tag and runs. `<`,
+ * `>` and `&` become JSON unicode escapes (backslash-u003c etc.) - identical JSON to any parser -
+ * and U+2028/U+2029 are escaped for old JS engines.
+ */
+export function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * Create JSON-LD structured data for a page. The result is safe to render
+ * with <script type="application/ld+json" dangerouslySetInnerHTML={{ __html }} />.
  */
 export function createJsonLd(
   type: 'WebSite' | 'WebPage' | 'Article' | 'Organization' | 'Product' | 'SoftwareApplication',
@@ -231,7 +249,7 @@ export function createJsonLd(
     ...data,
   };
 
-  return JSON.stringify(jsonLd);
+  return serializeJsonLd(jsonLd);
 }
 
 /**

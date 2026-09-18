@@ -1,12 +1,16 @@
-# astro-seo-autopilot
+# astro-rankcli
 
 Astro integration for SEO automation - sitemap, robots.txt, meta validation.
 
 ## Installation
 
+> **Not on npm yet.** `astro-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter astro-rankcli build`) and install the folder.
+
 ```bash
-npm install astro-seo-autopilot
+npm install astro-rankcli
 ```
+
+Works with Astro 3 through 7. On `astro build` it writes `sitemap.xml` and `robots.txt` into the output, unless `public/` already provides them. It then checks every built page (except 404/500) and, with `validate: { failOnError: true }`, fails the build on error-level issues.
 
 ## Usage
 
@@ -15,11 +19,11 @@ npm install astro-seo-autopilot
 ```typescript
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
-import seoAutopilot from 'astro-seo-autopilot';
+import rankcli from 'astro-rankcli';
 
 export default defineConfig({
   integrations: [
-    seoAutopilot({
+    rankcli({
       siteUrl: 'https://example.com',
       sitemap: {
         exclude: ['/admin'],
@@ -53,7 +57,7 @@ export default defineConfig({
 ```astro
 ---
 // src/pages/index.astro
-import { createHeadContent } from 'astro-seo-autopilot';
+import { createHeadContent } from 'astro-rankcli';
 
 const headContent = createHeadContent({
   title: 'My Site',
@@ -77,7 +81,7 @@ const headContent = createHeadContent({
 ### Page Validation
 
 ```typescript
-import { validatePage } from 'astro-seo-autopilot';
+import { validatePage } from 'astro-rankcli';
 
 const html = await fetch('https://example.com').then(r => r.text());
 const issues = validatePage(html, {
@@ -100,7 +104,7 @@ console.log(issues);
 ### Manual Sitemap Generation
 
 ```typescript
-import { generateSitemap } from 'astro-seo-autopilot';
+import { generateSitemap } from 'astro-rankcli';
 
 const sitemap = generateSitemap(
   'https://example.com',
@@ -119,7 +123,7 @@ const sitemap = generateSitemap(
 ### Manual Robots.txt Generation
 
 ```typescript
-import { generateRobots } from 'astro-seo-autopilot';
+import { generateRobots } from 'astro-rankcli';
 
 const robots = generateRobots('https://example.com', {
   rules: [
@@ -152,7 +156,7 @@ const robots = generateRobots('https://example.com', {
 
 ## API
 
-### seoAutopilot(config)
+### rankcli(config)
 
 Create an Astro integration with the given configuration.
 

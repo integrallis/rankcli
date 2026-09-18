@@ -370,6 +370,23 @@ describe('next-seo-autopilot', () => {
       expect(parsed.name).toBe('My Site');
     });
 
+    it('cannot break out of the <script> tag it is rendered into', () => {
+      const hostile = '</script><script>alert(1)</script> & <!--';
+      const jsonLd = createArticleJsonLd({
+        headline: hostile,
+        description: hostile,
+        datePublished: '2026-01-01',
+        author: { name: hostile },
+      });
+
+      expect(jsonLd).not.toMatch(/<\/script/i);
+      expect(jsonLd).not.toContain('<');
+      expect(jsonLd).not.toContain('>');
+      // Still the same data to any JSON parser.
+      expect(JSON.parse(jsonLd).headline).toBe(hostile);
+      expect(JSON.parse(jsonLd).author.name).toBe(hostile);
+    });
+
     it('createWebsiteJsonLd includes search action', () => {
       const jsonLd = createWebsiteJsonLd({
         name: 'My Site',

@@ -1,5 +1,5 @@
 /**
- * vite-plugin-seo-autopilot
+ * vite-plugin-rankcli
  *
  * Vite plugin for SEO validation, sitemap generation, and meta tag injection.
  */
@@ -126,15 +126,33 @@ export interface SEOIssue {
   file?: string;
 }
 
+/** How many HTML entry points the build has - more than one is a multi-page app. */
+function htmlEntryCount(cfg: ResolvedConfig): number {
+  const build = cfg.build as ResolvedConfig['build'] & { rolldownOptions?: { input?: unknown } };
+  const input = build.rolldownOptions?.input ?? build.rollupOptions?.input;
+  if (!input) return 1; // the default: a single index.html
+  const values = typeof input === 'string' ? [input] : Array.isArray(input) ? input : Object.values(input as Record<string, string>);
+  return values.filter(v => String(v).endsWith('.html')).length || 1;
+}
+
 /**
- * Create SEO Autopilot Vite plugin
+ * The URL path an HTML file is served at: /index.html -> /,
+ * /about/index.html -> /about/, /about.html -> /about.html.
+ */
+export function pagePathFromHtml(htmlPath: string): string {
+  const path = htmlPath.startsWith('/') ? htmlPath : `/${htmlPath}`;
+  return path.replace(/(^|\/)index\.html$/, '$1');
+}
+
+/**
+ * Create the RankCLI Vite plugin
  */
 export default function seoAutopilot(config: SEOConfig = {}): Plugin {
   let resolvedConfig: ResolvedConfig;
   let issues: SEOIssue[] = [];
 
   return {
-    name: 'vite-plugin-seo-autopilot',
+    name: 'vite-plugin-rankcli',
 
     configResolved(cfg) {
       resolvedConfig = cfg;
@@ -143,7 +161,7 @@ export default function seoAutopilot(config: SEOConfig = {}): Plugin {
     buildStart() {
       issues = [];
       if (resolvedConfig.command === 'serve' && config.devWarnings !== false) {
-        console.log('\n🔍 SEO Autopilot watching for issues...\n');
+        console.log('\n🔍 RankCLI watching for issues...\n');
       }
     },
 
@@ -164,9 +182,14 @@ export default function seoAutopilot(config: SEOConfig = {}): Plugin {
           }
         }
 
-        // Inject meta tags
+        // Inject meta tags. A canonical derived from siteUrl is only right
+        // for one page: in a multi-page build each HTML file gets its own
+        // URL; in a single-page app index.html is served for every route,
+        // so a static canonical would point every route at the homepage.
+        // (It used to do exactly that.) SPAs must set it per route at runtime.
         if (config.defaultMeta) {
-          html = injectMetaTags(html, config.defaultMeta, config.siteUrl);
+          const pagePath = htmlEntryCount(resolvedConfig) > 1 ? pagePathFromHtml(ctx.path) : undefined;
+          html = injectMetaTags(html, config.defaultMeta, config.siteUrl, pagePath);
         }
 
         return html;
@@ -174,37 +197,46 @@ export default function seoAutopilot(config: SEOConfig = {}): Plugin {
     },
 
     generateBundle() {
-      const outDir = resolvedConfig.build.outDir;
+      // A file the site already ships in public/ wins: emitting ours
+      // replaced the user's robots.txt (and its Disallow rules) on every build.
+      const shippedInPublic = (name: string) =>
+        !!resolvedConfig.publicDir && existsSync(join(resolvedConfig.publicDir, name));
 
       // Generate sitemap
       if (config.sitemap !== false && config.siteUrl) {
-        const sitemapConfig = typeof config.sitemap === 'object' ? config.sitemap : {};
-        const sitemap = generateSitemap(config.siteUrl, sitemapConfig);
-        this.emitFile({
-          type: 'asset',
-          fileName: 'sitemap.xml',
-          source: sitemap,
-        });
-        console.log('✅ Generated sitemap.xml');
+        if (shippedInPublic('sitemap.xml')) {
+          console.log('ℹ️  public/sitemap.xml exists - not generating one');
+        } else {
+          const sitemapConfig = typeof config.sitemap === 'object' ? config.sitemap : {};
+          this.emitFile({
+            type: 'asset',
+            fileName: 'sitemap.xml',
+            source: generateSitemap(config.siteUrl, sitemapConfig),
+          });
+          console.log('✅ Generated sitemap.xml');
+        }
       }
 
       // Generate robots.txt
       if (config.robots !== false) {
-        const robotsConfig = typeof config.robots === 'object' ? config.robots : {};
-        const robots = generateRobots(config.siteUrl, robotsConfig);
-        this.emitFile({
-          type: 'asset',
-          fileName: 'robots.txt',
-          source: robots,
-        });
-        console.log('✅ Generated robots.txt');
+        if (shippedInPublic('robots.txt')) {
+          console.log('ℹ️  public/robots.txt exists - not generating one');
+        } else {
+          const robotsConfig = typeof config.robots === 'object' ? config.robots : {};
+          this.emitFile({
+            type: 'asset',
+            fileName: 'robots.txt',
+            source: generateRobots(config.siteUrl, robotsConfig),
+          });
+          console.log('✅ Generated robots.txt');
+        }
       }
     },
 
     closeBundle() {
       // Report issues
       if (issues.length > 0) {
-        console.log(`\n🔍 SEO Autopilot found ${issues.length} issue(s):\n`);
+        console.log(`\n🔍 RankCLI found ${issues.length} issue(s):\n`);
         for (const issue of issues) {
           const prefix = issue.severity === 'error' ? '❌' : '⚠️';
           console.log(`  ${prefix} [${issue.code}] ${issue.message}`);
@@ -217,7 +249,7 @@ export default function seoAutopilot(config: SEOConfig = {}): Plugin {
           throw new Error('SEO validation failed. Fix errors before building.');
         }
       } else if (resolvedConfig.command === 'build') {
-        console.log('\n✅ SEO Autopilot: No issues found\n');
+        console.log('\n✅ RankCLI: No issues found\n');
       }
     },
   };
@@ -330,7 +362,9 @@ export function validateHtml(
 export function injectMetaTags(
   html: string,
   meta: MetaConfig,
-  siteUrl?: string
+  siteUrl?: string,
+  /** URL path of this page (multi-page builds). Without it, siteUrl never becomes a canonical. */
+  pagePath?: string
 ): string {
   const tags: string[] = [];
 
@@ -358,9 +392,10 @@ export function injectMetaTags(
     tags.push(`<meta name="twitter:site" content="${escapeHtml(meta.twitterSite)}">`);
   }
 
-  if ((meta.canonical || siteUrl) && !/<link[^>]*rel=["']canonical["']/i.test(html)) {
-    const canonicalUrl = meta.canonical || siteUrl;
-    tags.push(`<link rel="canonical" href="${escapeHtml(canonicalUrl!)}">`);
+  const canonicalUrl = meta.canonical
+    || (siteUrl && pagePath !== undefined ? `${siteUrl.replace(/\/$/, '')}${pagePath}` : undefined);
+  if (canonicalUrl && !/<link[^>]*rel=["']canonical["']/i.test(html)) {
+    tags.push(`<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`);
   }
 
   if (tags.length === 0) {

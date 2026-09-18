@@ -1,23 +1,31 @@
-# vite-plugin-seo-autopilot
+# vite-plugin-rankcli
 
 Vite plugin for SEO validation, sitemap generation, and meta tag injection.
 
 ## Installation
 
+> **Not on npm yet.** `vite-plugin-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter vite-plugin-rankcli build`) and install the folder.
+
 ```bash
-npm install vite-plugin-seo-autopilot -D
+npm install vite-plugin-rankcli -D
 ```
+
+Works with Vite 4 through 8.
+
+**Canonical URLs.** `siteUrl` becomes a canonical only in multi-page builds, where each HTML file gets its own (`/about/index.html` → `https://example.com/about/`). A single-page app serves one `index.html` for every route, so a static canonical there would point every route at the homepage. Set it per route at runtime instead, for example with react-helmet-async. `defaultMeta.canonical` is still written as given.
+
+**robots.txt / sitemap.xml** are generated only when `public/` doesn't already ship them. Your own files always win.
 
 ## Usage
 
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite';
-import seoAutopilot from 'vite-plugin-seo-autopilot';
+import rankcli from 'vite-plugin-rankcli';
 
 export default defineConfig({
   plugins: [
-    seoAutopilot({
+    rankcli({
       siteUrl: 'https://example.com',
       defaultMeta: {
         description: 'My awesome site',
@@ -53,7 +61,7 @@ Automatically validates your HTML during build:
 Automatically generates `sitemap.xml`:
 
 ```typescript
-seoAutopilot({
+rankcli({
   siteUrl: 'https://example.com',
   sitemap: {
     routes: ['/', '/about', '/blog'],
@@ -71,7 +79,7 @@ seoAutopilot({
 Automatically generates `robots.txt`:
 
 ```typescript
-seoAutopilot({
+rankcli({
   siteUrl: 'https://example.com',
   robots: {
     rules: [
@@ -86,7 +94,7 @@ seoAutopilot({
 Inject default meta tags into your HTML:
 
 ```typescript
-seoAutopilot({
+rankcli({
   defaultMeta: {
     title: 'My Site',
     description: 'Site description',
