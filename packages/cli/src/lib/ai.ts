@@ -244,9 +244,11 @@ export async function resolveAIProvider(
     if (ollamaModels === null) {
       return { ok: false, error: `Could not reach Ollama at ${baseUrl}`, hints: ['Start it with `ollama serve`, or set OLLAMA_HOST'] };
     }
-    model = ollamaModels[0];
+    // Embedding models (nomic-embed-text, mxbai-embed-large, ...) are
+    // installed alongside chat models but can't answer a chat request.
+    model = ollamaModels.find(name => !/embed/i.test(name));
     if (!model) {
-      return { ok: false, error: 'Ollama is running but has no models installed', hints: ['Install one, e.g. `ollama pull llama3.2`, or pass --ai-model'] };
+      return { ok: false, error: 'Ollama is running but has no chat models installed', hints: ['Install one, e.g. `ollama pull llama3.2`, or pass --ai-model'] };
     }
   }
   if (!model) {

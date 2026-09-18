@@ -59,6 +59,11 @@ describe('resolveAIProvider', () => {
     }
   });
 
+  it('skips embedding models when picking an Ollama model', async () => {
+    const r = await resolveAIProvider({}, {}, async () => ['nomic-embed-text:latest', 'llama3.2:3b']);
+    expect(r.ok && r.ai.model).toBe('llama3.2:3b');
+  });
+
   it('reports an Ollama with no models installed', async () => {
     const r = await resolveAIProvider({ aiProvider: 'ollama' }, {}, async () => []);
     expect(r.ok).toBe(false);

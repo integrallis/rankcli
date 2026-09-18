@@ -52,6 +52,7 @@ describe('runFullAudit scoring truth', () => {
       '/robots.txt': { status: 200, body: 'User-agent: *\nAllow: /\n' },
       '/broken': { status: 500, body: ERROR_PAGE },
       '/gone': { status: 404, body: ERROR_PAGE },
+      '/waf': { status: 403, body: '<html><body>Just a moment...</body></html>' },
       '/meta-noindex': { status: 200, body: GOOD_PAGE.replace('<head>', '<head><meta name="robots" content="noindex, follow">') },
       '/header-noindex': { status: 200, body: GOOD_PAGE, headers: { 'X-Robots-Tag': 'noindex' } },
     });
@@ -99,6 +100,13 @@ describe('runFullAudit scoring truth', () => {
     const report = await audit(`${site.base}/gone`);
     expect(report.issues.find(i => i.code === 'HTTP_ERROR_STATUS')?.details).toMatchObject({ statusCode: 404 });
     expect(report.healthScore.overall).toBe(0);
+  }, 60000);
+
+  it('explains a 403 as likely bot protection', async () => {
+    const report = await audit(`${site.base}/waf`);
+    const status = report.issues.find(i => i.code === 'HTTP_ERROR_STATUS');
+    expect(status?.details).toMatchObject({ statusCode: 403, likelyBotProtection: true });
+    expect(status?.description).toMatch(/bot protection/);
   }, 60000);
 
   it('treats a noindex meta tag on the audited root as an error', async () => {

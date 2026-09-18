@@ -174,12 +174,15 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // H1 scored 70 with no mention of the status at all.
   const statusCode = fetchResult.status;
   if (statusCode >= 400) {
+    // 401/403/429 are usually a WAF or bot protection refusing an automated
+    // client rather than a broken page - say so, since the fix differs.
+    const blocked = statusCode === 401 || statusCode === 403 || statusCode === 429;
     allIssues.push({
       ...ISSUE_DEFINITIONS.HTTP_ERROR_STATUS,
       title: `Page returns HTTP ${statusCode}`,
-      description: `The audited URL answered with HTTP ${statusCode}${fetchResult.statusText ? ` ${fetchResult.statusText}` : ''}. Page content checks were skipped - they would only be grading the error page.`,
+      description: `The audited URL answered with HTTP ${statusCode}${fetchResult.statusText ? ` ${fetchResult.statusText}` : ''}. Page content checks were skipped - they would only be grading the error page.${blocked ? ' This status often means a firewall or bot protection (Cloudflare, Vercel, etc.) is refusing automated clients: check that search engine crawlers get the page, and allowlist the RankCLI user agent or audit a preview URL.' : ''}`,
       affectedUrls: [url],
-      details: { statusCode },
+      details: { statusCode, ...(blocked && { likelyBotProtection: true }) },
     });
     pages.push({ url, statusCode, wordCount: 0, loadTime: 0, issues: allIssues.map(i => i.code) });
     return createReport(url, domain, allIssues, pages, { kind: 'http-error', statusCode });
