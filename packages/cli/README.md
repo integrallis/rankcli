@@ -25,7 +25,7 @@ scoop bucket add integrallis https://github.com/integrallis/scoop-bucket
 scoop install rankcli
 ```
 
-Or via npm (requires Node 18+):
+Or via npm (requires Node 20.19+ or 22.12+ - see [Node versions](#node-versions)):
 
 ```bash
 npm install -g @rankcli/cli

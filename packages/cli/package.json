@@ -7,7 +7,7 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
-    "rankcli": "./dist/index.js"
+    "rankcli": "./bin/rankcli.cjs"
   },
   "exports": {
     ".": {
@@ -22,6 +22,7 @@
     }
   },
   "files": [
+    "bin",
     "dist",
     "wasm/*.wasm",
     "wasm/*.js",
@@ -76,6 +77,6 @@
   "author": "Brian Sam-Bodden",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   }
 }
