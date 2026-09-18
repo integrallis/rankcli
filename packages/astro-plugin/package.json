@@ -31,11 +31,10 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --format esm --dts --watch",
-    "test": "vitest run",
-    "lint": "eslint src --ext ts"
+    "test": "vitest run"
   },
   "peerDependencies": {
-    "astro": "^3.0.0 || ^4.0.0 || ^5.0.0"
+    "astro": "^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

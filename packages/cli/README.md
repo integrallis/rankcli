@@ -25,7 +25,7 @@ scoop bucket add integrallis https://github.com/integrallis/scoop-bucket
 scoop install rankcli
 ```
 
-Or via npm (requires Node 18+):
+Or via npm (requires Node 20.19+ or 22.12+ - see [Node versions](#node-versions)):
 
 ```bash
 npm install -g @rankcli/cli
@@ -59,7 +59,7 @@ rankcli audit --url https://yoursite.com --max-pages 5
 Check if AI crawlers can access your site:
 
 ```bash
-rankcli audit --url https://yoursite.com --geo
+rankcli geo --url https://yoursite.com
 ```
 
 Analyzes:
@@ -134,10 +134,67 @@ Options:
   -u, --url <url>           URL to audit
   -o, --output <format>     Output: json, console (default: console)
   --max-pages <n>           Max pages to crawl (default: 5)
-  --geo                     Include GEO analysis
   --check-links             Check broken links
-  --ai                      AI-powered analysis
+  --fail-on <level>         CI gate: exit 1 on any issue at/above error | warning | notice
+  --min-score <n>           CI gate: exit 1 if the overall score is below n (0-100)
+  --ai                      AI-powered analysis (your own key, or a local model)
+  --ai-provider <p>         See "AI analysis" below (auto-detected if omitted)
+  --ai-key <key>            Provider API key (or the provider's env var)
+  --ai-model <model>        Override the provider's default model
+  --ai-base-url <url>       Any OpenAI-compatible server (implies --ai-provider custom)
 ```
+
+#### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Audit completed; no `--fail-on` / `--min-score` gate tripped |
+| `1` | A `--fail-on` or `--min-score` gate tripped |
+| `2` | Bad invocation: missing/invalid `--url`, invalid flag value |
+| `3` | No real audit: the site was unreachable, the URL answered 4xx/5xx, no page could be analyzed, or an internal error |
+
+The gates are opt-in: without them, a completed audit exits `0` however many issues it finds. An unreachable site or an error status always exits `3` - it scores 0, not a passing grade. With `-o json`, stdout is always one JSON document (on failure too) carrying `exitCode` and, when gates are set, a `gate` object with the reasons.
+
+#### AI analysis (`--ai`)
+
+AI analysis runs on your own provider - nothing goes through RankCLI. With no `--ai-provider`, the first key found wins, in this order (OpenRouter first):
+
+| Provider | Env var | Base URL | Default model |
+|----------|---------|----------|---------------|
+| `openrouter` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | `openrouter/free` |
+| `groq` | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| `gemini` | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-3.7-flash` |
+| `deepseek` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` | `deepseek-flash` |
+| `cerebras` | `CEREBRAS_API_KEY` | `https://api.cerebras.ai/v1` | `gpt-oss-120b` |
+| `mistral` | `MISTRAL_API_KEY` | `https://api.mistral.ai/v1` | `mistral-small-latest` |
+| `together` | `TOGETHER_API_KEY` | `https://api.together.xyz/v1` | `openai/gpt-oss-120b` |
+| `fireworks` | `FIREWORKS_API_KEY` | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/gpt-oss-120b` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `https://api.anthropic.com/v1` | `claude-haiku-4-5-20251001` |
+| `openai` | `OPENAI_API_KEY` | `https://api.openai.com/v1` | `gpt-5.6-luna` |
+
+**Local models, no key.** If no key is set at all and [Ollama](https://ollama.com) is running, `--ai` uses it automatically (with a one-line notice) and picks its first installed model:
+
+```bash
+ollama pull qwen3:8b
+rankcli audit --url https://yoursite.com --ai                      # finds Ollama on :11434
+rankcli audit --url https://yoursite.com --ai --ai-provider ollama --ai-model qwen3:8b
+```
+
+| Provider | Default base URL |
+|----------|------------------|
+| `ollama` | `http://localhost:11434/v1` (honours `OLLAMA_HOST`) |
+| `lmstudio` | `http://localhost:1234/v1` |
+| `llamacpp` | `http://localhost:8080/v1` (`llama-server`) |
+| `vllm` | `http://localhost:8000/v1` |
+| `custom` | whatever `--ai-base-url` says |
+
+Local providers need no key and no model name: without `--ai-model` the CLI asks the server (`/api/tags` for Ollama, `/v1/models` otherwise) and uses the first loaded model. Any other OpenAI-compatible server works too:
+
+```bash
+rankcli audit --url https://yoursite.com --ai --ai-base-url http://gpu-box:8080/v1 --ai-model my-model
+```
+
+Local and small models often ignore "JSON only" instructions, so the reply is parsed defensively (code fences, `<think>` blocks and surrounding prose are stripped). `response_format: json_object` is only sent to providers known to support it. An AI failure is reported but never changes the exit code.
 
 ### `rankcli apply`
 
@@ -171,11 +228,12 @@ rankcli content --url https://mysite.com/blog --keyword 'seo tips'
 # Interactive login
 rankcli login
 
-# API key (for CI/CD)
+# API key (for CI/CD) - validates the key and resolves your plan; exits 1 if rejected
 rankcli login --token rankcli_your_api_key
 
-# Or environment variable
+# Or just the environment variable - every command resolves the key's plan itself
 export RANKCLI_API_KEY=rankcli_your_api_key
+rankcli login   # optional: validates it and shows the plan
 ```
 
 ## CI/CD Integration
@@ -190,24 +248,31 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: npm install -g @rankcli/cli
-      - run: rankcli audit --url ${{ secrets.SITE_URL }} -o json > audit.json
+      # Fails the job on any error-severity issue or a score under 80.
+      - run: rankcli audit --url "$SITE_URL" --fail-on error --min-score 80 -o json > "$RUNNER_TEMP/audit.json"
         env:
-          RANKCLI_API_KEY: ${{ secrets.RANKCLI_API_KEY }}
-      - name: Fail on critical issues
-        run: |
-          errors=$(jq '.issues | map(select(.severity == "error")) | length' audit.json)
-          [ "$errors" -eq 0 ] || exit 1
+          SITE_URL: ${{ vars.SITE_URL }}
+          RANKCLI_API_KEY: ${{ secrets.RANKCLI_API_KEY }}   # optional: paid-plan checks + dashboard sync
 ```
+
+`rankcli setup --github-action --url https://yoursite.com [--sync]` writes a scheduled workflow that files the report as an issue (and, with `--sync` and a Solo+ key, opens auto-fix PRs).
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `RANKCLI_API_KEY` | API key for authentication |
-| `OPENAI_API_KEY` | OpenAI API key for AI features |
-| `ANTHROPIC_API_KEY` | Anthropic API key (alternative) |
+| `RANKCLI_API_KEY` | API key for authentication (plan resolved automatically) |
+| `RANKCLI_CONFIG_DIR` | Store login/config here instead of the per-user config dir |
+| `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`, `TOGETHER_API_KEY`, `FIREWORKS_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | AI analysis keys (see "AI analysis") |
+| `OLLAMA_HOST` | Where a local Ollama listens (default `localhost:11434`) |
+
+## Node versions
+
+The npm package needs **Node 20.19+ or 22.12+** (any 23+ works). The CLI is a CommonJS bundle that `require()`s ESM-only dependencies (chalk, conf, inquirer, open), and those are the first releases that load ES modules through `require()` without a flag. Every Node line still in support (22, 24) qualifies. On an older Node, `rankcli` / `npx @rankcli/cli` stops with a message saying so instead of an `ERR_REQUIRE_ESM` stack trace. The Homebrew/Scoop binaries bundle their own Node and have no requirement.
 
 ## Pricing
 

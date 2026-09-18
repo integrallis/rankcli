@@ -9,7 +9,6 @@
     "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/**/*.ts",
     "package": "pnpm run build"
   },
   "keywords": [

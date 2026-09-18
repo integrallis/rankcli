@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import {
+import { describe, it, expect, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import seoAutopilot, {
+  pagePathFromHtml,
   validateHtml,
   injectMetaTags,
   generateSitemap,
@@ -198,12 +202,18 @@ describe('vite-plugin-seo-autopilot', () => {
       expect(result).toContain('rel="canonical" href="https://example.com/page"');
     });
 
-    it('uses siteUrl as fallback for canonical', () => {
-      const html = `<head></head>`;
+    it('never turns siteUrl alone into a canonical (an SPA would point every route at the homepage)', () => {
+      const result = injectMetaTags(`<head></head>`, { description: 'd' }, 'https://example.com');
 
-      const result = injectMetaTags(html, {}, 'https://example.com');
+      expect(result).not.toContain('rel="canonical"');
+    });
 
-      expect(result).toContain('rel="canonical" href="https://example.com"');
+    it('derives a per-page canonical from siteUrl in multi-page builds', () => {
+      expect(injectMetaTags(`<head></head>`, {}, 'https://example.com/', pagePathFromHtml('/about/index.html')))
+        .toContain('rel="canonical" href="https://example.com/about/"');
+      expect(injectMetaTags(`<head></head>`, {}, 'https://example.com', pagePathFromHtml('/index.html')))
+        .toContain('rel="canonical" href="https://example.com/"');
+      expect(pagePathFromHtml('pricing.html')).toBe('/pricing.html');
     });
 
     it('does not duplicate existing tags', () => {
@@ -379,6 +389,52 @@ describe('vite-plugin-seo-autopilot', () => {
       // Re-validate
       const newIssues = validateHtml(result, true);
       expect(newIssues.filter(i => i.severity === 'error')).toHaveLength(0);
+    });
+  });
+
+  describe('plugin hooks', () => {
+    let publicDir: string;
+    afterEach(() => publicDir && rmSync(publicDir, { recursive: true, force: true }));
+
+    // Drive the hooks the way Vite does, with a minimal resolved config.
+    function setup(config: SEOConfig, input?: Record<string, string>) {
+      publicDir = mkdtempSync(join(tmpdir(), 'vite-rankcli-'));
+      const plugin = seoAutopilot({ devWarnings: false, validate: false, ...config }) as any;
+      plugin.configResolved({ command: 'build', publicDir, build: { outDir: 'dist', rollupOptions: { input } } });
+      const emitted: Record<string, string> = {};
+      const emit = () => plugin.generateBundle.call({ emitFile: (f: { fileName: string; source: string }) => { emitted[f.fileName] = f.source; } });
+      const transform = (html: string, path: string) => plugin.transformIndexHtml.handler(html, { path, filename: path });
+      return { emitted, emit, transform };
+    }
+
+    it('does not replace a robots.txt the site ships in public/', () => {
+      const { emitted, emit } = setup({ siteUrl: 'https://example.com' });
+      writeFileSync(join(publicDir, 'robots.txt'), 'User-agent: *\nDisallow: /admin\n');
+      emit();
+      expect(emitted['robots.txt']).toBeUndefined();
+      expect(emitted['sitemap.xml']).toBeDefined();
+    });
+
+    it('generates robots.txt when public/ has none', () => {
+      const { emitted, emit } = setup({ siteUrl: 'https://example.com' });
+      emit();
+      expect(emitted['robots.txt']).toContain('Sitemap: https://example.com/sitemap.xml');
+    });
+
+    it('SPA: injects meta but no homepage canonical into index.html', () => {
+      const { transform } = setup({ siteUrl: 'https://example.com', defaultMeta: { description: 'd' } });
+      const html = transform('<html><head></head><body></body></html>', '/index.html');
+      expect(html).toContain('name="description"');
+      expect(html).not.toContain('rel="canonical"');
+    });
+
+    it('MPA: each page gets its own canonical', () => {
+      const { transform } = setup(
+        { siteUrl: 'https://example.com', defaultMeta: { description: 'd' } },
+        { main: '/src/index.html', about: '/src/about/index.html' },
+      );
+      expect(transform('<html><head></head></html>', '/about/index.html')).toContain('href="https://example.com/about/"');
+      expect(transform('<html><head></head></html>', '/index.html')).toContain('href="https://example.com/"');
     });
   });
 });

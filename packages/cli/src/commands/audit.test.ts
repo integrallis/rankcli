@@ -83,14 +83,17 @@ vi.mock('../lib/config.js', () => ({
   getSession: () => mockGetSession(),
   getDecryptPassphrase: () => undefined,
   getApiUrl: () => 'http://localhost:3005',
+  ensureApiKeyPlan: () => mockEnsureApiKeyPlan(),
 }));
+
+const mockEnsureApiKeyPlan = vi.fn();
 
 // Mock global fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 // Import after mocks
-import { audit } from './audit.js';
+import { audit, evaluateGate, parseGateOptions, EXIT_CODES } from './audit.js';
 
 describe('Audit Command', () => {
   let consoleLogSpy: MockInstance<any[], any>;
@@ -107,6 +110,7 @@ describe('Audit Command', () => {
     mockIsApiKeyAuth.mockReturnValue(false);
     mockGetApiKey.mockReturnValue(null);
     mockGetSession.mockResolvedValue(null);
+    mockEnsureApiKeyPlan.mockResolvedValue(null);
     mockDiscoverPagesFromLinks.mockReturnValue([]); // Returns DiscoveredPage[]
     mockFetch.mockResolvedValue({
       ok: true,
@@ -120,20 +124,23 @@ describe('Audit Command', () => {
   });
 
   describe('URL validation', () => {
-    it('shows usage when no URL provided', async () => {
-      await audit({ url: '' });
+    it('shows usage and exits 2 when no URL provided', async () => {
+      const code = await audit({ url: '' });
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(code).toBe(EXIT_CODES.USAGE);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Please provide a URL')
       );
     });
 
-    it('rejects invalid URLs', async () => {
-      await audit({ url: 'not-a-url' });
+    it('rejects invalid URLs with exit 2', async () => {
+      const code = await audit({ url: 'not-a-url' });
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(code).toBe(EXIT_CODES.USAGE);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Invalid URL')
       );
+      expect(mockRunFullAudit).not.toHaveBeenCalled();
     });
 
     it('suggests login for non-logged-in users in usage', async () => {
@@ -141,9 +148,18 @@ describe('Audit Command', () => {
 
       await audit({ url: '' });
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('rankcli login')
       );
+    });
+
+    it('prints a JSON error (not nothing) for a usage error in JSON mode', async () => {
+      const code = await audit({ url: 'ftp://example.com', output: 'json' });
+
+      expect(code).toBe(EXIT_CODES.USAGE);
+      const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(parsed.exitCode).toBe(EXIT_CODES.USAGE);
+      expect(parsed.error).toMatch(/Invalid URL/);
     });
   });
 
@@ -189,12 +205,114 @@ describe('Audit Command', () => {
       expect(mockDiscoverPagesFromLinks).toHaveBeenCalled();
     });
 
-    it('handles audit errors gracefully', async () => {
-      // When all audits fail, the function should not throw
+    it('exits 3 (not 0) when no page could be audited', async () => {
       mockRunFullAudit.mockRejectedValue(new Error('Network error'));
 
-      // Should not throw even when runFullAudit fails
-      await expect(audit({ url: 'https://example.com' })).resolves.not.toThrow();
+      await expect(audit({ url: 'https://example.com' })).resolves.toBe(EXIT_CODES.AUDIT_FAILED);
+    });
+
+    it('exits 0 for a completed audit without gate flags, even with errors', async () => {
+      mockRunFullAudit.mockResolvedValue({
+        ...mockReport,
+        issues: [{ code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title tag' }],
+      });
+
+      await expect(audit({ url: 'https://example.com' })).resolves.toBe(EXIT_CODES.OK);
+    });
+
+    it('exits 3 when the site is unreachable, even without gate flags', async () => {
+      mockRunFullAudit.mockResolvedValue({
+        ...mockReport,
+        healthScore: { overall: 0 },
+        issues: [{ code: 'FETCH_ERROR', severity: 'error', category: 'indexability', title: 'Page fetch failed', description: 'ECONNREFUSED' }],
+      });
+
+      await expect(audit({ url: 'https://example.com' })).resolves.toBe(EXIT_CODES.AUDIT_FAILED);
+    });
+
+    it('exits 3 when the audited URL answers 5xx', async () => {
+      mockRunFullAudit.mockResolvedValue({
+        ...mockReport,
+        healthScore: { overall: 0 },
+        issues: [{ code: 'HTTP_ERROR_STATUS', severity: 'error', category: 'indexability', title: 'Page returns HTTP 500', description: '' }],
+      });
+
+      await expect(audit({ url: 'https://example.com', output: 'json' })).resolves.toBe(EXIT_CODES.AUDIT_FAILED);
+      const parsed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(parsed.exitCode).toBe(EXIT_CODES.AUDIT_FAILED);
+      expect(parsed.error).toBe('Page returns HTTP 500');
+    });
+  });
+
+  describe('CI gates', () => {
+    const reportWith = (overall: number, severities: string[]) => ({
+      url: 'https://example.com',
+      issues: severities.map((severity, i) => ({ code: `ISSUE_${i}`, severity, category: 'on-page', title: `Issue ${i}` })),
+      healthScore: { overall },
+      pages: [],
+      timestamp: Date.now(),
+    });
+
+    it('--fail-on error exits 1 when an error is present', async () => {
+      mockRunFullAudit.mockResolvedValue(reportWith(90, ['error', 'warning']));
+      await expect(audit({ url: 'https://example.com', failOn: 'error' })).resolves.toBe(EXIT_CODES.GATE_FAILED);
+    });
+
+    it('--fail-on error exits 0 when there are only warnings', async () => {
+      mockRunFullAudit.mockResolvedValue(reportWith(90, ['warning', 'notice']));
+      await expect(audit({ url: 'https://example.com', failOn: 'error' })).resolves.toBe(EXIT_CODES.OK);
+    });
+
+    it('--fail-on warning also trips on errors', async () => {
+      mockRunFullAudit.mockResolvedValue(reportWith(90, ['error']));
+      await expect(audit({ url: 'https://example.com', failOn: 'warning' })).resolves.toBe(EXIT_CODES.GATE_FAILED);
+    });
+
+    it('--min-score exits 1 below the threshold and 0 at it', async () => {
+      mockRunFullAudit.mockResolvedValue(reportWith(79, []));
+      await expect(audit({ url: 'https://example.com', minScore: '80' })).resolves.toBe(EXIT_CODES.GATE_FAILED);
+      mockRunFullAudit.mockResolvedValue(reportWith(80, []));
+      await expect(audit({ url: 'https://example.com', minScore: '80' })).resolves.toBe(EXIT_CODES.OK);
+    });
+
+    it('rejects invalid gate values with exit 2 before auditing', async () => {
+      await expect(audit({ url: 'https://example.com', failOn: 'fatal' })).resolves.toBe(EXIT_CODES.USAGE);
+      await expect(audit({ url: 'https://example.com', minScore: 'high' })).resolves.toBe(EXIT_CODES.USAGE);
+      await expect(audit({ url: 'https://example.com', minScore: '101' })).resolves.toBe(EXIT_CODES.USAGE);
+      expect(mockRunFullAudit).not.toHaveBeenCalled();
+    });
+
+    it('reports the gate result in JSON output', async () => {
+      mockRunFullAudit.mockResolvedValue(reportWith(50, ['error']));
+      const code = await audit({ url: 'https://example.com', output: 'json', failOn: 'error', minScore: '60' });
+
+      expect(code).toBe(EXIT_CODES.GATE_FAILED);
+      const parsed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(parsed.exitCode).toBe(1);
+      expect(parsed.gate.passed).toBe(false);
+      expect(parsed.gate.failures).toHaveLength(2);
+    });
+
+    it('evaluateGate and parseGateOptions agree on thresholds', () => {
+      const issues = [{ code: 'A', severity: 'notice' }] as never[];
+      expect(evaluateGate(issues, 100, 'notice').passed).toBe(false);
+      expect(evaluateGate(issues, 100, 'warning').passed).toBe(true);
+      expect(parseGateOptions({ failOn: 'ERROR' }).failOn).toBe('error');
+      expect(parseGateOptions({ minScore: '0' }).minScore).toBe(0);
+    });
+  });
+
+  describe('plan resolution', () => {
+    it('resolves the API key plan before choosing the tier', async () => {
+      mockIsLoggedIn.mockReturnValue(true);
+      mockGetUserInfo.mockReturnValue({ planId: 'pro_annual', planName: 'Pro' });
+      mockRunFullAudit.mockResolvedValue({ url: 'https://example.com', issues: [], healthScore: { overall: 90 }, pages: [] });
+
+      await audit({ url: 'https://example.com' });
+
+      expect(mockEnsureApiKeyPlan).toHaveBeenCalled();
+      // pro_annual is the Pro tier (280 checks), not an unknown plan falling back to Free.
+      expect(mockRunFullAudit).toHaveBeenCalledWith(expect.objectContaining({ checksLimit: 280 }));
     });
   });
 
@@ -244,6 +362,7 @@ describe('Cloud Sync Integration', () => {
     mockIsApiKeyAuth.mockReturnValue(false);
     mockGetApiKey.mockReturnValue(null);
     mockGetSession.mockResolvedValue(null);
+    mockEnsureApiKeyPlan.mockResolvedValue(null);
     // Default fetch mock: page-content fetches get raw HTML, the
     // sync-audit edge function call (see syncToCloud in audit.ts) gets a
     // successful { projectId, auditId } response - tests that need a
@@ -371,12 +490,15 @@ describe('Cloud Sync Integration', () => {
       timestamp: Date.now(),
     });
 
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await audit({ url: 'https://new-site.com' });
 
-    // Should show limit warning
-    expect(consoleLogSpy).toHaveBeenCalledWith(
+    // Limit warning goes to stderr - it also runs in --output json mode,
+    // where stdout must stay a single JSON document.
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining('limit')
     );
+    consoleErrorSpy.mockRestore();
   });
 
   it('handles cloud sync errors gracefully', async () => {

@@ -51,7 +51,9 @@ describe('npm package boundary (no premium-check leak)', () => {
     // dist/index.js must already exist (this repo's `pnpm build` step) -
     // this test intentionally does not rebuild it, so a stale/missing dist
     // fails loudly rather than silently skipping the check it exists to run.
-    const mod = await import('../dist/index.js');
+    // Indexed by name, so type it as a plain record - the built .d.ts
+    // (rightly) declares none of these names.
+    const mod = (await import('../dist/index.js')) as unknown as Record<string, unknown>;
     expect(mod.runSyncAudit).toBeUndefined();
     for (const name of PREMIUM_CHECK_NAMES) {
       expect(mod[name], `${name} must not be exported from the public bundle`).toBeUndefined();

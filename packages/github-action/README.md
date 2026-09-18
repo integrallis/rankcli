@@ -1,209 +1,113 @@
-# SEO Autopilot GitHub Action
+# RankCLI SEO Audit - GitHub Action
 
-Run 200+ SEO checks on your site. Get auto-fix PRs, Slack alerts, and detailed reports.
+Ship code, get ranked. Runs the [RankCLI](https://rankcli.dev) SEO/GEO audit on a URL inside your workflow, reports it on the pull request and in the job summary, and fails the step when SEO regresses.
 
-## Features
-
-- **200+ SEO Checks** - Comprehensive audit covering on-page, technical, performance, and more
-- **Auto-Fix PRs** - Automatically create pull requests with fixes for detected issues
-- **PR Comments** - Post audit results directly on pull requests
-- **Slack/Discord Alerts** - Get notified when critical issues are found
-- **Score Thresholds** - Fail CI if SEO score drops below a threshold
-- **GitHub Actions Summary** - See results in the workflow summary
+The audit runs entirely in your runner. An API key is optional.
 
 ## Usage
 
-### Basic Usage
-
 ```yaml
-name: SEO Audit
+name: SEO
 on:
   pull_request:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: write   # only needed for the PR comment
+
 jobs:
-  audit:
+  seo:
     runs-on: ubuntu-latest
     steps:
-      - uses: seo-autopilot/action@v1
+      - uses: rankcli/audit-action@v1
         with:
-          url: 'https://your-site.com'
+          url: https://your-site.com
+          fail-on-errors: true
+          score-threshold: 70
 ```
 
-### With Preview Deployments (Vercel, Netlify, etc.)
+### Preview deployments (Vercel, Netlify, ...)
 
 ```yaml
-name: SEO Audit
 on:
   deployment_status:
 
 jobs:
-  audit:
+  seo:
     if: github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: seo-autopilot/action@v1
+      - uses: rankcli/audit-action@v1
         with:
           url: ${{ github.event.deployment_status.target_url }}
-          comment-on-pr: true
-          fail-on-error: true
+          fail-on-errors: true
 ```
 
-### With Auto-Fix PRs
+Preview hosts (`*.vercel.app`, `*.netlify.app`, `*.pages.dev`) add `X-Robots-Tag: noindex` to every preview. The audit reports that as a notice on those hosts, so it doesn't fail every preview run. A `noindex` meta tag in your HTML still counts, because it ships to production.
+
+### Slack / Discord alerts
 
 ```yaml
-- uses: seo-autopilot/action@v1
+- uses: rankcli/audit-action@v1
   with:
-    url: 'https://your-site.com'
-    create-pr: true
-    pr-base-branch: main
-```
-
-### With Slack Notifications
-
-```yaml
-- uses: seo-autopilot/action@v1
-  with:
-    url: 'https://your-site.com'
+    url: https://your-site.com
     slack-webhook: ${{ secrets.SLACK_WEBHOOK }}
-    alert-on: 'error,score_drop'
+    alert-on: error,failure
 ```
 
-### With Score Threshold
+## When the step fails
 
-```yaml
-- uses: seo-autopilot/action@v1
-  with:
-    url: 'https://your-site.com'
-    score-threshold: 70
-    fail-on-error: true
-```
+The step fails when:
+- the URL can't be audited: unreachable, or it answers 4xx/5xx. This happens with or without any gate configured, because a site that's down shouldn't show a green check;
+- `fail-on-errors` (or `fail-on-error`) is `true` and the audit finds any error-severity issue;
+- `score-threshold` is above 0 and the overall score is below it;
+- `api-key` is set but the key is invalid or revoked.
+
+The step does **not** fail when:
+- the PR comment can't be posted, for example on a fork PR, whose token is read-only. That's a warning, and the audit result still decides the step;
+- an alert can't be sent;
+- the API key is over its daily quota or on a plan without API access. That's a warning, and the audit still runs and still gates.
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `url` | URL to audit | Yes | - |
-| `github-token` | GitHub token for PRs and comments | No | `${{ github.token }}` |
-| `create-pr` | Create a PR with SEO fixes | No | `false` |
-| `pr-base-branch` | Base branch for fix PRs | No | `main` |
-| `comment-on-pr` | Post results as PR comment | No | `true` |
-| `fail-on-error` | Fail if critical errors found | No | `false` |
-| `score-threshold` | Minimum score to pass (0-100) | No | `0` |
-| `slack-webhook` | Slack webhook URL | No | - |
-| `discord-webhook` | Discord webhook URL | No | - |
-| `alert-on` | When to alert (comma-separated) | No | `error` |
-| `checks` | Specific checks to run | No | `all` |
+| Input | Description | Default |
+|-------|-------------|---------|
+| `url` | URL to audit (required) | - |
+| `api-key` | RankCLI API key (or `RANKCLI_API_KEY` env) | - |
+| `github-token` | Token for the PR comment | `${{ github.token }}` |
+| `comment-on-pr` | Comment the results on `pull_request` runs | `true` |
+| `fail-on-errors` / `fail-on-error` | Fail on any error-severity issue (either spelling) | `false` |
+| `score-threshold` | Minimum overall score (0 disables) | `0` |
+| `slack-webhook` | Slack incoming-webhook URL | - |
+| `discord-webhook` | Discord webhook URL | - |
+| `alert-on` | `error` (any error issue), `failure` (step failed), comma-separated | `error` |
 
-### Alert Types
-
-- `error` - Critical SEO errors detected
-- `score_drop` - Score dropped since last run
-- `weekly_report` - Weekly summary
-- `pr_created` - Auto-fix PR was created
+**Removed:** `create-pr`, `pr-threshold-errors`, `pr-threshold-score`, `pr-base-branch` and `checks`. They never did anything; `create-pr` never opened a PR. Using them now logs a deprecation warning. For auto-fix PRs, run `rankcli setup --github-action --sync` in your repo. It writes a workflow that runs `rankcli fix` and opens the PR.
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `score` | Overall SEO score (0-100) |
-| `issues-count` | Total issues found |
-| `errors-count` | Critical errors count |
-| `warnings-count` | Warnings count |
-| `pr-url` | URL of created fix PR |
+| `passed` | Whether the gate passed (`true`/`false`) |
+| `issues-count` | Total issues |
+| `errors-count` | Error-severity issues |
+| `warnings-count` | Warnings |
 | `report-json` | Full report as JSON |
+| `rate-limit-remaining` / `rate-limit-resets-at` | RankCLI API quota (when `api-key` is set) |
 
-## Examples
+## Maintainers: releasing
 
-### Complete Workflow
+This package lives in the private RankCLI monorepo. The consumable action is the public repo `rankcli/audit-action`, which holds only `action.yml`, `README.md`, `LICENSE` and the built `dist/`. To stage a release there:
 
-```yaml
-name: SEO Audit
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: '0 0 * * 0' # Weekly on Sunday
-
-jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Wait for deployment
-        uses: ahmadnassri/action-workflow-run-wait@v1
-        if: github.event_name == 'pull_request'
-
-      - name: Run SEO Audit
-        uses: seo-autopilot/action@v1
-        id: audit
-        with:
-          url: ${{ github.event_name == 'pull_request' && format('https://preview-{0}.vercel.app', github.event.pull_request.number) || 'https://your-site.com' }}
-          comment-on-pr: true
-          fail-on-error: true
-          score-threshold: 60
-          slack-webhook: ${{ secrets.SLACK_WEBHOOK }}
-          alert-on: 'error,score_drop'
-
-      - name: Check Score
-        if: steps.audit.outputs.score < 70
-        run: echo "::warning::SEO score is below 70"
+```bash
+git clone git@github.com:rankcli/audit-action.git ~/src/audit-action
+packages/github-action/scripts/publish-action.sh ~/src/audit-action 1.0.0
 ```
 
-### Use with Vercel
-
-```yaml
-name: SEO Audit on Preview
-
-on:
-  deployment_status:
-
-jobs:
-  audit:
-    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Preview'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: seo-autopilot/action@v1
-        with:
-          url: ${{ github.event.deployment_status.target_url }}
-          comment-on-pr: true
-```
-
-## PR Comment Example
-
-When `comment-on-pr` is enabled, the action posts a detailed comment:
-
-```
-## SEO Audit Report
-
-![SEO Score](https://img.shields.io/badge/SEO%20Score-72%2F100-green)
-
-**URL:** https://your-site.com
-
-### Summary
-
-| Metric | Value |
-|--------|-------|
-| Score | **72/100** |
-| Total Issues | 5 issues |
-| Errors | 2 errors |
-| Warnings | 3 warnings |
-
-### Category Breakdown
-
-| Category | Score | Issues |
-|----------|-------|--------|
-| :warning: On-Page | 65/100 | 3 |
-| :white_check_mark: Social Meta | 80/100 | 2 |
-
----
-:robot: Powered by SEO Autopilot
-```
+The script builds and tests the action, copies it into the clone, commits, tags `v1.0.0` and moves `v1`. It prints the push commands and pushes nothing itself.
 
 ## License
 

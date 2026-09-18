@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import seoAutopilot, {
   generateSitemap,
   generateRobots,
@@ -14,17 +18,57 @@ describe('astro-seo-autopilot', () => {
         siteUrl: 'https://example.com',
       });
 
-      expect(integration.name).toBe('astro-seo-autopilot');
+      expect(integration.name).toBe('astro-rankcli');
       expect(integration.hooks).toBeDefined();
       expect(integration.hooks['astro:build:done']).toBeInstanceOf(Function);
     });
+  });
 
-    it('has config setup hook', () => {
-      const integration = seoAutopilot({
-        siteUrl: 'https://example.com',
+  describe('astro:build:done', () => {
+    const GOOD = '<html><head><title>Home</title><meta name="description" content="d"><meta property="og:title" content="t"><link rel="canonical" href="https://example.com/"></head><body><h1>Hi</h1></body></html>';
+    const BAD = '<html><head></head><body><h1>No title</h1></body></html>';
+    let outDir: string;
+    const logger = { info: () => {}, warn: () => {} };
+
+    beforeEach(() => {
+      outDir = mkdtempSync(join(tmpdir(), 'astro-rankcli-'));
+      mkdirSync(join(outDir, 'about'));
+      writeFileSync(join(outDir, 'index.html'), GOOD);
+      writeFileSync(join(outDir, 'about', 'index.html'), GOOD);
+      writeFileSync(join(outDir, '404.html'), BAD); // error pages aren't validated
+    });
+
+    afterEach(() => rmSync(outDir, { recursive: true, force: true }));
+
+    const build = (config: Parameters<typeof seoAutopilot>[0]) =>
+      seoAutopilot(config).hooks['astro:build:done']!({
+        dir: pathToFileURL(outDir + '/'),
+        pages: [{ pathname: '' }, { pathname: 'about/' }, { pathname: '404' }],
+        logger,
       });
 
-      expect(integration.hooks['astro:config:setup']).toBeInstanceOf(Function);
+    it('writes sitemap.xml and robots.txt into the build output', async () => {
+      await build({ siteUrl: 'https://example.com/' });
+      const sitemap = readFileSync(join(outDir, 'sitemap.xml'), 'utf8');
+      expect(sitemap).toContain('<loc>https://example.com</loc>');
+      expect(sitemap).toContain('<loc>https://example.com/about/</loc>');
+      expect(sitemap).not.toContain('404');
+      expect(readFileSync(join(outDir, 'robots.txt'), 'utf8')).toContain('Sitemap: https://example.com/sitemap.xml');
+    });
+
+    it('never overwrites a robots.txt the site ships in public/', async () => {
+      writeFileSync(join(outDir, 'robots.txt'), 'User-agent: *\nDisallow: /admin\n');
+      await build({ siteUrl: 'https://example.com' });
+      expect(readFileSync(join(outDir, 'robots.txt'), 'utf8')).toBe('User-agent: *\nDisallow: /admin\n');
+    });
+
+    it('fails the build on page errors with failOnError', async () => {
+      writeFileSync(join(outDir, 'about', 'index.html'), BAD);
+      await expect(build({ siteUrl: 'https://example.com', validate: { failOnError: true } })).rejects.toThrow(/SEO validation failed/);
+    });
+
+    it('passes with failOnError when only the 404 page has problems', async () => {
+      await expect(build({ siteUrl: 'https://example.com', validate: { failOnError: true } })).resolves.toBeUndefined();
     });
   });
 

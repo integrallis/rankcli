@@ -38,7 +38,9 @@ import {
   clearCredentials,
   getUserInfo,
   WEB_APP_URL,
+  ensureApiKeyPlan,
 } from './config.js';
+import { tierFromPlanId } from './upsell.js';
 
 describe('CLI Config', () => {
   beforeEach(() => {
@@ -145,5 +147,87 @@ describe('CLI Config', () => {
     it('has a valid URL', () => {
       expect(WEB_APP_URL).toMatch(/^https?:\/\//);
     });
+  });
+
+  describe('ensureApiKeyPlan', () => {
+    const respond = (status: number, body: unknown) =>
+      vi.fn().mockResolvedValue({ ok: status < 400, status, json: () => Promise.resolve(body) });
+
+    beforeEach(() => {
+      process.env.RANKCLI_API_URL = 'http://localhost:54321';
+    });
+
+    afterEach(() => {
+      delete process.env.RANKCLI_API_KEY;
+      delete process.env.RANKCLI_API_URL;
+      vi.unstubAllGlobals();
+    });
+
+    it('returns null without API-key auth', async () => {
+      expect(await ensureApiKeyPlan()).toBeNull();
+    });
+
+    it('resolves a paid plan for RANKCLI_API_KEY (CI never ran login)', async () => {
+      process.env.RANKCLI_API_KEY = 'rankcli_ci_key';
+      const fetchMock = respond(200, {
+        valid: true,
+        user: { id: 'u1', email: 'ci@example.com' },
+        subscription: { planId: 'pro', planName: 'Pro', sitesLimit: 10 },
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const status = await ensureApiKeyPlan();
+
+      expect(status).toMatchObject({ status: 'ok', planId: 'pro', cached: false });
+      expect(getUserInfo().planId).toBe('pro');
+      // Cached for this key: no second round trip.
+      expect(await ensureApiKeyPlan()).toMatchObject({ status: 'ok', cached: true });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-validates when the key changes', async () => {
+      process.env.RANKCLI_API_KEY = 'rankcli_key_a';
+      vi.stubGlobal('fetch', respond(200, { valid: true, subscription: { planId: 'agency', planName: 'Agency', sitesLimit: 50 } }));
+      await ensureApiKeyPlan();
+
+      process.env.RANKCLI_API_KEY = 'rankcli_key_b';
+      vi.stubGlobal('fetch', respond(403, { error: 'API access requires a paid subscription' }));
+      expect(await ensureApiKeyPlan()).toEqual({ status: 'free' });
+      expect(getUserInfo().planId).toBeUndefined();
+      expect(getUserInfo().planName).toBe('Free');
+    });
+
+    it('drops a cached paid plan when the key is rejected', async () => {
+      process.env.RANKCLI_API_KEY = 'rankcli_key_c';
+      vi.stubGlobal('fetch', respond(200, { valid: true, subscription: { planId: 'pro', planName: 'Pro', sitesLimit: 10 } }));
+      await ensureApiKeyPlan();
+
+      vi.stubGlobal('fetch', respond(401, { error: 'Invalid or revoked API key' }));
+      expect(await ensureApiKeyPlan({ force: true })).toMatchObject({ status: 'invalid' });
+      expect(getUserInfo().planId).toBeUndefined();
+    });
+
+    it('keeps the cached plan for the same key when the server is unreachable', async () => {
+      process.env.RANKCLI_API_KEY = 'rankcli_key_d';
+      vi.stubGlobal('fetch', respond(200, { valid: true, subscription: { planId: 'solo', planName: 'Solo', sitesLimit: 3 } }));
+      await ensureApiKeyPlan();
+
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
+      expect(await ensureApiKeyPlan({ force: true })).toMatchObject({ status: 'unavailable' });
+      expect(getUserInfo().planId).toBe('solo');
+    });
+  });
+});
+
+describe('tierFromPlanId', () => {
+  it('maps billing variants to their base tier', () => {
+    expect(tierFromPlanId('pro')).toBe('pro');
+    expect(tierFromPlanId('pro_annual')).toBe('pro');
+    expect(tierFromPlanId('pro_founding')).toBe('pro');
+    expect(tierFromPlanId('agency_annual')).toBe('agency');
+    expect(tierFromPlanId('ltd_solo')).toBe('solo');
+    expect(tierFromPlanId('Solo')).toBe('solo');
+    expect(tierFromPlanId('enterprise')).toBeUndefined();
+    expect(tierFromPlanId(undefined)).toBeUndefined();
   });
 });

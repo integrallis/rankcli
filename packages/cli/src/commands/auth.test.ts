@@ -44,6 +44,7 @@ const mockGetApiKey = vi.fn();
 const mockSaveApiKey = vi.fn();
 const mockValidateApiKey = vi.fn();
 const mockGetApiUrl = vi.fn(() => 'http://localhost:54321');
+const mockEnsureApiKeyPlan = vi.fn();
 
 vi.mock('../lib/config.js', () => ({
   isLoggedIn: () => mockIsLoggedIn(),
@@ -58,6 +59,7 @@ vi.mock('../lib/config.js', () => ({
   saveApiKey: (key: string, name?: string, email?: string) => mockSaveApiKey(key, name, email),
   validateApiKey: (key: string) => mockValidateApiKey(key),
   getApiUrl: () => mockGetApiUrl(),
+  ensureApiKeyPlan: (o?: unknown) => mockEnsureApiKeyPlan(o),
   WEB_APP_URL: 'http://localhost:3005',
 }));
 
@@ -81,15 +83,66 @@ describe('Auth Commands', () => {
   });
 
   describe('login', () => {
+    afterEach(() => {
+      delete process.env.RANKCLI_API_KEY;
+    });
+
     it('shows message when already logged in', async () => {
       mockIsLoggedIn.mockReturnValue(true);
       mockGetUserInfo.mockReturnValue({ email: 'test@example.com' });
 
-      await login({});
+      const code = await login({});
 
+      expect(code).toBe(0);
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('Already logged in')
       );
+    });
+
+    it('--token validates the key and resolves the plan even when already logged in', async () => {
+      mockIsLoggedIn.mockReturnValue(true);
+      mockEnsureApiKeyPlan.mockResolvedValue({ status: 'ok', planId: 'pro', planName: 'Pro', cached: false });
+      mockGetUserInfo.mockReturnValue({ email: 'ci@test.com', planName: 'Pro' });
+
+      const code = await login({ token: 'rankcli_validkey' });
+
+      expect(code).toBe(0);
+      expect(mockClearCredentials).toHaveBeenCalled();
+      expect(mockSaveApiKey).toHaveBeenCalledWith('rankcli_validkey', undefined, undefined);
+      expect(mockEnsureApiKeyPlan).toHaveBeenCalledWith({ force: true });
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Already logged in'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Plan: Pro'));
+    });
+
+    it('--token exits 1 and keeps nothing when the key is rejected', async () => {
+      mockIsLoggedIn.mockReturnValue(false);
+      mockEnsureApiKeyPlan.mockResolvedValue({ status: 'invalid', error: 'Invalid or revoked API key' });
+
+      const code = await login({ token: 'rankcli_revoked' });
+
+      expect(code).toBe(1);
+      expect(mockClearCredentials).toHaveBeenCalledTimes(2);
+    });
+
+    it('--token with an empty value (unset CI secret) exits 1 instead of opening a browser', async () => {
+      const code = await login({ token: '' });
+
+      expect(code).toBe(1);
+      expect(open).not.toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('RANKCLI_API_KEY'));
+    });
+
+    it('plain login validates RANKCLI_API_KEY instead of short-circuiting', async () => {
+      process.env.RANKCLI_API_KEY = 'rankcli_fromenv';
+      mockIsLoggedIn.mockReturnValue(true);
+      mockEnsureApiKeyPlan.mockResolvedValue({ status: 'free' });
+      mockGetUserInfo.mockReturnValue({ email: 'ci@test.com', planName: 'Free' });
+
+      const code = await login({});
+
+      expect(code).toBe(0);
+      expect(mockEnsureApiKeyPlan).toHaveBeenCalledWith({ force: true });
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Already logged in'));
     });
 
     it('prompts for email when not provided', async () => {
@@ -317,10 +370,7 @@ describe('Auth Commands', () => {
       mockIsLoggedIn.mockReturnValue(true);
       mockIsApiKeyAuth.mockReturnValue(true);
       mockGetApiKey.mockReturnValue('rankcli_testkey123');
-      mockValidateApiKey.mockResolvedValue({
-        valid: true,
-        subscription: { planId: 'pro', planName: 'Pro', sitesLimit: 10 },
-      });
+      mockEnsureApiKeyPlan.mockResolvedValue({ status: 'ok', planId: 'pro', planName: 'Pro', cached: false });
       mockGetUserInfo.mockReturnValue({
         email: 'apikey@test.com',
         planName: 'Pro',

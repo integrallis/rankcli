@@ -1,12 +1,16 @@
-# next-seo-autopilot
+# next-rankcli
 
 Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt.
 
 ## Installation
 
+> **Not on npm yet.** `next-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter next-rankcli build`) and install the folder.
+
 ```bash
-npm install next-seo-autopilot
+npm install next-rankcli
 ```
+
+Works with Next.js 13 through 16. The JSON-LD helpers escape `<`, `>` and `&`, so their output is safe to render with `dangerouslySetInnerHTML` even when values come from users or a CMS.
 
 ## Usage
 
@@ -14,7 +18,7 @@ npm install next-seo-autopilot
 
 ```typescript
 // next.config.js
-import { withSEO } from 'next-seo-autopilot';
+import { withSEO } from 'next-rankcli';
 
 export default withSEO({
   siteUrl: 'https://example.com',
@@ -31,7 +35,7 @@ export default withSEO({
 
 ```typescript
 // lib/metadata.ts
-import { createMetadataGenerator } from 'next-seo-autopilot/metadata';
+import { createMetadataGenerator } from 'next-rankcli/metadata';
 
 export const generateMetadata = createMetadataGenerator({
   siteUrl: 'https://example.com',
@@ -53,7 +57,7 @@ export const metadata = generateMetadata({
 
 ```typescript
 // app/sitemap.ts
-import { generateSitemapEntries, generateSitemapXml } from 'next-seo-autopilot';
+import { generateSitemapEntries, generateSitemapXml } from 'next-rankcli';
 
 export default async function sitemap() {
   const routes = ['/', '/about', '/blog', '/contact'];
@@ -71,7 +75,7 @@ export default async function sitemap() {
 
 ```typescript
 // app/robots.ts
-import { createRobotsHandler } from 'next-seo-autopilot';
+import { createRobotsHandler } from 'next-rankcli';
 
 export default createRobotsHandler({
   siteUrl: 'https://example.com',
@@ -86,7 +90,7 @@ export default createRobotsHandler({
 ### JSON-LD Structured Data
 
 ```typescript
-import { createWebsiteJsonLd, createArticleJsonLd } from 'next-seo-autopilot/metadata';
+import { createWebsiteJsonLd, createArticleJsonLd } from 'next-rankcli/metadata';
 
 // Website schema
 const websiteSchema = createWebsiteJsonLd({

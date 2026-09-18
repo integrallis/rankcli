@@ -1,8 +1,12 @@
 /**
- * astro-seo-autopilot
+ * astro-rankcli
  *
  * Astro integration for SEO automation - sitemap, robots.txt, meta validation.
  */
+
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface SEOConfig {
   /**
@@ -113,80 +117,89 @@ export interface SEOIssue {
 export interface AstroIntegration {
   name: string;
   hooks: {
-    'astro:config:setup'?: (options: any) => void | Promise<void>;
     'astro:build:done'?: (options: any) => void | Promise<void>;
   };
 }
 
+// Error pages are not meant to rank; validating them would fail builds
+// on a 404 page without a meta description.
+const SKIP_VALIDATION = /(^|\/)(404|500)(\/index)?\.html$/;
+
+function listHtmlFiles(dir: string, base = dir): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...listHtmlFiles(full, base));
+    else if (entry.name.endsWith('.html')) files.push(relative(base, full).split(sep).join('/'));
+  }
+  return files;
+}
+
 /**
- * Create SEO Autopilot Astro integration
+ * Write a generated file into the build output unless the site already
+ * ships its own (Astro copies public/ into the output before build:done).
+ */
+function writeUnlessPresent(outDir: string, name: string, content: string, log: (msg: string) => void): void {
+  const target = join(outDir, name);
+  if (existsSync(target)) {
+    log(`${name} already exists (from public/) - left untouched`);
+    return;
+  }
+  writeFileSync(target, content);
+  log(`Generated ${name}`);
+}
+
+/**
+ * Create the RankCLI Astro integration.
+ *
+ * On `astro build` it writes sitemap.xml and robots.txt into the output
+ * (never over files your public/ already provides), validates every built
+ * page, and fails the build on error-level issues when
+ * `validate: { failOnError: true }`. It used to write nothing and never
+ * run the validation, so failOnError could not fire.
  */
 export default function seoAutopilot(config: SEOConfig): AstroIntegration {
-  const issues: SEOIssue[] = [];
-
   return {
-    name: 'astro-seo-autopilot',
+    name: 'astro-rankcli',
     hooks: {
-      'astro:config:setup': ({ updateConfig, injectScript }) => {
-        // Add validation script for dev mode
-        if (config.validate !== false && config.logIssues !== false) {
-          // Inject client-side validation in dev mode
-          injectScript?.('page', `
-            if (import.meta.env.DEV) {
-              console.log('🔍 SEO Autopilot: Checking page...');
-            }
-          `);
-        }
-      },
-
-      'astro:build:done': async ({ dir, routes, pages }) => {
-        const outDir = dir.pathname;
+      'astro:build:done': async ({ dir, pages, logger }: { dir: URL; pages?: { pathname: string }[]; logger?: { info(m: string): void; warn(m: string): void } }) => {
+        const outDir = fileURLToPath(dir);
         const siteUrl = config.siteUrl.replace(/\/$/, '');
+        const log = (msg: string) => (logger ? logger.info(msg) : console.log(`[astro-rankcli] ${msg}`));
+        const warn = (msg: string) => (logger ? logger.warn(msg) : console.warn(`[astro-rankcli] ${msg}`));
 
-        // Collect all page routes
-        const pageRoutes = pages?.map((p: any) => p.pathname) ||
-          routes?.filter((r: any) => !r.pathname.includes('['))
-            .map((r: any) => r.pathname) ||
-          ['/'];
+        // Astro's pathnames have no leading slash ('' for the home page, 'about/').
+        const pageRoutes = (pages?.length ? pages.map(p => '/' + (p.pathname || '').replace(/^\/+/, '')) : ['/'])
+          .filter(route => !/^\/(404|500)\/?$/.test(route));
 
-        // Generate sitemap
         if (config.sitemap !== false) {
           const sitemapConfig = typeof config.sitemap === 'object' ? config.sitemap : {};
-          const sitemap = generateSitemap(siteUrl, pageRoutes, sitemapConfig);
-
-          // Write sitemap (in a real integration, use Astro's file API)
-          console.log('✅ Generated sitemap.xml');
-
-          // For testing/demonstration, return the content
-          if (typeof globalThis !== 'undefined') {
-            (globalThis as any).__seoAutopilotSitemap = sitemap;
-          }
+          writeUnlessPresent(outDir, 'sitemap.xml', generateSitemap(siteUrl, pageRoutes, sitemapConfig), log);
         }
 
-        // Generate robots.txt
         if (config.robots !== false) {
           const robotsConfig = typeof config.robots === 'object' ? config.robots : {};
-          const robots = generateRobots(siteUrl, robotsConfig);
+          writeUnlessPresent(outDir, 'robots.txt', generateRobots(siteUrl, robotsConfig), log);
+        }
 
-          console.log('✅ Generated robots.txt');
+        if (config.validate === false) return;
+        const validationConfig = typeof config.validate === 'object' ? config.validate : {};
+        const issues: SEOIssue[] = [];
+        for (const file of listHtmlFiles(outDir)) {
+          if (SKIP_VALIDATION.test(file)) continue;
+          issues.push(...validatePage(readFileSync(join(outDir, file), 'utf8'), validationConfig, file));
+        }
 
-          if (typeof globalThis !== 'undefined') {
-            (globalThis as any).__seoAutopilotRobots = robots;
+        if (issues.length > 0 && config.logIssues !== false) {
+          warn(`${issues.length} SEO issue(s):`);
+          for (const issue of issues) {
+            warn(`  ${issue.severity === 'error' ? 'error' : 'warn '} [${issue.code}] ${issue.page}: ${issue.message}`);
           }
         }
 
-        // Report issues
-        if (issues.length > 0 && config.logIssues !== false) {
-          console.log(`\n🔍 SEO Autopilot found ${issues.length} issue(s):\n`);
-          for (const issue of issues) {
-            const prefix = issue.severity === 'error' ? '❌' : '⚠️';
-            console.log(`  ${prefix} [${issue.code}] ${issue.message}`);
-          }
-
-          const validationConfig = typeof config.validate === 'object' ? config.validate : {};
-          if (validationConfig.failOnError && issues.some(i => i.severity === 'error')) {
-            throw new Error('SEO validation failed');
-          }
+        const errors = issues.filter(i => i.severity === 'error');
+        if (validationConfig.failOnError && errors.length > 0) {
+          throw new Error(`SEO validation failed: ${errors.length} error(s) - see the list above`);
         }
       },
     },

@@ -50,10 +50,27 @@ export async function checkRobotsTxt(baseUrl: string): Promise<{ issues: AuditIs
       validateStatus: () => true,
     });
 
-    if (response.status === 404) {
+    // Google's documented handling: 5xx and 429 mean "treat the whole site
+    // as disallowed" until robots.txt answers properly; any other 4xx means
+    // "there is no robots.txt" (crawl everything). Either way the body is an
+    // error page, not robots rules, so it must not be parsed as one.
+    if (response.status >= 500 || response.status === 429) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.ROBOTS_TXT_SERVER_ERROR,
+        affectedUrls: [url],
+        details: { status: response.status },
+      });
+      return {
+        issues,
+        data: { exists: false, blocksAll: false, hasSitemap: false, sitemapUrls: [] }
+      };
+    }
+
+    if (response.status >= 400) {
       issues.push({
         ...ISSUE_DEFINITIONS.ROBOTS_TXT_MISSING,
         affectedUrls: [url],
+        ...(response.status !== 404 && { details: { status: response.status } }),
       });
       return {
         issues,

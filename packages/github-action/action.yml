@@ -1,114 +1,97 @@
-name: 'SEO Autopilot'
-description: 'Run 200+ SEO checks on your site. Get auto-fix PRs, Slack alerts, and detailed reports.'
-author: 'SEO Autopilot'
+name: 'RankCLI SEO Audit'
+description: 'Ship code, get ranked. Run the RankCLI SEO/GEO audit on a URL in CI and fail the build on SEO regressions.'
+author: 'RankCLI'
 branding:
   icon: 'search'
   color: 'green'
 
 inputs:
   url:
-    description: 'URL to audit (e.g., https://example.com or ${{ env.DEPLOY_URL }})'
+    description: 'URL to audit (e.g. https://example.com or a preview deployment URL)'
     required: true
 
   api-key:
-    description: 'RankCLI API key for authentication (required for scheduled audits and advanced features)'
+    description: 'RankCLI API key (optional). Identifies your account; the audit itself runs in this runner. Falls back to the RANKCLI_API_KEY env var.'
     required: false
 
   github-token:
-    description: 'GitHub token for creating PRs and comments (defaults to GITHUB_TOKEN)'
+    description: 'Token for the PR comment (defaults to GITHUB_TOKEN; needs pull-requests: write)'
     required: false
     default: ${{ github.token }}
 
-  create-pr:
-    description: 'Create a PR with SEO fixes (true/false/auto). Auto creates PR only if issues exceed thresholds.'
-    required: false
-    default: 'false'
-
-  pr-threshold-errors:
-    description: 'Minimum errors to trigger PR creation in auto mode (default: 1)'
-    required: false
-    default: '1'
-
-  pr-threshold-score:
-    description: 'Score below which to trigger PR creation in auto mode (default: 70)'
-    required: false
-    default: '70'
-
-  pr-base-branch:
-    description: 'Base branch for fix PRs'
-    required: false
-    default: 'main'
-
   comment-on-pr:
-    description: 'Post audit results as PR comment (true/false)'
+    description: 'Post the audit results as a PR comment on pull_request runs (true/false). A comment that cannot be posted is a warning, never a failure.'
     required: false
     default: 'true'
 
   fail-on-error:
-    description: 'Fail the action if critical SEO errors are found (true/false)'
+    description: 'Fail the step if the audit finds any error-severity issue (true/false)'
+    required: false
+    default: 'false'
+
+  fail-on-errors:
+    description: 'Alias of fail-on-error (the spelling used in the RankCLI docs)'
     required: false
     default: 'false'
 
   score-threshold:
-    description: 'Minimum SEO score to pass (0-100). Action fails if score is below this.'
+    description: 'Minimum overall score (0-100) to pass. 0 disables the check.'
     required: false
     default: '0'
 
   slack-webhook:
-    description: 'Slack webhook URL for notifications'
+    description: 'Slack incoming-webhook URL for alerts'
     required: false
 
   discord-webhook:
-    description: 'Discord webhook URL for notifications'
+    description: 'Discord webhook URL for alerts'
     required: false
 
   alert-on:
-    description: 'When to send alerts (comma-separated: error,score_drop,weekly_report,pr_created)'
+    description: 'When to alert, comma-separated: error (any error-severity issue), failure (the step failed)'
     required: false
     default: 'error'
 
-  checks:
-    description: 'Specific checks to run (comma-separated, or "all")'
+  # Removed - kept declared so existing workflows get a warning, not an error.
+  create-pr:
+    description: 'Removed.'
     required: false
-    default: 'all'
+    deprecationMessage: 'create-pr was removed - it never opened a PR. For auto-fix PRs run `rankcli setup --github-action --sync`, which writes a workflow that runs `rankcli fix` and opens the PR.'
+  pr-threshold-errors:
+    description: 'Removed.'
+    required: false
+    deprecationMessage: 'pr-threshold-errors was removed along with create-pr.'
+  pr-threshold-score:
+    description: 'Removed.'
+    required: false
+    deprecationMessage: 'pr-threshold-score was removed along with create-pr.'
+  pr-base-branch:
+    description: 'Removed.'
+    required: false
+    deprecationMessage: 'pr-base-branch was removed along with create-pr.'
+  checks:
+    description: 'Removed.'
+    required: false
+    deprecationMessage: 'checks was removed - it never filtered anything; every check runs.'
 
 outputs:
   score:
     description: 'Overall SEO score (0-100)'
-
+  passed:
+    description: 'Whether the audit passed the configured gate (true/false)'
   issues-count:
     description: 'Total number of issues found'
-
   errors-count:
-    description: 'Number of critical errors'
-
+    description: 'Number of error-severity issues'
   warnings-count:
     description: 'Number of warnings'
-
-  pr-url:
-    description: 'URL of created PR (if create-pr was enabled)'
-
-  report-url:
-    description: 'URL to full audit report'
-
   report-json:
-    description: 'Full audit report as JSON string'
-
-  skipped:
-    description: 'Whether the audit was skipped (true/false)'
-
-  skip-reason:
-    description: 'Reason for skip (schedule_exceeded, rate_limited)'
-
-  next-allowed-at:
-    description: 'When the next audit is allowed (ISO timestamp)'
-
+    description: 'Full audit report as JSON'
   rate-limit-remaining:
-    description: 'Remaining API requests for the day'
-
+    description: 'Remaining RankCLI API requests today (when api-key is set)'
   rate-limit-resets-at:
-    description: 'When the rate limit resets (ISO timestamp)'
+    description: 'When the RankCLI API limit resets (ISO timestamp, when api-key is set)'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'

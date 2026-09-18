@@ -15,10 +15,12 @@ vi.mock('../lib/config.js', () => ({
   isLoggedIn: vi.fn(() => true),
   getUserInfo: vi.fn(() => ({ planName: 'solo', userId: 'test-user' })),
   getAuthenticatedClient: vi.fn(() => Promise.resolve(null)),
+  ensureApiKeyPlan: vi.fn(() => Promise.resolve(null)),
   WEB_APP_URL: 'https://rankcli.dev',
 }));
 
-vi.mock('../lib/upsell.js', () => ({
+vi.mock('../lib/upsell.js', async (importOriginal) => ({
+  tierFromPlanId: (await importOriginal<typeof import('../lib/upsell.js')>()).tierFromPlanId,
   showUpsell: vi.fn(),
   hasFeature: vi.fn((tier: string, feature: string) => {
     if (tier === 'solo' && feature === 'auto_fix') return true;
@@ -152,6 +154,39 @@ describe('rankcli fix command', () => {
       const parsed = JSON.parse(result.json!);
       expect(parsed.url).toBe('https://example.com');
       expect(parsed.dryRun).toBe(true);
+    });
+  });
+
+  describe('JSON output on every path', () => {
+    // The generated GitHub workflow pipes `fix --auto --output json` into a
+    // file and parses it - an empty stdout used to crash that step.
+    it('prints JSON for a tier-blocked run', async () => {
+      const config = await import('../lib/config.js');
+      vi.mocked(config.getUserInfo).mockReturnValueOnce({ planName: 'Free' });
+
+      const result = await fix({ url: 'https://example.com', auto: true, output: 'json' });
+
+      expect(result.success).toBe(false);
+      const parsed = JSON.parse(result.json!);
+      expect(parsed.success).toBe(false);
+      expect(parsed.appliedCount).toBe(0);
+      expect(parsed.error).toMatch(/Solo/);
+    });
+
+    it('prints JSON for an invalid URL', async () => {
+      const result = await fix({ url: 'nope', auto: true, output: 'json' });
+      expect(JSON.parse(result.json!).appliedCount).toBe(0);
+    });
+
+    it('prints JSON when there is nothing to fix', async () => {
+      const runtime = await import('@rankcli/agent-runtime');
+      vi.mocked(runtime.runDirectAnalysis).mockResolvedValueOnce({ issues: [], score: 100 } as never);
+
+      const result = await fix({ url: 'https://example.com', auto: true, output: 'json' });
+
+      const parsed = JSON.parse(result.json!);
+      expect(parsed.success).toBe(true);
+      expect(parsed.appliedCount).toBe(0);
     });
   });
 

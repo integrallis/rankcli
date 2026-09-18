@@ -25,7 +25,6 @@
     "build:deno": "tsx scripts/build-deno.ts",
     "generate:recipes": "tsx scripts/generate-embedded-recipes.ts",
     "build:wasm": "tsup --config tsup.wasm.config.ts",
-    "lint": "eslint src/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
