@@ -40,7 +40,6 @@
     "build:sea": "bash scripts/build-sea.sh",
     "prepublishOnly": "npm run build && npm run inject-config",
     "start": "node dist/index.js",
-    "lint": "eslint src/",
     "test": "vitest run --passWithNoTests",
     "test:wasm": "node test-wasm.js",
     "update-version": "node scripts/update-version.js"
