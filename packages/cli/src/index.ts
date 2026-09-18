@@ -28,8 +28,10 @@ program
   .description('Log in to your RankCLI account (opens your browser by default)')
   .option('-e, --email <email>', 'Log in with email/password instead of the browser')
   .option('--no-browser', 'Skip the browser and log in with email/password interactively')
-  .option('-t, --token <apiKey>', 'API key for non-interactive authentication')
-  .action(login);
+  .option('-t, --token <apiKey>', 'API key for non-interactive authentication (validates it and resolves your plan)')
+  .action(async (options) => {
+    process.exitCode = await login(options);
+  });
 
 program
   .command('logout')
@@ -277,4 +279,7 @@ program
   .option('--remove <id>', 'Remove an alert configuration')
   .action(alerts);
 
-program.parse();
+program.parseAsync().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

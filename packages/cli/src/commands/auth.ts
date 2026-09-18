@@ -11,10 +11,10 @@ import {
   isApiKeyAuth,
   getApiKey,
   saveApiKey,
-  validateApiKey,
   getUserInfo,
   getAuthenticatedClient,
   getApiUrl,
+  ensureApiKeyPlan,
   WEB_APP_URL,
 } from '../lib/config.js';
 
@@ -44,7 +44,7 @@ interface ConnectStatusResponse {
 // resulting API key. Replaces the old --browser flow, which opened a page
 // that had nothing on it to copy - it prompted for a "CLI token" the site
 // never actually displayed anywhere.
-async function browserLogin(spinner: ReturnType<typeof ora>): Promise<void> {
+async function browserLogin(spinner: ReturnType<typeof ora>): Promise<boolean> {
   spinner.start('Starting login...');
 
   let start: ConnectStartResponse;
@@ -55,7 +55,7 @@ async function browserLogin(spinner: ReturnType<typeof ora>): Promise<void> {
   } catch (err) {
     spinner.fail('Could not start login');
     console.log(chalk.red(err instanceof Error ? err.message : 'Network error'));
-    return;
+    return false;
   }
 
   spinner.text = 'Opening browser to approve...';
@@ -87,73 +87,103 @@ async function browserLogin(spinner: ReturnType<typeof ora>): Promise<void> {
 
     if (status.status === 'claimed' && status.apiKey) {
       saveApiKey(status.apiKey, status.apiKeyName, status.email);
-      await fetchAndSaveSubscription();
+      // A browser login only ever yields an API key - no session for
+      // fetchAndSaveSubscription() to read the plan through - so resolve
+      // the plan from the key itself, or every browser login stays Free.
+      await ensureApiKeyPlan({ force: true });
       spinner.succeed(`Logged in as ${chalk.green(status.email)}`);
-      return;
+      return true;
     }
     if (status.status === 'expired' || status.status === 'not_found') {
       spinner.fail('Login link expired');
       console.log(chalk.dim('Run "rankcli login" again.'));
-      return;
+      return false;
     }
   }
 
   spinner.fail('Timed out waiting for approval');
   console.log(chalk.dim('Run "rankcli login" again when you\'re ready.'));
+  return false;
 }
 
-export async function login(options: LoginOptions): Promise<void> {
+/**
+ * Validate the API key now in effect (a freshly saved --token, or
+ * RANKCLI_API_KEY) and report the plan it resolves to. Returns the exit code.
+ */
+async function verifyApiKey(spinner: ReturnType<typeof ora>, source: string): Promise<number> {
+  spinner.start('Validating API key...');
+  const plan = await ensureApiKeyPlan({ force: true });
+
+  if (!plan || plan.status === 'invalid') {
+    spinner.fail('Invalid API key');
+    console.log(chalk.red(`\n${plan?.error || 'The key was rejected'}`));
+    return 1;
+  }
+  if (plan.status === 'unavailable') {
+    spinner.fail('Could not validate API key');
+    console.log(chalk.red(`\n${plan.error}`));
+    return 1;
+  }
+
+  spinner.succeed(`Authenticated via ${source}`);
+  const { email, planName } = getUserInfo();
+  if (email) console.log(chalk.dim(`\nEmail: ${email}`));
+  console.log(chalk.dim(`${email ? '' : '\n'}Plan: ${planName || 'Free'}`));
+  if (plan.status === 'free') {
+    console.log(chalk.dim('The key works for dashboard sync; the paid checks and API features need a paid plan.'));
+  }
+  return 0;
+}
+
+/** Returns the process exit code: 0 on success, 1 if login failed. */
+export async function login(options: LoginOptions): Promise<number> {
+  const spinner = ora();
+
+  // An explicit --token always validates and replaces whatever login is
+  // stored. It used to short-circuit on "Already logged in" - which is
+  // always true in CI once RANKCLI_API_KEY is exported - so the key was
+  // never validated and the plan never resolved (paid users audited as Free).
+  if (options.token !== undefined) {
+    const apiKey = options.token.trim();
+    if (!apiKey.startsWith('rankcli_')) {
+      console.log(chalk.red(apiKey
+        ? 'Invalid API key format. Keys should start with "rankcli_"'
+        : 'Empty API key - is the RANKCLI_API_KEY secret set?'));
+      return 1;
+    }
+    if (process.env.RANKCLI_API_KEY && process.env.RANKCLI_API_KEY !== apiKey) {
+      // getApiKey() prefers the env var, so that's the key every command
+      // will actually send - refuse rather than validate the wrong one.
+      console.log(chalk.red('RANKCLI_API_KEY is set to a different key and would take precedence over --token. Unset it or pass the same key.'));
+      return 1;
+    }
+    clearCredentials();
+    saveApiKey(apiKey);
+    const code = await verifyApiKey(spinner, 'API key');
+    if (code !== 0) clearCredentials();
+    return code;
+  }
+
+  // RANKCLI_API_KEY in the environment is already a login; `rankcli login`
+  // validates it and resolves its plan instead of claiming there's nothing to do.
+  if (process.env.RANKCLI_API_KEY) {
+    return verifyApiKey(spinner, 'RANKCLI_API_KEY');
+  }
+
   if (isLoggedIn()) {
     const { email } = getUserInfo();
     console.log(chalk.yellow(`Already logged in as ${email}`));
     console.log(chalk.dim('Run "rankcli logout" to sign out first.'));
-    return;
+    return 0;
   }
 
-  const spinner = ora();
-
   try {
-    // API key authentication (--token flag)
-    if (options.token) {
-      const apiKey = options.token;
-
-      if (!apiKey.startsWith('rankcli_')) {
-        console.log(chalk.red('Invalid API key format. Keys should start with "rankcli_"'));
-        return;
-      }
-
-      spinner.start('Validating API key...');
-
-      const result = await validateApiKey(apiKey);
-
-      if (!result.valid) {
-        spinner.fail('Invalid API key');
-        console.log(chalk.red(`\n${result.error}`));
-        return;
-      }
-
-      // Save API key and user info
-      saveApiKey(apiKey);
-      if (result.subscription) {
-        saveSubscription({
-          planId: result.subscription.planId,
-          planName: result.subscription.planName,
-          sitesLimit: result.subscription.sitesLimit,
-        });
-      }
-
-      spinner.succeed(`Authenticated via API key`);
-      console.log(chalk.dim(`\nEmail: ${result.user?.email}`));
-      console.log(chalk.dim(`Plan: ${result.subscription?.planName || 'Free'}`));
-      return;
-    }
-
     if (options.browser !== false && !options.email) {
       // Browser-based login (the default - reduces this to zero typing for
       // anyone with a browser handy). Same device-flow backend as the MCP
       // server's rankcli_connect tool: mint a connect id, open the
       // approval page, poll until claimed, save the resulting API key.
-      await browserLogin(spinner);
+      return (await browserLogin(spinner)) ? 0 : 1;
     } else {
       // Email/password login (opt-in via --email or --no-browser)
       let email = options.email;
@@ -198,12 +228,12 @@ export async function login(options: LoginOptions): Promise<void> {
           console.log(chalk.dim('\nDon\'t have an account? Sign up at:'));
           console.log(chalk.cyan(`  ${WEB_APP_URL}/signup`));
         }
-        return;
+        return 1;
       }
 
       if (!data.session) {
         spinner.fail('No session returned');
-        return;
+        return 1;
       }
 
       // Save session
@@ -216,10 +246,12 @@ export async function login(options: LoginOptions): Promise<void> {
 
       const { planName, sitesLimit } = getUserInfo();
       console.log(chalk.dim(`\nPlan: ${planName} (${sitesLimit} site${sitesLimit !== 1 ? 's' : ''})`));
+      return 0;
     }
   } catch (err) {
     spinner.fail('Login failed');
     console.error(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    return 1;
   }
 }
 
@@ -257,16 +289,10 @@ export async function whoami(): Promise<void> {
   try {
     // If using API key, validate and get fresh info
     if (isApiKeyAuth()) {
-      const apiKey = getApiKey();
-      if (apiKey) {
-        const result = await validateApiKey(apiKey);
-        if (result.valid && result.subscription) {
-          saveSubscription({
-            planId: result.subscription.planId,
-            planName: result.subscription.planName,
-            sitesLimit: result.subscription.sitesLimit,
-          });
-        }
+      const plan = await ensureApiKeyPlan({ force: true });
+      if (plan?.status === 'invalid') {
+        spinner.fail(`API key rejected: ${plan.error}`);
+        return;
       }
     } else {
       // Refresh subscription info via session

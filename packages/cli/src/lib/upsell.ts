@@ -38,6 +38,20 @@ export const TIER_LIMITS = {
 
 export type TierId = keyof typeof TIER_LIMITS;
 
+/**
+ * The base tier behind a stored plan id. Billing variants of a plan
+ * ("pro_annual", "pro_founding", "ltd_agency") are the same tier - matched
+ * literally against TIER_LIMITS they fell through to Free.
+ */
+export function tierFromPlanId(planId: string | undefined): Exclude<TierId, 'free_anon'> | undefined {
+  if (!planId) return undefined;
+  const base = planId
+    .toLowerCase()
+    .replace(/^ltd_/, '')
+    .replace(/_(annual|yearly|monthly|founding|lifetime|ltd)$/, '');
+  return base === 'free' || base === 'solo' || base === 'pro' || base === 'agency' ? base : undefined;
+}
+
 interface UpsellContext {
   tier: TierId;
   feature?: string;
