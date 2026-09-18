@@ -76,7 +76,10 @@ export async function validateRobotsTxt(
       validateStatus: () => true,
     });
 
-    if (response.status === 404) {
+    // Only a 2xx body is robots rules. 4xx means "no robots.txt" and 5xx is
+    // reported by crawlability.ts (ROBOTS_TXT_SERVER_ERROR) - parsing an
+    // error page here would report its HTML as robots.txt syntax errors.
+    if (response.status >= 400) {
       return {
         issues,
         data: {

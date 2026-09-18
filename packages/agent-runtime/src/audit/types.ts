@@ -126,6 +126,15 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     impact: 'Your entire site will not be indexed by search engines.',
     howToFix: 'Update robots.txt to allow crawling of important pages.',
   },
+  ROBOTS_TXT_SERVER_ERROR: {
+    code: 'ROBOTS_TXT_SERVER_ERROR',
+    severity: 'warning',
+    category: 'crawlability',
+    title: 'robots.txt returns a server error',
+    description: 'Requesting /robots.txt returned a 5xx (or 429) status instead of the file or a 404.',
+    impact: 'Google treats a 5xx/429 robots.txt as "disallow everything" and stops crawling the whole site until it gets a real answer.',
+    howToFix: 'Serve robots.txt with a 200 (or return a 404 if you have none). Check the server/CDN route for /robots.txt.',
+  },
   SITEMAP_MISSING: {
     code: 'SITEMAP_MISSING',
     severity: 'warning',
@@ -191,14 +200,35 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
   },
 
   // ==================== INDEXABILITY ====================
+  // Base severity for a noindexed page other than the audited root;
+  // on-page.ts raises it to 'error' on the site root (a noindexed homepage
+  // takes the whole site out of search).
   NOINDEX_TAG: {
     code: 'NOINDEX_TAG',
-    severity: 'notice',
+    severity: 'warning',
     category: 'indexability',
-    title: 'Page has noindex tag',
-    description: 'The page contains a noindex meta tag or X-Robots-Tag header.',
+    title: 'Page has noindex meta tag',
+    description: 'The page contains a robots/googlebot meta tag with noindex (or none).',
     impact: 'This page will not appear in search results.',
-    howToFix: 'Remove the noindex tag if you want this page indexed.',
+    howToFix: 'Remove the noindex directive from the robots meta tag if you want this page indexed.',
+  },
+  NOINDEX_HEADER: {
+    code: 'NOINDEX_HEADER',
+    severity: 'warning',
+    category: 'indexability',
+    title: 'Page sends X-Robots-Tag: noindex',
+    description: 'The HTTP response carries an X-Robots-Tag header with noindex (or none).',
+    impact: 'This page will not appear in search results, whatever the HTML says.',
+    howToFix: 'Remove noindex from the X-Robots-Tag header in your server, CDN or hosting config.',
+  },
+  HTTP_ERROR_STATUS: {
+    code: 'HTTP_ERROR_STATUS',
+    severity: 'error',
+    category: 'indexability',
+    title: 'Page returns an HTTP error status',
+    description: 'The audited URL answered with a 4xx or 5xx status code.',
+    impact: 'Search engines drop pages that return 4xx, and stop crawling pages (and eventually sites) that keep returning 5xx.',
+    howToFix: 'Make the URL return 200. For a moved page use a 301 to its new address; for a server error check the application logs.',
   },
   CANONICAL_MISSING: {
     code: 'CANONICAL_MISSING',

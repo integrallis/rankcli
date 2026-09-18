@@ -1,10 +1,11 @@
 import { httpGet } from '../utils/http.js';
 import type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';
+import { ISSUE_DEFINITIONS } from './types.js';
 import type { PremiumChecks } from './premium-checks.types.js';
 import { detectFramework } from '../frameworks/detector.js';
 import { getFrameworkIssues } from '../frameworks/suggestion-engine.js';
 import { runCrawlabilityChecks } from './checks/crawlability.js';
-import { analyzeOnPage } from './checks/on-page.js';
+import { analyzeOnPage, isSiteRoot } from './checks/on-page.js';
 import { analyzeLinks } from './checks/links.js';
 import { analyzeImages } from './checks/images.js';
 import { analyzePerformance, fetchCoreWebVitals } from './checks/performance.js';
@@ -78,10 +79,38 @@ export interface AuditOptions {
    * checksLimit alone cannot unlock premium checks, regardless of its value.
    */
   premiumChecks?: PremiumChecks;
+  /**
+   * The URL the user asked to audit, when `url` is one of several pages
+   * being audited on its behalf (the CLI audits discovered pages one
+   * runFullAudit call at a time). A noindex on this page - or on the site's
+   * homepage - is an error; on any other page it's a warning. Defaults to
+   * `url` itself.
+   */
+  auditRootUrl?: string;
+}
+
+/**
+ * Why the page itself couldn't be audited, if it couldn't. Drives the score
+ * cap in createReport: a page search engines can't fetch or that returns an
+ * error status is not "91/100 healthy" no matter how few other issues the
+ * checks that did run found.
+ */
+type PageFailure = { kind: 'unreachable' } | { kind: 'http-error'; statusCode: number };
+
+function sameUrl(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const path = (u: URL) => u.pathname.replace(/\/+$/, '') || '/';
+    return ua.origin === ub.origin && path(ua) === path(ub) && ua.search === ub.search;
+  } catch {
+    return a === b;
+  }
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
   const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks } = options;
+  const auditRoot = isSiteRoot(url) || sameUrl(url, options.auditRootUrl ?? url);
   const allIssues: AuditIssue[] = [];
   const pages: PageAudit[] = [];
 
@@ -136,7 +165,24 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
       affectedUrls: [url],
       details: { error: errorMsg, cause: errorCause || undefined },
     });
-    return createReport(url, domain, allIssues, pages);
+    return createReport(url, domain, allIssues, pages, { kind: 'unreachable' });
+  }
+
+  // The fetch above accepts any status (validateStatus: () => true) so the
+  // response can still be inspected - which means a 404 or 500 used to be
+  // audited as if it were the real page: an error page with a title and an
+  // H1 scored 70 with no mention of the status at all.
+  const statusCode = fetchResult.status;
+  if (statusCode >= 400) {
+    allIssues.push({
+      ...ISSUE_DEFINITIONS.HTTP_ERROR_STATUS,
+      title: `Page returns HTTP ${statusCode}`,
+      description: `The audited URL answered with HTTP ${statusCode}${fetchResult.statusText ? ` ${fetchResult.statusText}` : ''}. Page content checks were skipped - they would only be grading the error page.`,
+      affectedUrls: [url],
+      details: { statusCode },
+    });
+    pages.push({ url, statusCode, wordCount: 0, loadTime: 0, issues: allIssues.map(i => i.code) });
+    return createReport(url, domain, allIssues, pages, { kind: 'http-error', statusCode });
   }
 
   // cheerio (htmlparser2) treats <noscript> contents as opaque text, not
@@ -146,19 +192,21 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // gets scored as if it has no title/H1/links at all. Strip just the
   // wrapper tags (keeping their inner markup in place) so the fallback
   // content is credited like any other real HTML on the page.
-  const html = fetchResult.data.replace(/<\/?noscript[^>]*>/gi, '');
+  // httpGet parses application/json bodies - keep the string form either way.
+  const body = typeof fetchResult.data === 'string' ? fetchResult.data : JSON.stringify(fetchResult.data ?? '');
+  const html = body.replace(/<\/?noscript[^>]*>/gi, '');
   const headers = fetchResult.headers;
 
   // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
   console.error(`📝 Phase 2: Running synchronous HTML checks (tier: ${tier}, limit: ${checksLimit})...`);
 
   // ===== CORE CHECKS (all tiers) =====
-  const onPageResult = analyzeOnPage(html, url);
+  const onPageResult = analyzeOnPage(html, url, headers, { auditRoot });
   const structuredDataResult = analyzeStructuredData(html, url);
   const mobileResult = analyzeMobile(html, url);
   const mobileResourceIssues = checkMobileResources(html, url);
   const socialResult = analyzeSocialMeta(html, url);
-  const soft404Result = detectSoft404(html, url, 200);
+  const soft404Result = detectSoft404(html, url, statusCode);
   const serpResult = analyzeSERPPreview(html, url);
   const domResult = analyzeDOMStructure(html, url);
   const techResult = detectTechnologies(html, url, headers);
@@ -415,7 +463,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // ========== CREATE PAGE AUDIT ==========
   pages.push({
     url,
-    statusCode: 200,
+    statusCode,
     title: onPageResult.data.title,
     description: onPageResult.data.description,
     canonical: onPageResult.data.canonical,
@@ -430,9 +478,26 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   return createReport(url, domain, allIssues, pages);
 }
 
-function createReport(url: string, domain: string, issues: AuditIssue[], pages: PageAudit[]): AuditReport {
+function createReport(
+  url: string,
+  domain: string,
+  issues: AuditIssue[],
+  pages: PageAudit[],
+  pageFailure?: PageFailure,
+): AuditReport {
   // Calculate health score
   const healthScore = calculateHealthScore(issues);
+
+  // A page that couldn't be fetched, or that answered 4xx/5xx, had none of
+  // its content checks run - so the per-category scores computed above only
+  // reflect "no issues found by checks that never ran". Zero everything
+  // except crawlability (robots.txt/sitemap were genuinely checked): an
+  // unreachable site used to score 91 and pass any score gate.
+  if (pageFailure) {
+    for (const key of Object.keys(healthScore) as (keyof HealthScore)[]) {
+      if (key !== 'crawlability') healthScore[key] = 0;
+    }
+  }
 
   // Count issues by severity
   const errors = issues.filter(i => i.severity === 'error').length;
@@ -449,8 +514,8 @@ function createReport(url: string, domain: string, issues: AuditIssue[], pages: 
     timestamp: new Date().toISOString(),
     crawlStats: {
       totalUrls: 1,
-      crawledUrls: 1,
-      errorUrls: 0,
+      crawledUrls: pageFailure?.kind === 'unreachable' ? 0 : 1,
+      errorUrls: pageFailure ? 1 : 0,
       redirectUrls: 0,
       blockedUrls: 0,
     },
