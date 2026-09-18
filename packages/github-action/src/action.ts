@@ -1,29 +1,35 @@
 /**
- * GitHub Action Logic
- *
- * Core functionality for the SEO Autopilot GitHub Action.
- * Parses inputs, formats outputs, and determines pass/fail status.
+ * GitHub Action logic: inputs, the pass/fail gate, and the PR comment.
+ * Pure functions - run.ts does the I/O.
  */
 
-export type AlertType = 'error' | 'score_drop' | 'weekly_report' | 'pr_created';
+/**
+ * Alert triggers the action implements:
+ * - error: the audit found at least one error-severity issue
+ * - failure: the action failed (gate tripped, or the site couldn't be audited)
+ */
+export type AlertTrigger = 'error' | 'failure';
+const ALERT_TRIGGERS: readonly AlertTrigger[] = ['error', 'failure'];
 
-export type CreatePrMode = 'true' | 'false' | 'auto';
+/**
+ * Inputs the action used to declare but never implemented. Still declared
+ * in action.yml (with a deprecationMessage) so an existing workflow gets a
+ * warning instead of an "Unexpected input" error.
+ */
+export const REMOVED_INPUTS = ['create-pr', 'pr-threshold-errors', 'pr-threshold-score', 'pr-base-branch', 'checks'] as const;
 
 export interface ActionInputs {
   url: string;
   apiKey?: string;
   githubToken?: string;
-  createPr: CreatePrMode;
-  prBaseBranch: string;
-  prThresholdErrors: number;
-  prThresholdScore: number;
   commentOnPr: boolean;
   failOnError: boolean;
   scoreThreshold: number;
   slackWebhook?: string;
   discordWebhook?: string;
-  alertOn: AlertType[];
-  checks?: string[];
+  alertOn: AlertTrigger[];
+  /** Human-readable warnings about inputs (removed, unsupported values). */
+  warnings: string[];
 }
 
 export interface CategorySummary {
@@ -38,77 +44,94 @@ export interface AuditSummary {
   errorsCount: number;
   warningsCount: number;
   categories: Record<string, CategorySummary>;
-  reportUrl?: string;
-  fixPrUrl?: string;
+  /** Set when the page itself couldn't be audited (unreachable / 4xx / 5xx). */
+  pageFailure?: string;
+}
+
+export interface GateResult {
+  passed: boolean;
+  failures: string[];
 }
 
 type GetInputFn = (name: string) => string;
+
+const isTrue = (value: string) => value.trim().toLowerCase() === 'true';
 
 /**
  * Parses action inputs from the GitHub Actions environment
  */
 export function parseInputs(getInput: GetInputFn): ActionInputs {
-  const url = getInput('url');
+  const warnings: string[] = [];
+  const url = getInput('url').trim();
   const apiKey = getInput('api-key') || process.env.RANKCLI_API_KEY || undefined;
   const githubToken = getInput('github-token') || undefined;
-  
-  // create-pr can be 'true', 'false', or 'auto'
-  const createPrRaw = getInput('create-pr') || 'false';
-  const createPr: CreatePrMode = createPrRaw === 'auto' ? 'auto' : (createPrRaw === 'true' ? 'true' : 'false');
-  
-  const prBaseBranch = getInput('pr-base-branch') || 'main';
-  const prThresholdErrors = parseInt(getInput('pr-threshold-errors') || '1', 10);
-  const prThresholdScore = parseInt(getInput('pr-threshold-score') || '70', 10);
   const commentOnPr = getInput('comment-on-pr') !== 'false'; // default true
-  const failOnError = getInput('fail-on-error') === 'true';
-  const scoreThreshold = parseInt(getInput('score-threshold') || '0', 10);
+  // The site docs have always said `fail-on-errors`; action.yml said
+  // `fail-on-error`. Accept both - either one set to true turns it on.
+  const failOnError = isTrue(getInput('fail-on-error')) || isTrue(getInput('fail-on-errors'));
+  const scoreThreshold = parseInt(getInput('score-threshold') || '0', 10) || 0;
   const slackWebhook = getInput('slack-webhook') || undefined;
   const discordWebhook = getInput('discord-webhook') || undefined;
 
-  const alertOnStr = getInput('alert-on') || 'error';
-  const alertOn = alertOnStr
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0) as AlertType[];
+  const alertOn: AlertTrigger[] = [];
+  for (const value of (getInput('alert-on') || 'error').split(',').map(s => s.trim()).filter(Boolean)) {
+    if ((ALERT_TRIGGERS as readonly string[]).includes(value)) {
+      if (!alertOn.includes(value as AlertTrigger)) alertOn.push(value as AlertTrigger);
+    } else {
+      warnings.push(`alert-on "${value}" is not supported and was ignored (supported: ${ALERT_TRIGGERS.join(', ')})`);
+    }
+  }
 
-  const checksStr = getInput('checks');
-  const checks = checksStr && checksStr !== 'all'
-    ? checksStr.split(',').map((s) => s.trim())
-    : undefined;
+  const createPr = getInput('create-pr').trim().toLowerCase();
+  if (createPr === 'true' || createPr === 'auto') {
+    warnings.push(
+      'create-pr was removed: it never opened a PR. For auto-fix PRs, run `rankcli setup --github-action --sync` ' +
+      'in your repo - the workflow it writes runs `rankcli fix` and opens the PR.',
+    );
+  }
+  const checks = getInput('checks').trim();
+  if (checks && checks !== 'all') {
+    warnings.push('checks was removed: it never filtered anything. Every check runs.');
+  }
 
   return {
     url,
     apiKey,
     githubToken,
-    createPr,
-    prBaseBranch,
-    prThresholdErrors,
-    prThresholdScore,
     commentOnPr,
     failOnError,
     scoreThreshold,
     slackWebhook,
     discordWebhook,
     alertOn,
-    checks,
+    warnings,
   };
 }
 
 /**
- * Determines if PR should be created based on auto mode thresholds
+ * The action's pass/fail decision. A page that couldn't be audited always
+ * fails - it scores 0 and a green check would say the site is fine - the
+ * other two conditions are the opt-in fail-on-error / score-threshold.
  */
-export function shouldCreatePr(
-  inputs: ActionInputs, 
-  summary: AuditSummary
-): boolean {
-  if (inputs.createPr === 'true') return true;
-  if (inputs.createPr === 'false') return false;
-  
-  // Auto mode - create PR if thresholds exceeded
-  if (summary.errorsCount >= inputs.prThresholdErrors) return true;
-  if (summary.score < inputs.prThresholdScore) return true;
-  
-  return false;
+export function evaluateGate(inputs: Pick<ActionInputs, 'failOnError' | 'scoreThreshold'>, summary: AuditSummary): GateResult {
+  const failures: string[] = [];
+  if (summary.pageFailure) {
+    failures.push(`${summary.url} could not be audited: ${summary.pageFailure}`);
+  }
+  if (inputs.failOnError && summary.errorsCount > 0) {
+    failures.push(`SEO audit found ${summary.errorsCount} error${summary.errorsCount === 1 ? '' : 's'}`);
+  }
+  if (inputs.scoreThreshold > 0 && summary.score < inputs.scoreThreshold) {
+    failures.push(`SEO score ${summary.score} is below threshold ${inputs.scoreThreshold}`);
+  }
+  return { passed: failures.length === 0, failures };
+}
+
+/**
+ * Determines if the action should fail based on inputs and results
+ */
+export function shouldFail(inputs: Pick<ActionInputs, 'failOnError' | 'scoreThreshold'>, summary: AuditSummary): boolean {
+  return !evaluateGate(inputs, summary).passed;
 }
 
 /**
@@ -145,8 +168,8 @@ function formatCategoryName(category: string): string {
 /**
  * Formats the audit summary as a PR comment
  */
-export function formatPRComment(summary: AuditSummary): string {
-  const { url, score, issuesCount, errorsCount, warningsCount, categories, reportUrl, fixPrUrl } = summary;
+export function formatPRComment(summary: AuditSummary, gate?: GateResult): string {
+  const { url, score, issuesCount, errorsCount, warningsCount, categories } = summary;
   const color = getScoreColor(score);
 
   let comment = `## SEO Audit Report
@@ -155,7 +178,16 @@ export function formatPRComment(summary: AuditSummary): string {
 
 **URL:** ${url}
 
-### Summary
+`;
+
+  if (gate && !gate.passed) {
+    comment += `> [!CAUTION]
+> **SEO check failed:** ${gate.failures.join('; ')}
+
+`;
+  }
+
+  comment += `### Summary
 
 | Metric | Value |
 |--------|-------|
@@ -181,45 +213,9 @@ export function formatPRComment(summary: AuditSummary): string {
     comment += '\n';
   }
 
-  // Fix PR link
-  if (fixPrUrl) {
-    const prNumber = fixPrUrl.match(/\/pull\/(\d+)/)?.[1] || '';
-    comment += `### :wrench: Auto-Fix PR
-
-A pull request with fixes has been created: [PR #${prNumber}](${fixPrUrl})
-
-`;
-  }
-
-  // Report link
-  if (reportUrl) {
-    comment += `### :page_facing_up: Full Report
-
-[View Full Report](${reportUrl})
-
-`;
-  }
-
   // Footer
   comment += `---
-:robot: Powered by [SEO Autopilot](https://github.com/seo-autopilot/seo-autopilot)`;
+:robot: Powered by [RankCLI](https://rankcli.dev)`;
 
   return comment;
-}
-
-/**
- * Determines if the action should fail based on inputs and results
- */
-export function shouldFail(inputs: ActionInputs, summary: AuditSummary): boolean {
-  // Fail on errors if configured
-  if (inputs.failOnError && summary.errorsCount > 0) {
-    return true;
-  }
-
-  // Fail if score below threshold
-  if (inputs.scoreThreshold > 0 && summary.score < inputs.scoreThreshold) {
-    return true;
-  }
-
-  return false;
 }
