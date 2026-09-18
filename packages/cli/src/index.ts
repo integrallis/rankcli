@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
-import { audit } from './commands/audit.js';
+import { audit, AUDIT_HELP_TEXT } from './commands/audit.js';
 import { apply } from './commands/apply.js';
 import { fix } from './commands/fix.js';
 import { trackAdd, trackStatus, trackHistory, trackExport, trackCheck } from './commands/track.js';
@@ -62,10 +62,17 @@ program
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
   .option('--max-pages <n>', 'Max pages to crawl (default: 5)')
-  .option('--ai', 'Enable AI analysis')
-  .option('--ai-provider <provider>', 'AI provider: openai, anthropic, openrouter, groq, or gemini (auto-detected from env if omitted)')
-  .option('--ai-key <key>', 'API key (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY)')
-  .action(audit);
+  .option('--fail-on <level>', 'CI gate: exit 1 if any issue is at or above this severity (error, warning, notice)')
+  .option('--min-score <n>', 'CI gate: exit 1 if the overall score is below n (0-100)')
+  .option('--ai', 'Enable AI analysis (your own key, or a local model)')
+  .option('--ai-provider <provider>', 'AI provider (auto-detected if omitted): openrouter, openai, anthropic, groq, gemini, deepseek, mistral, cerebras, together, fireworks, ollama, lmstudio, llamacpp, vllm, custom')
+  .option('--ai-key <key>', 'AI provider API key (or set the provider\'s env var, e.g. OPENROUTER_API_KEY)')
+  .option('--ai-model <model>', 'Model id (defaults to a cheap model per provider, or the local server\'s loaded model)')
+  .option('--ai-base-url <url>', 'OpenAI-compatible base URL, e.g. http://localhost:8080/v1 (implies --ai-provider custom)')
+  .addHelpText('after', AUDIT_HELP_TEXT)
+  .action(async (options) => {
+    process.exitCode = await audit(options);
+  });
 
 program
   .command('apply')

@@ -1,14 +1,14 @@
-import { runFullAudit, formatReport, discoverPagesFromLinks, frameworks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
+import { runFullAudit, discoverPagesFromLinks, frameworks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
 
 const { detectFramework, getFrameworkDisplayName } = frameworks;
-import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl } from '../lib/config.js';
-import { showUpsell, TIER_LIMITS, type TierId } from '../lib/upsell.js';
+import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
+import { showUpsell, TIER_LIMITS, tierFromPlanId, type TierId } from '../lib/upsell.js';
 import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
-import { OPENAI_FAST, ANTHROPIC_FAST } from '../models.js';
+import { resolveAIProvider, runAIAnalysis, AI_PROVIDERS, AI_PROVIDER_IDS, AI_ENV_KEYS, type AIAnalysis } from '../lib/ai.js';
 
-interface AuditOptions {
+export interface AuditOptions {
   url?: string;
   output?: string;
   checkLinks?: boolean;
@@ -16,13 +16,85 @@ interface AuditOptions {
   ai?: boolean;
   aiProvider?: string;
   aiKey?: string;
+  aiModel?: string;
+  aiBaseUrl?: string;
   geo?: boolean;
+  /** CI gate: exit 1 if any issue is at or above this severity. */
+  failOn?: string;
+  /** CI gate: exit 1 if the overall score is below this. */
+  minScore?: string;
 }
 
-interface AIAnalysis {
-  contentScore: number;
-  suggestions: string[];
-  prioritizedFixes: Array<{ code: string; priority: number; rationale: string }>;
+/**
+ * `rankcli audit` exit codes. Documented in `rankcli audit --help` and the
+ * CLI README - CI scripts branch on these, so never renumber them.
+ */
+export const EXIT_CODES = {
+  /** Audit completed and no --fail-on / --min-score gate tripped. */
+  OK: 0,
+  /** A --fail-on or --min-score gate tripped. */
+  GATE_FAILED: 1,
+  /** Bad invocation: missing/invalid --url or an invalid flag value. */
+  USAGE: 2,
+  /** No real audit: the site was unreachable, the URL answered 4xx/5xx, no page could be analyzed, or an internal error. */
+  AUDIT_FAILED: 3,
+} as const;
+
+export const FAIL_ON_LEVELS = ['error', 'warning', 'notice'] as const;
+export type FailOnLevel = (typeof FAIL_ON_LEVELS)[number];
+
+// 'critical' and 'info' exist in the runtime's severity type as well.
+const SEVERITY_RANK: Record<string, number> = { critical: 4, error: 3, warning: 2, notice: 1, info: 1 };
+
+export interface GateResult {
+  failOn?: FailOnLevel;
+  minScore?: number;
+  passed: boolean;
+  failures: string[];
+}
+
+/** Evaluate the CI gates against the audit's merged issues and overall score. */
+export function evaluateGate(issues: AuditIssue[], score: number, failOn?: FailOnLevel, minScore?: number): GateResult {
+  const failures: string[] = [];
+  if (failOn) {
+    const threshold = SEVERITY_RANK[failOn];
+    const hits = issues.filter(i => (SEVERITY_RANK[i.severity] ?? 0) >= threshold);
+    if (hits.length > 0) {
+      const counts = new Map<string, number>();
+      for (const i of hits) counts.set(i.severity, (counts.get(i.severity) || 0) + 1);
+      const breakdown = [...counts.entries()]
+        .sort((a, b) => (SEVERITY_RANK[b[0]] ?? 0) - (SEVERITY_RANK[a[0]] ?? 0))
+        .map(([severity, n]) => `${n} ${severity}`)
+        .join(', ');
+      failures.push(`${hits.length} issue${hits.length === 1 ? '' : 's'} at or above --fail-on ${failOn} (${breakdown})`);
+    }
+  }
+  if (minScore !== undefined && score < minScore) {
+    failures.push(`score ${score} is below --min-score ${minScore}`);
+  }
+  return { failOn, minScore, passed: failures.length === 0, failures };
+}
+
+/** Parse --fail-on / --min-score. Returns an error message for invalid values. */
+export function parseGateOptions(options: Pick<AuditOptions, 'failOn' | 'minScore'>): { failOn?: FailOnLevel; minScore?: number; error?: string } {
+  let failOn: FailOnLevel | undefined;
+  let minScore: number | undefined;
+  if (options.failOn !== undefined) {
+    const level = String(options.failOn).trim().toLowerCase();
+    if (!(FAIL_ON_LEVELS as readonly string[]).includes(level)) {
+      return { error: `Invalid --fail-on "${options.failOn}" (use ${FAIL_ON_LEVELS.join(', ')})` };
+    }
+    failOn = level as FailOnLevel;
+  }
+  if (options.minScore !== undefined) {
+    const raw = String(options.minScore).trim();
+    const n = Number(raw);
+    if (raw === '' || !Number.isFinite(n) || n < 0 || n > 100) {
+      return { error: `Invalid --min-score "${options.minScore}" (use a number from 0 to 100)` };
+    }
+    minScore = n;
+  }
+  return { failOn, minScore };
 }
 
 /**
@@ -53,114 +125,10 @@ async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
   }
 }
 
-// OpenAI, OpenRouter, Groq, and Gemini (via its OpenAI-compatibility
-// endpoint) all speak the same /chat/completions shape - only the base URL
-// and model differ. Anthropic's Messages API is genuinely different (system
-// is top-level, x-api-key auth, content comes back as typed blocks) and
-// gets its own branch below, same split used throughout the saas backend.
-const AI_PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
-  openai: { baseUrl: 'https://api.openai.com/v1', model: OPENAI_FAST },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'openrouter/free' },
-  groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
-};
-
 /**
- * Run AI analysis on the audit results
- */
-async function runAIAnalysis(
-  url: string,
-  issues: AuditIssue[],
-  provider: string,
-  apiKey: string
-): Promise<AIAnalysis | null> {
-  const isAnthropic = provider === 'anthropic';
-  const providerConfig = AI_PROVIDER_DEFAULTS[provider] || AI_PROVIDER_DEFAULTS.openai;
-  const apiUrl = isAnthropic
-    ? 'https://api.anthropic.com/v1/messages'
-    : `${providerConfig.baseUrl}/chat/completions`;
-
-  const prompt = `Analyze these SEO audit results and provide prioritized recommendations:
-
-URL: ${url}
-
-Issues found:
-${issues.map(i => `- [${i.severity.toUpperCase()}] ${i.code}: ${i.title}`).join('\n')}
-
-Return JSON with:
-{
-  "contentScore": <0-100 overall content quality>,
-  "suggestions": [<3-5 high-impact suggestions>],
-  "prioritizedFixes": [
-    {"code": "<issue code>", "priority": <1-5>, "rationale": "<why fix this first>"}
-  ]
-}`;
-
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    let body: string;
-
-    if (isAnthropic) {
-      headers['x-api-key'] = apiKey;
-      headers['anthropic-version'] = '2023-06-01';
-      body = JSON.stringify({
-        model: ANTHROPIC_FAST,
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }],
-      });
-    } else {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-      if (provider === 'openrouter') {
-        // Attributes usage to RankCLI in OpenRouter's dashboard - harmless
-        // to omit for other providers, so only set it for that one.
-        headers['HTTP-Referer'] = 'https://rankcli.dev';
-        headers['X-Title'] = 'RankCLI';
-      }
-      body = JSON.stringify({
-        model: providerConfig.model,
-        messages: [
-          { role: 'system', content: 'You are an SEO expert. Respond with valid JSON only.' },
-          { role: 'user', content: prompt },
-        ],
-        // OpenAI's GPT-5.6 rejects max_tokens; other OpenAI-compatible servers still expect it.
-        ...(provider === 'openai' ? { max_completion_tokens: 1500 } : { max_tokens: 1500 }),
-        // json_object mode is an OpenAI-specific extension - Groq supports
-        // it too, but not every OpenAI-compatible server does, so only
-        // request it for providers confirmed to support it.
-        ...(provider === 'openai' || provider === 'groq' ? { response_format: { type: 'json_object' } } : {}),
-      });
-    }
-
-    const response = await fetch(apiUrl, { method: 'POST', headers, body });
-
-    if (!response.ok) {
-      console.error(chalk.yellow(`AI analysis failed: ${response.status}`));
-      return null;
-    }
-
-    const data = await response.json() as Record<string, unknown>;
-    const content = isAnthropic
-      ? (data.content as Array<{ text?: string }>)?.[0]?.text
-      : (data.choices as Array<{ message?: { content?: string } }>)?.[0]?.message?.content;
-
-    if (!content) return null;
-
-    // Extract JSON from response (handle markdown code blocks)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    return JSON.parse(jsonMatch[0]) as AIAnalysis;
-  } catch (error) {
-    console.error(chalk.yellow(`AI analysis error: ${error}`));
-    return null;
-  }
-}
-
-/**
- * Merge issues from multiple pages, aggregating affected URLs
+ * Merge issues from multiple pages, aggregating affected URLs. When pages
+ * report the same code at different severities (noindex is an error on the
+ * audited root, a warning elsewhere) the most severe wins.
  */
 function mergeIssues(issueArrays: AuditIssue[][]): AuditIssue[] {
   const issueMap = new Map<string, AuditIssue>();
@@ -171,6 +139,9 @@ function mergeIssues(issueArrays: AuditIssue[][]): AuditIssue[] {
       if (existing) {
         const urls = new Set([...(existing.affectedUrls || []), ...(issue.affectedUrls || [])]);
         existing.affectedUrls = Array.from(urls);
+        if ((SEVERITY_RANK[issue.severity] ?? 0) > (SEVERITY_RANK[existing.severity] ?? 0)) {
+          existing.severity = issue.severity;
+        }
       } else {
         issueMap.set(issue.code, { ...issue });
       }
@@ -243,9 +214,11 @@ async function syncToCloud(
     };
 
     if (!res.ok) {
+      // stderr, not stdout: this also runs in --output json mode, where
+      // stdout must be exactly one JSON document.
       if (data.error === 'project_limit_reached') {
-        console.log(chalk.yellow(`\n⚠️  Project limit reached (${data.count}/${data.limit})`));
-        console.log(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
+        console.error(chalk.yellow(`\n⚠️  Project limit reached (${data.count}/${data.limit})`));
+        console.error(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
       } else {
         console.error(chalk.dim(data.error || 'Cloud sync failed'));
       }
@@ -264,88 +237,101 @@ async function syncToCloud(
   }
 }
 
-export async function audit(options: AuditOptions): Promise<void> {
-  const url = options.url;
-  const maxPages = parseInt(options.maxPages || '5', 10);
-  const enableAI = options.ai || false;
-  // Auto-detect provider from whichever key is actually set, when not
-  // given explicitly - free/cheap providers first (OpenRouter, Groq,
-  // Gemini all have genuinely free tiers), OpenAI/Anthropic as the
-  // familiar fallback. `--ai-key` alone (no --ai-provider) still assumes
-  // OpenAI, matching this flag's original meaning.
-  const detectedProvider = options.aiProvider || (
-    process.env.OPENROUTER_API_KEY ? 'openrouter' :
-    process.env.GROQ_API_KEY ? 'groq' :
-    (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? 'gemini' :
-    process.env.ANTHROPIC_API_KEY ? 'anthropic' :
-    'openai'
-  );
-  const aiProvider = detectedProvider;
-  const providerEnvKey: Record<string, string | undefined> = {
-    openai: process.env.OPENAI_API_KEY,
-    anthropic: process.env.ANTHROPIC_API_KEY,
-    openrouter: process.env.OPENROUTER_API_KEY,
-    groq: process.env.GROQ_API_KEY,
-    gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
-  };
-  const aiKey = options.aiKey || providerEnvKey[aiProvider] || '';
-
-  // Check login status
-  const loggedIn = isLoggedIn();
-
-  // Real entitlement: planId comes from validateApiKey() at login time,
-  // a validated call to the backend - not anything checkable client-side.
-  // Unrecognized/missing planId falls back to registered vs. anonymous
-  // free tiers rather than paid, so a sync gap never grants extra checks.
-  const { planId } = getUserInfo();
-  const tierId: TierId = planId && planId in TIER_LIMITS ? (planId as TierId) : loggedIn ? 'free' : 'free_anon';
-  const checksLimit: number = TIER_LIMITS[tierId].checks;
-
-  // Only paid tiers get premium checks, and only if this build actually
-  // has a decrypt passphrase embedded (local/dev builds may not). A
-  // decrypt failure here falls back to running without premium checks
-  // rather than failing the whole audit.
-  let premiumChecks: PremiumChecks | undefined;
-  if (checksLimit > TIER_LIMITS.free.checks) {
-    const passphrase = getDecryptPassphrase();
-    if (passphrase) {
-      try {
-        await initEngine(passphrase);
-        premiumChecks = await getPremiumChecks();
-      } catch (error) {
-        console.error(chalk.dim(`(premium checks unavailable: ${error instanceof Error ? error.message : error})`));
-      }
-    }
+function printUsage(loggedIn: boolean): void {
+  console.error('\n⚠️  Please provide a URL to audit:');
+  console.error('   rankcli audit --url https://your-site.com');
+  console.error('\nRun "rankcli audit --help" for every option, exit codes, and AI providers.');
+  if (!loggedIn) {
+    console.error(chalk.dim('\nTip: Log in to sync results to the web dashboard:'));
+    console.error(chalk.dim('   rankcli login'));
   }
+  console.error('');
+}
+
+/**
+ * Run an audit and return the process exit code (see EXIT_CODES). The
+ * caller (index.ts) sets process.exitCode - this never calls process.exit,
+ * so stdout is always flushed and the function stays testable.
+ */
+export async function audit(options: AuditOptions): Promise<number> {
+  const url = options.url;
+  const json = options.output === 'json';
+  // In JSON mode stdout carries exactly one JSON document - including on
+  // failure, so `rankcli audit -o json > report.json` never leaves a CI
+  // step parsing an empty file.
+  const fail = (code: number, message: string, extra: Record<string, unknown> = {}): number => {
+    if (json) {
+      console.log(JSON.stringify({ url: url ?? null, error: message, exitCode: code, ...extra }, null, 2));
+    } else {
+      console.error(`\n❌ ${message}\n`);
+    }
+    return code;
+  };
+
+  // ===== Validate the invocation before doing any work =====
+  const gate = parseGateOptions(options);
+  if (gate.error) return fail(EXIT_CODES.USAGE, gate.error);
 
   if (!url) {
-    console.log('\n⚠️  Please provide a URL to audit:');
-    console.log('   rankcli audit --url https://your-site.com');
-    console.log('\nOptions:');
-    console.log('   --max-pages <n>     Max pages to crawl (default: 5)');
-    console.log('   --ai                Enable AI analysis');
-    console.log('   --ai-provider <p>   AI provider: openai, anthropic, openrouter, groq, or gemini (auto-detected from env if omitted)');
-    console.log('   --ai-key <key>      API key (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY)');
-    console.log('   --output json       Output as JSON');
-    if (!loggedIn) {
-      console.log(chalk.dim('\nTip: Log in to sync results to the web dashboard:'));
-      console.log(chalk.dim('   rankcli login'));
-    }
-    console.log('');
-    return;
+    if (json) return fail(EXIT_CODES.USAGE, 'No URL given - use --url https://your-site.com');
+    printUsage(isLoggedIn());
+    return EXIT_CODES.USAGE;
   }
 
-  // Validate URL
   try {
-    new URL(url);
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('not http(s)');
   } catch {
-    console.log('\n❌ Invalid URL format. Please provide a valid URL.\n');
-    return;
+    return fail(EXIT_CODES.USAGE, `Invalid URL "${url}" - use a full http(s) URL such as https://example.com`);
   }
 
-  const startTime = Date.now();
+  if (options.ai && options.aiProvider && !AI_PROVIDERS[options.aiProvider.trim().toLowerCase()]) {
+    return fail(EXIT_CODES.USAGE, `Unknown --ai-provider "${options.aiProvider}" (use ${AI_PROVIDER_IDS.join(', ')})`);
+  }
+
+  const maxPages = Math.max(1, parseInt(options.maxPages || '5', 10) || 5);
 
   try {
+    // Check login status
+    const loggedIn = isLoggedIn();
+
+    // An API key (RANKCLI_API_KEY in CI, or one saved by `rankcli login`)
+    // resolves its own plan - previously only `login --token`/`whoami`
+    // wrote the plan, so a CI job exporting RANKCLI_API_KEY audited on the
+    // Free tier whatever the account paid for.
+    const keyPlan = await ensureApiKeyPlan();
+    if (keyPlan?.status === 'invalid') {
+      console.error(chalk.yellow(`⚠️  RankCLI API key rejected (${keyPlan.error}) - auditing on the Free tier.`));
+    } else if (keyPlan?.status === 'unavailable') {
+      console.error(chalk.dim(`(could not verify your RankCLI plan: ${keyPlan.error})`));
+    }
+
+    // Real entitlement: planId comes from validate-api-key (or the session's
+    // subscription row) - not anything a user chose. An unrecognized plan
+    // falls back to the registered/anonymous free tiers, never to paid.
+    const { planId } = getUserInfo();
+    const tierId: TierId = tierFromPlanId(planId) ?? (loggedIn ? 'free' : 'free_anon');
+    const checksLimit: number = TIER_LIMITS[tierId].checks;
+
+    // Only paid tiers get premium checks, and only if this build actually
+    // has a decrypt passphrase embedded (local/dev builds may not). A
+    // decrypt failure here falls back to running without premium checks
+    // rather than failing the whole audit.
+    let premiumChecks: PremiumChecks | undefined;
+    if (checksLimit > TIER_LIMITS.free.checks) {
+      const passphrase = getDecryptPassphrase();
+      if (passphrase) {
+        try {
+          await initEngine(passphrase);
+          premiumChecks = await getPremiumChecks();
+        } catch (error) {
+          console.error(chalk.dim(`(premium checks unavailable: ${error instanceof Error ? error.message : error})`));
+        }
+      }
+    }
+
+    const startTime = Date.now();
+
     // ===== PHASE 1: Discover pages =====
     const discoverySpinner = ora('Discovering pages...').start();
     let pagesToAudit: string[] = [url];
@@ -379,6 +365,7 @@ export async function audit(options: AuditOptions): Promise<void> {
       try {
         const report = await runFullAudit({
           url: pageUrl,
+          auditRootUrl: url,
           maxPages: 1,
           checkBrokenLinks: options.checkLinks || false,
           // Bundled with --check-links: both mean "verify actual link
@@ -420,34 +407,66 @@ export async function audit(options: AuditOptions): Promise<void> {
 
     if (!primaryReport) {
       auditSpinner.fail('Audit failed - could not analyze any pages');
-      return;
+      return fail(EXIT_CODES.AUDIT_FAILED, `Audit failed - could not analyze ${url}`);
     }
 
-    auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
+    // The engine reports an unreachable page (FETCH_ERROR) or an error
+    // status (HTTP_ERROR_STATUS) as an issue and zeroes the score. That's
+    // a result worth printing, but not a completed audit: exit 3 so no CI
+    // job goes green on a site that is down - with or without gate flags.
+    const pageFailure = primaryReport.issues.find(i => i.code === 'FETCH_ERROR' || i.code === 'HTTP_ERROR_STATUS');
+
+    if (pageFailure) {
+      auditSpinner.fail(`Could not audit ${url}: ${pageFailure.title}`);
+    } else {
+      auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
+    }
 
     // Merge issues from all pages. Framework-specific issues (React/Next.js/
     // WordPress/etc recipes) come from runFullAudit itself now - engine.ts
     // runs the same getFrameworkIssues() this used to call separately here,
     // so server-side audits (free-audit, run-audit) get them too.
     const mergedIssues = mergeIssues(allIssues);
+    const score = primaryReport.healthScore?.overall || 0;
 
-    // ===== PHASE 3: AI Analysis (optional) =====
+    // ===== PHASE 3: AI Analysis (optional, never affects the exit code) =====
     let aiAnalysis: AIAnalysis | null = null;
+    let aiError: string | undefined;
 
-    if (enableAI && aiKey) {
-      const aiSpinner = ora(`Running AI analysis (${aiProvider})...`).start();
-      aiAnalysis = await runAIAnalysis(url, mergedIssues, aiProvider, aiKey);
-      if (aiAnalysis) {
-        aiSpinner.succeed('AI analysis complete');
+    if (options.ai && !pageFailure) {
+      const resolution = await resolveAIProvider({
+        aiProvider: options.aiProvider,
+        aiKey: options.aiKey,
+        aiModel: options.aiModel,
+        aiBaseUrl: options.aiBaseUrl,
+      });
+      if (!resolution.ok) {
+        aiError = resolution.error;
+        console.error(chalk.yellow(`\n⚠️  ${resolution.error}`));
+        for (const hint of resolution.hints) console.error(chalk.dim(`   ${hint}`));
       } else {
-        aiSpinner.warn('AI analysis failed or returned no results');
+        const { ai } = resolution;
+        if (ai.notice) console.error(chalk.dim(ai.notice));
+        const aiSpinner = ora(`Running AI analysis (${ai.label}, ${ai.model})...`).start();
+        const result = await runAIAnalysis(url, mergedIssues, ai);
+        if ('analysis' in result) {
+          aiAnalysis = result.analysis;
+          aiSpinner.succeed('AI analysis complete');
+        } else {
+          aiError = result.error;
+          aiSpinner.warn(`AI analysis failed: ${result.error}`);
+        }
       }
-    } else if (enableAI && !aiKey) {
-      console.log(chalk.yellow('\n⚠️  AI analysis requested but no API key provided'));
-      console.log(chalk.dim('   Set OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY, or use --ai-key'));
     }
 
-    // ===== PHASE 4: Output results =====
+    // ===== PHASE 4: Gate =====
+    const gateResult = evaluateGate(mergedIssues, score, gate.failOn, gate.minScore);
+    const gated = gate.failOn !== undefined || gate.minScore !== undefined;
+    const exitCode = pageFailure
+      ? EXIT_CODES.AUDIT_FAILED
+      : gateResult.passed ? EXIT_CODES.OK : EXIT_CODES.GATE_FAILED;
+
+    // ===== PHASE 5: Output results =====
     const totalTime = Date.now() - startTime;
 
     // Determine framework info for output
@@ -456,11 +475,11 @@ export async function audit(options: AuditOptions): Promise<void> {
       : null;
 
     // Calculate actual checks run from report summary (used for both output modes)
-    const actualChecksRun = (primaryReport.summary?.passed || 0) + 
-                            (primaryReport.summary?.errors || 0) + 
+    const actualChecksRun = (primaryReport.summary?.passed || 0) +
+                            (primaryReport.summary?.errors || 0) +
                             (primaryReport.summary?.warnings || 0) || 200;
 
-    if (options.output === 'json') {
+    if (json) {
       // Sync to cloud for JSON output too (silent, no spinner)
       let syncResult: { projectId: string; auditId: string } | null = null;
       if (loggedIn) {
@@ -469,13 +488,17 @@ export async function audit(options: AuditOptions): Promise<void> {
 
       const jsonOutput = {
         url,
-        score: primaryReport.healthScore?.overall || 0,
+        score,
         pagesAudited: successCount,
         totalTime,
         framework: frameworkName,
         issues: mergedIssues,
         healthScores: primaryReport.healthScore,
         aiAnalysis,
+        ...(aiError && { aiError }),
+        ...(pageFailure && { error: pageFailure.title }),
+        ...(gated && { gate: gateResult }),
+        exitCode,
         // Include cloud sync info if synced
         ...(syncResult && {
           projectId: syncResult.projectId,
@@ -484,6 +507,9 @@ export async function audit(options: AuditOptions): Promise<void> {
         }),
       };
       console.log(JSON.stringify(jsonOutput, null, 2));
+      if (!gateResult.passed) {
+        for (const failure of gateResult.failures) console.error(`Gate failed: ${failure}`);
+      }
     } else {
       // Console output
       console.log('\n' + chalk.bold('═'.repeat(60)));
@@ -491,7 +517,6 @@ export async function audit(options: AuditOptions): Promise<void> {
       console.log(chalk.bold('═'.repeat(60)));
 
       // Score
-      const score = primaryReport.healthScore?.overall || 0;
       const scoreColor = score >= 80 ? chalk.green : score >= 60 ? chalk.yellow : chalk.red;
       console.log(`\n  ${chalk.bold('Score:')} ${scoreColor.bold(score + '/100')}`);
 
@@ -523,9 +548,9 @@ export async function audit(options: AuditOptions): Promise<void> {
       }
 
       // Issues by severity
-      const errors = mergedIssues.filter(i => i.severity === 'error');
+      const errors = mergedIssues.filter(i => i.severity === 'error' || i.severity === 'critical');
       const warnings = mergedIssues.filter(i => i.severity === 'warning');
-      const notices = mergedIssues.filter(i => i.severity === 'notice');
+      const notices = mergedIssues.filter(i => i.severity === 'notice' || i.severity === 'info');
 
       console.log('\n' + chalk.bold('  Issues by Severity:'));
       console.log(`    ${chalk.red('●')} Errors:   ${errors.length}`);
@@ -536,7 +561,7 @@ export async function audit(options: AuditOptions): Promise<void> {
       console.log('\n' + chalk.bold('  Top Issues:'));
       const topIssues = [...errors, ...warnings, ...notices].slice(0, 10);
       topIssues.forEach((issue, i) => {
-        const icon = issue.severity === 'error' ? chalk.red('✗') :
+        const icon = issue.severity === 'error' || issue.severity === 'critical' ? chalk.red('✗') :
                      issue.severity === 'warning' ? chalk.yellow('!') : chalk.blue('i');
         console.log(`    ${i + 1}. ${icon} ${issue.title}`);
         if (issue.affectedUrls && issue.affectedUrls.length > 1) {
@@ -562,20 +587,26 @@ export async function audit(options: AuditOptions): Promise<void> {
         }
       }
 
+      // Gate
+      if (gated) {
+        console.log('');
+        if (gateResult.passed) {
+          console.log(chalk.green(`  ✓ CI gate passed${gate.failOn ? ` (--fail-on ${gate.failOn})` : ''}${gate.minScore !== undefined ? ` (--min-score ${gate.minScore})` : ''}`));
+        } else {
+          for (const failure of gateResult.failures) console.log(chalk.red(`  ✗ CI gate failed: ${failure}`));
+        }
+      }
+
       console.log('\n' + chalk.bold('═'.repeat(60)));
 
-      // Get user tier for upsell logic
-      const userInfo = getUserInfo();
-      const tier = (userInfo.planName?.toLowerCase() || 'free') as TierId;
-      const isFreeTier = !loggedIn || tier === 'free';
-      const isSoloOrBelow = isFreeTier || tier === 'solo';
+      const isFreeTier = tierId === 'free' || tierId === 'free_anon';
 
       // Show checks limit message for free users
       if (isFreeTier) {
         const checksRun = mergedIssues.length > 0 ? (loggedIn ? 100 : 50) : 0;
-        showUpsell('checks_limit', { 
-          tier: loggedIn ? 'free' : 'free_anon', 
-          current: checksRun 
+        showUpsell('checks_limit', {
+          tier: loggedIn ? 'free' : 'free_anon',
+          current: checksRun
         });
       }
 
@@ -600,9 +631,48 @@ export async function audit(options: AuditOptions): Promise<void> {
         // Show upsell for non-authenticated users
         showUpsell('free_audit_complete');
       }
+
+      if (pageFailure) {
+        console.error(chalk.red(`\n❌ ${pageFailure.title}: ${pageFailure.description}\n`));
+      }
     }
 
+    return exitCode;
   } catch (error) {
-    console.log(`\n❌ Audit failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+    return fail(EXIT_CODES.AUDIT_FAILED, `Audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
+/** Help text appended to `rankcli audit --help`. Kept here beside EXIT_CODES. */
+export const AUDIT_HELP_TEXT = `
+Exit codes:
+  0  audit completed; no --fail-on / --min-score gate tripped
+  1  a --fail-on or --min-score gate tripped
+  2  bad invocation (missing/invalid --url, invalid flag value)
+  3  no real audit: site unreachable, the URL answered 4xx/5xx, no page
+     could be analyzed, or an internal error
+
+CI gating (both opt-in; without them any completed audit exits 0):
+  --fail-on error     fail on any error
+  --fail-on warning   fail on any warning or error
+  --fail-on notice    fail on any issue at all
+  --min-score 80      fail if the overall score is below 80
+
+AI analysis (--ai) runs on your own provider. Hosted: ${Object.entries(AI_PROVIDERS)
+  .filter(([, p]) => !p.local)
+  .map(([id]) => id)
+  .join(', ')}.
+  Picked automatically from the first key found in:
+    ${AI_ENV_KEYS.join(', ')}
+  (OpenRouter first). No key at all? A running local Ollama is used.
+  Local: --ai-provider ollama | lmstudio | llamacpp | vllm (no key needed;
+  the loaded model is used unless you pass --ai-model), or any
+  OpenAI-compatible server: --ai-base-url http://host:port/v1 --ai-model <name>
+
+Examples:
+  rankcli audit --url https://example.com
+  rankcli audit --url https://example.com --fail-on error --min-score 80
+  rankcli audit --url https://example.com -o json > report.json
+  rankcli audit --url https://example.com --ai --ai-provider deepseek
+  rankcli audit --url https://example.com --ai --ai-provider ollama --ai-model qwen3:8b
+`;
