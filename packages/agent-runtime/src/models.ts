@@ -18,6 +18,10 @@ export const GOOGLE_FAST = 'gemini-3.7-flash';
 export const GOOGLE_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_FAST}:generateContent`;
 
+/* GPT-5.6 is a reasoning family: on chat/completions it rejects `temperature` (and `top_p`) at any
+ * value and takes `max_completion_tokens`, not `max_tokens`. A rejected call looks like "not
+ * mentioned" wherever the caller swallows !response.ok, so send neither. */
+
 /** ChatGPT — the visibility tracker asks the flagship, because what a person is answered by is what
  *  the tracker claims to measure. */
 export const OPENAI_FLAGSHIP = 'gpt-5.6';

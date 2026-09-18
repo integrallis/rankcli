@@ -125,7 +125,8 @@ Return JSON with:
           { role: 'system', content: 'You are an SEO expert. Respond with valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 1500,
+        // OpenAI's GPT-5.6 rejects max_tokens; other OpenAI-compatible servers still expect it.
+        ...(provider === 'openai' ? { max_completion_tokens: 1500 } : { max_tokens: 1500 }),
         // json_object mode is an OpenAI-specific extension - Groq supports
         // it too, but not every OpenAI-compatible server does, so only
         // request it for providers confirmed to support it.
