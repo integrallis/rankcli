@@ -118,6 +118,51 @@ describe('rankcli track command', () => {
     });
   });
 
+  describe('trackHistory() against the database', () => {
+    // A chainable stand-in for the Supabase client that records the tables queried.
+    function fakeSupabase(tables: Record<string, unknown>) {
+      const queried: string[] = [];
+      const client = {
+        from(table: string) {
+          queried.push(table);
+          const result = { data: tables[table] ?? null, error: null };
+          const query: any = new Proxy({}, {
+            get: (_target, prop) => {
+              if (prop === 'then') return (resolve: (r: unknown) => void) => resolve(result);
+              if (prop === 'single' || prop === 'maybeSingle') return () => Promise.resolve(result);
+              return () => query;
+            },
+          });
+          return query;
+        },
+      };
+      return { client, queried };
+    }
+
+    it('reads the checks recorded in keyword_position_history', async () => {
+      const { client, queried } = fakeSupabase({
+        projects: { id: 'p1', domain: 'example.com', last_rank_check_at: null },
+        keywords: { id: 'k1' },
+        keyword_position_history: [
+          { position: 4, url: 'https://example.com/a', checked_at: '2026-09-18T00:00:00Z' },
+          { position: 7, url: 'https://example.com/a', checked_at: '2026-09-17T00:00:00Z' },
+        ],
+      });
+      const config = await import('../lib/config.js');
+      vi.mocked(config.getAuthenticatedClient).mockResolvedValue(client as never);
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const result = await trackHistory({ url: 'https://example.com', keyword: 'seo cli', output: 'json' });
+
+      expect(result.success).toBe(true);
+      expect(queried).toContain('keyword_position_history');
+      expect(queried).not.toContain('rankings');
+      const printed = JSON.parse(log.mock.calls.map((c) => c[0]).find((c) => String(c).startsWith('{')) as string);
+      expect(printed.history.map((h: { position: number }) => h.position)).toEqual([4, 7]);
+      log.mockRestore();
+    });
+  });
+
   describe('trackExport()', () => {
     it('should require URL', async () => {
       const result = await trackExport({});

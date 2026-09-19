@@ -395,12 +395,13 @@ export async function trackHistory(options: TrackHistoryOptions): Promise<TrackR
     const days = options.days || 30;
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
+    // One row per `rankcli track check` (keyword_position_history).
     const { data: historyData, error } = await supabase
-      .from('rankings')
-      .select('position, url, recorded_at')
+      .from('keyword_position_history')
+      .select('position, url, checked_at')
       .eq('keyword_id', keywordData.id)
-      .gte('recorded_at', cutoff.toISOString())
-      .order('recorded_at', { ascending: false });
+      .gte('checked_at', cutoff.toISOString())
+      .order('checked_at', { ascending: false });
 
     if (error) {
       spinner.fail(`Failed to load history: ${error.message}`);
@@ -412,7 +413,7 @@ export async function trackHistory(options: TrackHistoryOptions): Promise<TrackR
     const history = (historyData || []).map(row => ({
       position: row.position,
       url: row.url,
-      recordedAt: new Date(row.recorded_at),
+      recordedAt: new Date(row.checked_at),
     }));
 
     if (options.output === 'json') {
@@ -422,7 +423,7 @@ export async function trackHistory(options: TrackHistoryOptions): Promise<TrackR
       console.log('═'.repeat(50));
 
       if (history.length === 0) {
-        console.log(chalk.dim('\nNo history available yet.\n'));
+        console.log(chalk.dim(`\nNo checks recorded yet. Run 'rankcli track check --url <your site>' to record one.\n`));
       } else {
         // Show sparkline
         const positions = history.slice(0, 30).reverse().map(h => h.position || 101);
@@ -434,7 +435,7 @@ export async function trackHistory(options: TrackHistoryOptions): Promise<TrackR
         }).join('');
 
         console.log(`\n  ${sparkline}  (last ${positions.length} checks)`);
-        console.log(chalk.dim('  ← newer                    older →\n'));
+        console.log(chalk.dim('  ← older                    newer →\n'));
 
         // Show recent positions
         const recent = history.slice(0, 10);

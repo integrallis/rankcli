@@ -185,32 +185,46 @@ export class RankTracker {
 
     if (updateError) {
       console.error(`Failed to save ranking for ${result.keyword}:`, updateError);
+      return;
+    }
+
+    // One row per check, for `rankcli track history`.
+    const { error: historyError } = await this.supabase
+      .from('keyword_position_history')
+      .insert({
+        keyword_id: keywordId,
+        position: result.position,
+        url: result.url,
+        checked_at: result.checkedAt.toISOString(),
+      });
+
+    if (historyError) {
+      console.error(`Failed to record history for ${result.keyword}:`, historyError);
     }
   }
 
   /**
-   * Get ranking history for a keyword
-   * Note: Full history requires keyword_ranking_history table with keyword_ranking_id
-   * For now, returns current state as single history entry
+   * Ranking history for a keyword: one entry per check in the last `days`, newest first.
    */
-  async getHistory(keywordId: string, _days = 30): Promise<RankHistory[]> {
+  async getHistory(keywordId: string, days = 30): Promise<RankHistory[]> {
     const { data, error } = await this.supabase
-      .from('keywords')
-      .select('current_position, target_url, last_checked')
-      .eq('id', keywordId)
-      .single();
+      .from('keyword_position_history')
+      .select('position, url, checked_at')
+      .eq('keyword_id', keywordId)
+      .gte('checked_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+      .order('checked_at', { ascending: false });
 
     if (error || !data) {
       return [];
     }
 
-    // Return current position as single history entry
-    return [{
-      position: data.current_position,
-      url: data.target_url,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.map((row: any) => ({
+      position: row.position,
+      url: row.url,
       serpFeatures: [],
-      recordedAt: data.last_checked ? new Date(data.last_checked) : new Date(),
-    }];
+      recordedAt: new Date(row.checked_at),
+    }));
   }
 
   /**
