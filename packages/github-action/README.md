@@ -21,7 +21,7 @@ jobs:
   seo:
     runs-on: ubuntu-latest
     steps:
-      - uses: rankcli/audit-action@v1
+      - uses: integrallis/rankcli-action@v1
         with:
           url: https://your-site.com
           fail-on-errors: true
@@ -39,7 +39,7 @@ jobs:
     if: github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: rankcli/audit-action@v1
+      - uses: integrallis/rankcli-action@v1
         with:
           url: ${{ github.event.deployment_status.target_url }}
           fail-on-errors: true
@@ -50,7 +50,7 @@ Preview hosts (`*.vercel.app`, `*.netlify.app`, `*.pages.dev`) add `X-Robots-Tag
 ### Slack / Discord alerts
 
 ```yaml
-- uses: rankcli/audit-action@v1
+- uses: integrallis/rankcli-action@v1
   with:
     url: https://your-site.com
     slack-webhook: ${{ secrets.SLACK_WEBHOOK }}
@@ -98,16 +98,25 @@ The step does **not** fail when:
 | `report-json` | Full report as JSON |
 | `rate-limit-remaining` / `rate-limit-resets-at` | RankCLI API quota (when `api-key` is set) |
 
-## Maintainers: releasing
+## Security
 
-This package lives in the private RankCLI monorepo. The consumable action is the public repo `rankcli/audit-action`, which holds only `action.yml`, `README.md`, `LICENSE` and the built `dist/`. To stage a release there:
+**What leaves your runner.** The audit runs in your runner and fetches only the URL you give it (plus its robots.txt, sitemap and linked assets). With `api-key` set, the key is sent once to RankCLI's key check (`validate-api-key`) to look up your plan. Alerts go only to the webhooks you configure, and the PR comment goes through the GitHub API with `github-token`. Nothing else is sent anywhere; there's no telemetry.
 
-```bash
-git clone git@github.com:rankcli/audit-action.git ~/src/audit-action
-packages/github-action/scripts/publish-action.sh ~/src/audit-action 1.0.0
+**Pin the action.** A tag like `@v1` can move. For supply-chain safety, pin to a full commit SHA and let Dependabot propose updates:
+
+```yaml
+- uses: integrallis/rankcli-action@<commit-sha> # v1.0.0
 ```
 
-The script builds and tests the action, copies it into the clone, commits, tags `v1.0.0` and moves `v1`. It prints the push commands and pushes nothing itself.
+**Least privilege.** The action needs `contents: read`, plus `pull-requests: write` only if you want the PR comment. Set `permissions:` explicitly, as in the examples above.
+
+**Secrets.** Pass the API key and webhook URLs through `secrets.*`. The action also masks them in its logs if they arrive as plain text.
+
+**Fork pull requests.** Use the `pull_request` event. The action never needs your repository's code, so don't combine it with `pull_request_target` plus a checkout of the PR's code. On `deployment_status` runs (preview deployments), which have your repository's secrets, don't check out or run code from the PR either.
+
+**What's in this repo.** `src/` is the action's source, and `dist/` is built from it with [ncc](https://github.com/vercel/ncc). The bundle includes [`@rankcli/agent-runtime`](https://www.npmjs.com/package/@rankcli/agent-runtime) (MIT, published on npm) and GitHub's `@actions/*` toolkit; their licenses are in `dist/licenses.txt`.
+
+**Reporting a vulnerability.** Use "Report a vulnerability" on this repository's Security tab, or email support@rankcli.dev. Please don't open a public issue.
 
 ## License
 

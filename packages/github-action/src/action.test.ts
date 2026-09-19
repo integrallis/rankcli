@@ -110,6 +110,11 @@ describe('github-action', () => {
       expect(comment).toContain('RankCLI');
     });
 
+    it('shows the URL as code, so a crafted preview URL cannot @mention or inject Markdown', () => {
+      const comment = formatPRComment(summaryWith({ url: 'https://evil.dev/@everyone`**x**' }));
+      expect(comment).toContain('**URL:** `https://evil.dev/@everyone**x**`');
+    });
+
     it('includes score badge with color based on score', () => {
       expect(formatPRComment(summaryWith({ score: 90 }))).toContain('brightgreen');
       expect(formatPRComment(summaryWith({ score: 35 }))).toContain('red');

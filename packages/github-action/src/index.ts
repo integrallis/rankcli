@@ -11,6 +11,12 @@ import { runAction, type ApiValidationResult, type AlertPayload } from './run.js
 
 const API_URL = process.env.RANKCLI_API_URL || 'https://bspljbxwbjiqueeyzyat.supabase.co';
 
+// Credentials stay out of the logs even when a workflow passes them as plain text instead of
+// through secrets.* (which GitHub masks on its own).
+for (const value of [core.getInput('api-key'), core.getInput('slack-webhook'), core.getInput('discord-webhook'), process.env.RANKCLI_API_KEY]) {
+  if (value) core.setSecret(value);
+}
+
 async function validateApiKey(apiKey: string): Promise<ApiValidationResult> {
   let response: Response;
   try {

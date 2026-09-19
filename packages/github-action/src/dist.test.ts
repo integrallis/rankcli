@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,12 +21,12 @@ let server: Server;
 let base = '';
 let tmp = '';
 
-function runAction(inputs: Record<string, string>): Promise<{ code: number | null; outputs: string; stdout: string }> {
+function runAction(inputs: Record<string, string>, extraEnv: Record<string, string> = {}): Promise<{ code: number | null; outputs: string; stdout: string }> {
   const outputFile = join(tmp, `output-${Math.random().toString(36).slice(2)}`);
   const summaryFile = join(tmp, `summary-${Math.random().toString(36).slice(2)}`);
   writeFileSync(outputFile, '');
   writeFileSync(summaryFile, '');
-  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, GITHUB_OUTPUT: outputFile, GITHUB_STEP_SUMMARY: summaryFile };
+  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, GITHUB_OUTPUT: outputFile, GITHUB_STEP_SUMMARY: summaryFile, ...extraEnv };
   for (const [name, value] of Object.entries(inputs)) env[`INPUT_${name.toUpperCase()}`] = value;
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [DIST], { env });
@@ -71,6 +71,25 @@ describe.skipIf(!built && !process.env.CI)('built action (dist/index.js)', () =>
     expect(code).toBe(1);
     expect(stdout).toContain('::error::SEO audit found');
   }, 60000);
+
+  it('masks the API key in the logs, even passed as plain text', async () => {
+    // The key check goes to the local server, never to RankCLI's real API.
+    const { stdout } = await runAction({ url: `${base}/`, 'api-key': 'rk_plaintext_secret_123' }, { RANKCLI_API_URL: base });
+    expect(stdout).toContain('::add-mask::rk_plaintext_secret_123');
+  }, 60000);
+
+  // The public repo gets this bundle. Premium check implementations stay private (they ship
+  // only in the hosted worker), and nothing secret may ride along.
+  it('carries no premium check code and nothing that looks like a secret', () => {
+    const dir = join(__dirname, '..', 'dist');
+    const bundle = readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => readFileSync(join(dir, f), 'utf8')).join('\n');
+    for (const premiumOnly of ['Commercial page without clear CTA', 'Service page lacks interactive tools', 'Content at risk of AI overview displacement']) {
+      expect(bundle).not.toContain(premiumOnly);
+    }
+    for (const secret of [/sk_(live|test)_[A-Za-z0-9]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /whsec_[A-Za-z0-9]{10,}/, /"role"\s*:\s*"service_role"/]) {
+      expect(bundle).not.toMatch(secret);
+    }
+  });
 
   it('fails the step when the site answers 503', async () => {
     const { code, stdout } = await runAction({ url: `${base}/down` });

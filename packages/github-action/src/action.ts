@@ -176,7 +176,7 @@ export function formatPRComment(summary: AuditSummary, gate?: GateResult): strin
 
 ![SEO Score](https://img.shields.io/badge/SEO%20Score-${score}%2F100-${color}?style=for-the-badge)
 
-**URL:** ${url}
+**URL:** \`${url.replace(/`/g, '')}\`
 
 `;
 
