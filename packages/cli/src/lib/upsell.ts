@@ -8,19 +8,19 @@ export const TIER_LIMITS = {
     checks: 50,
     sites: 0,
     domains_per_month: 1,
-    features: { geo: false, auto_fix: false, github: false, ai: false },
+    features: { geo: false, auto_fix: true, github: false, ai: false },
   },
   free: {
     checks: 100,
     sites: 1,
     domains_per_month: 2,
-    features: { geo: 'basic', auto_fix: false, github: false, ai: false },
+    features: { geo: 'basic', auto_fix: true, github: true, ai: false },
   },
   solo: {
     checks: 280,
     sites: 3,
     domains_per_month: 5,
-    features: { geo: true, auto_fix: true, github: false, ai: true },
+    features: { geo: true, auto_fix: true, github: true, ai: true },
   },
   pro: {
     checks: 280,

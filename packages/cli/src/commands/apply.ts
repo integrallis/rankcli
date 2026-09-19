@@ -92,18 +92,8 @@ export async function apply(options: ApplyOptions): Promise<void> {
   console.log('\n\u{1F680} RankCLI - Apply Fixes');
   console.log('═'.repeat(50));
 
-  // Check if user has access to auto-fix feature
-  const loggedIn = isLoggedIn();
-  const userInfo = getUserInfo();
-  const tier = (userInfo.planName?.toLowerCase() || 'free') as TierId;
-  
-  // Auto-fix requires Solo tier or higher
-  const hasAutoFix = loggedIn && hasFeature(tier, 'auto_fix');
-  
-  if (!hasAutoFix) {
-    showUpsell('auto_fix_blocked');
-    return;
-  }
+  // Local fixes are free on every plan, signed in or not: they run on this machine with the
+  // user's own AI key, so they cost RankCLI nothing (pricing: docs/PRICING_ANALYSIS_2026-09.md).
 
   // Detect framework
   console.log('\n\u{1F50D} Detecting framework...');

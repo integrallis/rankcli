@@ -225,18 +225,8 @@ async function runFix(options: FixOptions): Promise<FixResult> {
     ?? tierFromPlanId(userInfo.planName)
     ?? 'free';
   
-  // Auto-fix requires Solo tier or higher (unless dry-run)
-  const hasAutoFix = loggedIn && hasFeature(tier, 'auto_fix');
-  
-  if (!options.dryRun && !hasAutoFix) {
-    if (options.output !== 'json') {
-      showUpsell('auto_fix_blocked');
-    }
-    return { 
-      success: false, 
-      error: 'Auto-fix requires Solo tier or higher. Please upgrade at ' + WEB_APP_URL + '/account',
-    };
-  }
+  // Local fixes are free on every plan, signed in or not: they run on this machine with the
+  // user's own AI key, so they cost RankCLI nothing (pricing: docs/PRICING_ANALYSIS_2026-09.md).
 
   if (options.output !== 'json') {
     console.log('\n🔧 RankCLI Fix - Agentic SEO Fixer');

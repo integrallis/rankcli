@@ -160,17 +160,19 @@ describe('rankcli fix command', () => {
   describe('JSON output on every path', () => {
     // The generated GitHub workflow pipes `fix --auto --output json` into a
     // file and parses it - an empty stdout used to crash that step.
-    it('prints JSON for a tier-blocked run', async () => {
+    // Local fixes are free on every plan (they run here, on the user's own key). A Free user
+    // used to be refused with "Auto-fix requires Solo tier or higher".
+    it('runs for a Free user instead of refusing', async () => {
       const config = await import('../lib/config.js');
       vi.mocked(config.getUserInfo).mockReturnValueOnce({ planName: 'Free' });
+      const runtime = await import('@rankcli/agent-runtime');
+      vi.mocked(runtime.runDirectAnalysis).mockResolvedValueOnce({ issues: [], score: 100 } as never);
 
       const result = await fix({ url: 'https://example.com', auto: true, output: 'json' });
 
-      expect(result.success).toBe(false);
       const parsed = JSON.parse(result.json!);
-      expect(parsed.success).toBe(false);
-      expect(parsed.appliedCount).toBe(0);
-      expect(parsed.error).toMatch(/Solo/);
+      expect(parsed.success).toBe(true);
+      expect(parsed.error ?? '').not.toMatch(/Solo/);
     });
 
     it('prints JSON for an invalid URL', async () => {
