@@ -46,7 +46,7 @@ export async function alerts(options: AlertsOptions): Promise<void> {
     if (options.list) {
       console.log('📋 Current alert configurations:\n');
       console.log('   (Alert configs are stored in your RankCLI account)');
-      console.log('   Run `rankcli auth login` first, then manage alerts at https://rankcli.dev/account/alerts\n');
+      console.log('   Run `rankcli login` first, then manage alerts at https://rankcli.dev/account?tab=notifications\n');
       rl.close();
       return;
     }
@@ -144,8 +144,8 @@ export async function alerts(options: AlertsOptions): Promise<void> {
     console.log('');
     
     console.log('To save this configuration:');
-    console.log('1. Log in with `rankcli auth login`');
-    console.log('2. Add alert config at https://rankcli.dev/account/alerts');
+    console.log('1. Log in with `rankcli login`');
+    console.log('2. Add alert config at https://rankcli.dev/account?tab=notifications');
     console.log('');
     console.log('Or use the API:');
     console.log(`   POST /api/alerts with webhook_url and settings`);

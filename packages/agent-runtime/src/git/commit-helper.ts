@@ -10,9 +10,9 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// System name is configurable (TBD - SEO Autopilot is temporary)
-const SYSTEM_NAME = process.env.SEO_SYSTEM_NAME || 'SEO Autopilot';
-const SYSTEM_EMAIL = process.env.SEO_SYSTEM_EMAIL || 'bot@seo-autopilot.dev';
+// System name is configurable
+const SYSTEM_NAME = process.env.SEO_SYSTEM_NAME || 'RankCLI';
+const SYSTEM_EMAIL = process.env.SEO_SYSTEM_EMAIL || 'bot@rankcli.dev';
 
 export interface CommitConfig {
   systemName?: string;

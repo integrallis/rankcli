@@ -150,7 +150,7 @@ export function formatPRBody(
 
   // Footer
   body += '---\n';
-  body += '🤖 Generated with [SEO Autopilot](https://github.com/seo-autopilot/seo-autopilot)\n';
+  body += '🤖 Generated with [RankCLI](https://rankcli.dev)\n';
 
   return body;
 }

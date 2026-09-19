@@ -1,4 +1,4 @@
-// Agent runtime for SEO Autopilot
+// Agent runtime for RankCLI
 
 // Side-effecting: registers every framework recipe's YAML content via
 // embedRecipe(). loadRecipe()'s fs.readFileSync fallback only resolves

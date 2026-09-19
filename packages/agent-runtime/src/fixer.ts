@@ -360,7 +360,7 @@ function generateOGFix(context: FixContext, siteName: string, url: string): Gene
     };
   }
 
-  const ogTags = `<!-- SEO Autopilot: Missing OG tags -->\n    ${missingTags.join('\n    ')}`;
+  const ogTags = `<!-- RankCLI: Missing OG tags -->\n    ${missingTags.join('\n    ')}`;
 
   return {
     issue: { code: 'MISSING_OG_TAGS', message: 'Missing Open Graph tags', severity: 'warning' },

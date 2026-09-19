@@ -101,7 +101,7 @@ describe('report-generator', () => {
     it('applies default branding when none provided', () => {
       const html = generateHTMLReport(mockAuditData);
 
-      expect(html).toContain('SEO Autopilot');
+      expect(html).toContain('RankCLI');
     });
 
     it('applies custom branding when provided', () => {
@@ -119,7 +119,7 @@ describe('report-generator', () => {
       expect(html).toContain('#FF5733');
     });
 
-    it('removes SEO Autopilot branding in white-label mode', () => {
+    it('removes RankCLI branding in white-label mode', () => {
       const branding: ReportBranding = {
         companyName: 'ACME Agency',
         whiteLabel: true,
@@ -127,7 +127,7 @@ describe('report-generator', () => {
 
       const html = generateHTMLReport(mockAuditData, { branding });
 
-      expect(html).not.toContain('SEO Autopilot');
+      expect(html).not.toContain('RankCLI');
       expect(html).toContain('ACME Agency');
     });
 
@@ -273,7 +273,7 @@ describe('report-generator', () => {
       expect(html).toContain('Digital Marketing Pro');
       expect(html).toContain('Executive Summary');
       expect(html).toContain('Recommendations');
-      expect(html).not.toContain('SEO Autopilot');
+      expect(html).not.toContain('RankCLI');
     });
 
     it('generates minimal free report', () => {
@@ -286,7 +286,7 @@ describe('report-generator', () => {
 
       const html = generateHTMLReport(mockAuditData, config);
 
-      expect(html).toContain('SEO Autopilot');
+      expect(html).toContain('RankCLI');
       expect(html).not.toContain('Executive Summary');
     });
   });

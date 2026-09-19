@@ -45,18 +45,19 @@ interface ProductionConfig {
 const INJECTED_CONFIG = null as ProductionConfig | null; // __INJECT_PRODUCTION_CONFIG__
 
 // Supabase configuration priority:
-// 1. Environment variables (highest priority - for local dev and CI)
+// 1. RANKCLI_SUPABASE_* environment variables (local dev of the CLI itself). Not VITE_SUPABASE_*:
+//    that's what every Vite + Supabase app sets, so a CI job building one sent RankCLI's
+//    logins and API-key checks to the user's own project.
 // 2. Build-time injected config (for npm package)
 // 3. Error if neither available (no hardcoded fallbacks!)
 function getSupabaseUrl(): string {
   const url = process.env.RANKCLI_SUPABASE_URL
-    || process.env.VITE_SUPABASE_URL
     || INJECTED_CONFIG?.supabaseUrl;
   
   if (!url) {
     throw new Error(
       'Supabase URL not configured. Set RANKCLI_SUPABASE_URL environment variable.\n' +
-      'See: https://rankcli.dev/docs/cli-setup'
+      'See: https://rankcli.dev/docs#getting-started'
     );
   }
   return url;
@@ -64,13 +65,12 @@ function getSupabaseUrl(): string {
 
 function getSupabaseAnonKey(): string {
   const key = process.env.RANKCLI_SUPABASE_ANON_KEY
-    || process.env.VITE_SUPABASE_ANON_KEY
     || INJECTED_CONFIG?.supabaseAnonKey;
   
   if (!key) {
     throw new Error(
       'Supabase anon key not configured. Set RANKCLI_SUPABASE_ANON_KEY environment variable.\n' +
-      'See: https://rankcli.dev/docs/cli-setup'
+      'See: https://rankcli.dev/docs#getting-started'
     );
   }
   return key;

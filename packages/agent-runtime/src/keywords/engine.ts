@@ -22,7 +22,7 @@ import {
   type DataForSEOCredentials,
 } from './sources/dataforseo.js';
 
-const USER_AGENT = 'SEO-Autopilot/1.0 (+https://seo-autopilot.dev)';
+const USER_AGENT = 'RankCLI/1.0 (+https://rankcli.dev/bot)';
 
 export interface KeywordResearchOptions {
   seedKeywords: string[];

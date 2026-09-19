@@ -173,7 +173,7 @@ function formatSlackMessage(message: AlertMessage): object {
             elements: [
               {
                 type: 'mrkdwn',
-                text: `🤖 Sent by SEO Autopilot`,
+                text: `🤖 Sent by RankCLI`,
               },
             ],
           },
@@ -214,7 +214,7 @@ function formatDiscordMessage(message: AlertMessage): object {
         color,
         url: message.url,
         footer: {
-          text: '🤖 Sent by SEO Autopilot',
+          text: '🤖 Sent by RankCLI',
         },
         timestamp: new Date().toISOString(),
       },

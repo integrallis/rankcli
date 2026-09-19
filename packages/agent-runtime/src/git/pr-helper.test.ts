@@ -93,7 +93,7 @@ describe('pr-helper', () => {
       const body = formatPRBody(fixes);
 
       expect(body).toContain('Generated with');
-      expect(body).toContain('SEO Autopilot');
+      expect(body).toContain('RankCLI');
     });
 
     it('includes score improvement if provided', () => {
