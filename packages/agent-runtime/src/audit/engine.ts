@@ -128,11 +128,28 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // and printing progress via console.log here corrupts that redirect.
   console.error(`\n🔍 Running comprehensive SEO audit on ${url}...\n`);
 
+  // Race a check against a timeout, clearing the timer either way: a
+  // pending timer kept the CLI process alive for up to 10s after every
+  // audit had already finished.
+  const withTimeout = async <R>(name: string, promise: Promise<R>, timeoutMs: number): Promise<R> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   // ========== PHASE 1: CRAWLABILITY + FETCH (PARALLEL) ==========
   console.error('📋 Phase 1: Crawlability checks + page fetch (parallel)...');
 
   const [crawlabilityResult, fetchResult] = await Promise.all([
-    runCrawlabilityChecks(url).catch(err => {
+    // robots.txt, sitemaps and the redirect chain run one after another; a site that is slow
+    // on each could hold the page for minutes, so the whole group gets 45s.
+    withTimeout('Crawlability checks', runCrawlabilityChecks(url), 45_000).catch(err => {
       console.error('Crawlability check failed:', err);
       return [] as AuditIssue[];
     }),
@@ -323,21 +340,6 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
 
   // ========== PHASE 3: ASYNC CHECKS (PARALLEL) ==========
   console.error('🔗 Phase 3: Running async checks (parallel)...');
-
-  // Race a check against a timeout, clearing the timer either way: a
-  // pending timer kept the CLI process alive for up to 10s after every
-  // audit had already finished.
-  const withTimeout = async <R>(name: string, promise: Promise<R>, timeoutMs: number): Promise<R> => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs);
-    });
-    try {
-      return await Promise.race([promise, timeoutPromise]);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
 
   // Helper to safely run async checks with error handling and timeout
   const safeAsync = async <T>(

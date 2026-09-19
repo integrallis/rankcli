@@ -138,8 +138,9 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
   const issues: AuditIssue[] = [];
 
   // Try sitemap URLs from robots.txt first, then standard locations
+  // At most 3 candidates: large sites list dozens in robots.txt, 10s each.
   const sitemapUrls = robotsData.sitemapUrls.length > 0
-    ? robotsData.sitemapUrls
+    ? robotsData.sitemapUrls.slice(0, 3)
     : [
         new URL('/sitemap.xml', baseUrl).href,
         new URL('/sitemap_index.xml', baseUrl).href,

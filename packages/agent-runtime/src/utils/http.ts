@@ -81,16 +81,17 @@ export async function httpGet<T = string>(
       redirect: maxRedirects > 0 ? 'follow' : 'manual',
     });
 
-    clearTimeout(timeoutId);
-
     const contentType = response.headers.get('content-type') || '';
     let data: T;
 
+    // The timeout covers the body too: clearing it once headers arrived let a server that
+    // stalls or trickles the body hang the audit with no limit at all.
     if (contentType.includes('application/json')) {
       data = await response.json() as T;
     } else {
       data = await response.text() as unknown as T;
     }
+    clearTimeout(timeoutId);
 
     if (!validateStatus(response.status)) {
       const error = new Error(`Request failed with status ${response.status}`) as Error & { response: HttpResponse<T> };
@@ -210,16 +211,17 @@ export async function httpPost<T = unknown>(
       signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
-
     const contentType = response.headers.get('content-type') || '';
     let responseData: T;
 
+    // The timeout covers the body too: clearing it once headers arrived let a server that
+    // stalls or trickles the body hang the audit with no limit at all.
     if (contentType.includes('application/json')) {
       responseData = await response.json() as T;
     } else {
       responseData = await response.text() as unknown as T;
     }
+    clearTimeout(timeoutId);
 
     if (!validateStatus(response.status)) {
       const error = new Error(`Request failed with status ${response.status}`) as Error & { response: HttpResponse<T> };
