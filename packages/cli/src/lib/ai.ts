@@ -9,6 +9,10 @@
  * it has loaded. Anthropic's Messages API is genuinely different (x-api-key,
  * top-level system, typed content blocks) and gets its own branch.
  *
+ * On a Mac with Apple Intelligence (macOS 26+, Apple silicon), Apple's on-device model is
+ * the default: it's free and local. It isn't an HTTP server, so it goes through a small
+ * native helper (apple-ai.ts). Pass --ai-provider or set RANKCLI_AI_PROVIDER to choose another.
+ *
  * Nothing here trusts a model to return clean JSON: local models wrap it in
  * ``` fences, prepend prose, or emit <think> blocks, so the reply is parsed
  * defensively (extractJsonObject) whether or not JSON mode was requested.
@@ -26,6 +30,7 @@ import {
   FIREWORKS_DEFAULT,
   CEREBRAS_DEFAULT,
 } from '../models.js';
+import { checkAppleAI, generateWithAppleAI, type AppleAIStatus } from './apple-ai.js';
 
 export interface AIAnalysis {
   contentScore: number;
@@ -61,6 +66,7 @@ export const AI_PROVIDERS: Record<string, ProviderPreset> = {
   together: { label: 'Together', baseUrl: 'https://api.together.xyz/v1', model: TOGETHER_DEFAULT, envKeys: ['TOGETHER_API_KEY'] },
   fireworks: { label: 'Fireworks', baseUrl: 'https://api.fireworks.ai/inference/v1', model: FIREWORKS_DEFAULT, envKeys: ['FIREWORKS_API_KEY'] },
   // Local / self-hosted
+  apple: { label: 'Apple Intelligence', model: 'on-device', envKeys: [], local: true },
   ollama: { label: 'Ollama', baseUrl: 'http://localhost:11434/v1', envKeys: [], local: true },
   lmstudio: { label: 'LM Studio', baseUrl: 'http://localhost:1234/v1', envKeys: [], local: true },
   llamacpp: { label: 'llama.cpp', baseUrl: 'http://localhost:8080/v1', envKeys: [], local: true },
@@ -94,6 +100,8 @@ export interface ResolvedAI {
   local: boolean;
   /** One-line notice to show the user (e.g. "using local Ollama"). */
   notice?: string;
+  /** Apple Intelligence: the compiled on-device helper. */
+  helper?: string;
 }
 
 export type AIResolution = { ok: true; ai: ResolvedAI } | { ok: false; error: string; hints: string[] };
@@ -169,27 +177,61 @@ async function firstServerModel(baseUrl: string, apiKey: string | undefined): Pr
 
 function noProviderHints(): string[] {
   return [
+    'On a Mac with Apple Intelligence (macOS 26+), the on-device model is used automatically',
     `Set one of ${AI_ENV_KEYS.join(', ')}, or pass --ai-key`,
     'Or run a local model: start Ollama (https://ollama.com) and `ollama pull llama3.2` - it is picked up automatically',
     'Or point at any OpenAI-compatible server: --ai-base-url http://localhost:8080/v1 --ai-model <name>',
   ];
 }
 
+function appleResolution(status: AppleAIStatus & { available: true }, notice?: string): AIResolution {
+  const preset = AI_PROVIDERS.apple;
+  return {
+    ok: true,
+    ai: {
+      provider: 'apple',
+      label: preset.label,
+      baseUrl: '',
+      model: preset.model!,
+      jsonMode: false,
+      anthropic: false,
+      local: true,
+      helper: status.helper,
+      notice,
+    },
+  };
+}
+
 export async function resolveAIProvider(
   opts: AIRequestOptions,
   env: Env = process.env,
   probe: (baseUrl: string) => Promise<string[] | null> = probeOllama,
+  probeApple: (env: Env) => Promise<AppleAIStatus> = checkAppleAI,
 ): Promise<AIResolution> {
-  let provider = opts.aiProvider?.trim().toLowerCase();
+  // --ai-provider, else a standing choice in RANKCLI_AI_PROVIDER.
+  const requested = opts.aiProvider?.trim() || (!opts.aiKey && !opts.aiBaseUrl ? env.RANKCLI_AI_PROVIDER?.trim() : undefined);
+  let provider = requested?.toLowerCase();
   let notice: string | undefined;
   let ollamaModels: string[] | null = null;
 
   if (provider && !AI_PROVIDERS[provider]) {
     return {
       ok: false,
-      error: `Unknown AI provider "${opts.aiProvider}"`,
+      error: `Unknown AI provider "${requested}"`,
       hints: [`Choose one of: ${AI_PROVIDER_IDS.join(', ')}`],
     };
+  }
+
+  if (provider === 'apple') {
+    const apple = await probeApple(env);
+    if (!apple.available) {
+      return {
+        ok: false,
+        error: `Apple Intelligence isn't available: ${apple.reason}`,
+        hints: ['Choose another provider with --ai-provider (e.g. openrouter, ollama)'],
+      };
+    }
+    return appleResolution(apple);
   }
 
   if (!provider) {
@@ -199,6 +241,12 @@ export async function resolveAIProvider(
       // A bare --ai-key has always meant OpenAI; recognisable prefixes win.
       provider = providerFromKey(opts.aiKey) ?? 'openai';
     } else {
+      // On a Mac with Apple Intelligence, the on-device model is the default: free, local
+      // and no network round trip - ahead of any API key that happens to be in the env.
+      const apple = await probeApple(env);
+      if (apple.available) {
+        return appleResolution(apple, 'Using Apple Intelligence on this Mac (on-device, free) - pass --ai-provider to use another');
+      }
       provider = DETECT_ORDER.find(id => AI_PROVIDERS[id].envKeys.some(k => env[k]));
     }
   }
@@ -375,10 +423,13 @@ export function normalizeAnalysis(raw: Record<string, unknown>): AIAnalysis | nu
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, error: 1, warning: 2, notice: 3, info: 3 };
 // Local models often have small context windows; the top of the list is what matters anyway.
 const MAX_ISSUES_IN_PROMPT = 60;
+// Apple's on-device model has a 4,096-token window for prompt and reply together.
+const APPLE_MAX_ISSUES = 25;
+const APPLE_MAX_TOKENS = 1200;
 
-export function buildPrompt(url: string, issues: AuditIssue[]): string {
+export function buildPrompt(url: string, issues: AuditIssue[], maxIssues = MAX_ISSUES_IN_PROMPT): string {
   const ranked = [...issues].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 4) - (SEVERITY_ORDER[b.severity] ?? 4));
-  const shown = ranked.slice(0, MAX_ISSUES_IN_PROMPT);
+  const shown = ranked.slice(0, maxIssues);
   const more = ranked.length > shown.length ? `\n(${ranked.length - shown.length} lower-severity issues omitted)` : '';
   return `Analyze these SEO audit results and provide prioritized recommendations:
 
@@ -402,8 +453,19 @@ export async function runAIAnalysis(
   issues: AuditIssue[],
   ai: ResolvedAI,
 ): Promise<{ analysis: AIAnalysis } | { error: string }> {
-  const prompt = buildPrompt(url, issues);
   const system = 'You are an SEO expert. Respond with valid JSON only.';
+
+  if (ai.provider === 'apple' && ai.helper) {
+    const reply = await generateWithAppleAI(ai.helper, {
+      system,
+      prompt: buildPrompt(url, issues, APPLE_MAX_ISSUES),
+      maxTokens: APPLE_MAX_TOKENS,
+    });
+    if ('error' in reply) return { error: `${ai.label} request failed: ${reply.error}` };
+    return parseAnalysis(reply.text, ai);
+  }
+
+  const prompt = buildPrompt(url, issues);
   // Local models on a laptop CPU can take minutes; hosted ones shouldn't.
   const timeoutMs = ai.local ? 300_000 : 90_000;
   // Generous: reasoning models (gpt-oss, GPT-5.6, DeepSeek) spend part of
@@ -469,6 +531,10 @@ export async function runAIAnalysis(
     return { error: `${ai.label} returned no content (a reasoning model may have used its whole token budget - try another --ai-model)` };
   }
 
+  return parseAnalysis(content, ai);
+}
+
+function parseAnalysis(content: string, ai: ResolvedAI): { analysis: AIAnalysis } | { error: string } {
   const parsed = extractJsonObject(content);
   const analysis = parsed ? normalizeAnalysis(parsed) : null;
   if (!analysis) {

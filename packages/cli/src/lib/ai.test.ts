@@ -1,6 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// These tests must not depend on the machine running them: on a Mac with Apple Intelligence
+// the real probe would win every auto-detect. Tests that want it pass their own probe.
+vi.mock('./apple-ai.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./apple-ai.js')>()),
+  checkAppleAI: async () => ({ available: false, reason: 'not in tests' }),
+}));
 import {
   resolveAIProvider,
   runAIAnalysis,
@@ -9,6 +19,7 @@ import {
   probeOllama,
   AI_PROVIDERS,
 } from './ai.js';
+import { isAppleIntelligenceCapable } from './apple-ai.js';
 
 const noOllama = async () => null;
 
@@ -186,5 +197,101 @@ describe('runAIAnalysis against a local OpenAI-compatible server', () => {
     if (!r.ok) return;
     const result = await runAIAnalysis('https://example.com', [], r.ai);
     expect('error' in result && result.error).toMatch(/request failed/);
+  });
+});
+
+describe('Apple Intelligence', () => {
+  const apple = async () => ({ available: true as const, helper: '/opt/rankcli-apple-ai' });
+  const noApple = async () => ({ available: false as const, reason: 'Apple Intelligence is turned off' });
+
+  it('is the default on a Mac that has it, ahead of any key in the env', async () => {
+    const r = await resolveAIProvider({}, { OPENROUTER_API_KEY: 'sk-or-x' }, noOllama, apple);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ai.provider).toBe('apple');
+      expect(r.ai.helper).toBe('/opt/rankcli-apple-ai');
+      expect(r.ai.local).toBe(true);
+      expect(r.ai.notice).toMatch(/on-device, free/);
+    }
+  });
+
+  it('steps aside for an explicit choice: --ai-provider, --ai-key, --ai-base-url or RANKCLI_AI_PROVIDER', async () => {
+    const env = { OPENROUTER_API_KEY: 'sk-or-x', GROQ_API_KEY: 'g' };
+    const byFlag = await resolveAIProvider({ aiProvider: 'groq' }, env, noOllama, apple);
+    expect(byFlag.ok && byFlag.ai.provider).toBe('groq');
+    const byKey = await resolveAIProvider({ aiKey: 'sk-ant-x' }, {}, noOllama, apple);
+    expect(byKey.ok && byKey.ai.provider).toBe('anthropic');
+    const byUrl = await resolveAIProvider({ aiBaseUrl: 'http://box:8080/v1', aiModel: 'm' }, {}, noOllama, apple);
+    expect(byUrl.ok && byUrl.ai.provider).toBe('custom');
+    const byEnv = await resolveAIProvider({}, { ...env, RANKCLI_AI_PROVIDER: 'groq' }, noOllama, apple);
+    expect(byEnv.ok && byEnv.ai.provider).toBe('groq');
+  });
+
+  it('falls through to keys and Ollama when it is unavailable', async () => {
+    const r = await resolveAIProvider({}, { OPENROUTER_API_KEY: 'sk-or-x' }, noOllama, noApple);
+    expect(r.ok && r.ai.provider).toBe('openrouter');
+  });
+
+  it('explains why when asked for explicitly but unavailable', async () => {
+    const r = await resolveAIProvider({ aiProvider: 'apple' }, {}, noOllama, noApple);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/turned off/);
+  });
+
+  it('rejects an unknown RANKCLI_AI_PROVIDER', async () => {
+    const r = await resolveAIProvider({}, { RANKCLI_AI_PROVIDER: 'skynet' }, noOllama, apple);
+    expect(r.ok).toBe(false);
+  });
+
+  it('is only probed on Apple silicon with macOS 26 or later', () => {
+    expect(isAppleIntelligenceCapable('darwin', 'arm64', '25.0.0')).toBe(true);
+    expect(isAppleIntelligenceCapable('darwin', 'arm64', '24.6.0')).toBe(false); // macOS 15
+    expect(isAppleIntelligenceCapable('darwin', 'x64', '25.0.0')).toBe(false);
+    expect(isAppleIntelligenceCapable('linux', 'arm64', '25.0.0')).toBe(false);
+  });
+
+  it('runs the analysis through the helper with a prompt sized for the on-device window', async () => {
+    // A stand-in helper: records the request it was sent and answers like the real one.
+    const dir = mkdtempSync(join(tmpdir(), 'rankcli-apple-'));
+    const helper = join(dir, 'helper.cjs');
+    const log = join(dir, 'request.json');
+    writeFileSync(helper, `#!/usr/bin/env node
+let input = '';
+process.stdin.on('data', (d) => (input += d));
+process.stdin.on('end', () => {
+  require('fs').writeFileSync(${JSON.stringify(log)}, input);
+  const text = '{"contentScore": 71, "suggestions": ["Add a title"], "prioritizedFixes": [{"code": "TITLE_MISSING", "priority": 1, "rationale": "r"}]}';
+  process.stdout.write(JSON.stringify({ text }));
+});
+`);
+    chmodSync(helper, 0o755);
+
+    const r = await resolveAIProvider({ aiProvider: 'apple' }, {}, noOllama, async () => ({ available: true as const, helper }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const issues = Array.from({ length: 40 }, (_, i) => ({
+      code: `CODE_${i}`, severity: 'warning' as const, category: 'on-page' as const, title: `Issue ${i}`, description: '', impact: '', howToFix: '',
+    }));
+    const result = await runAIAnalysis('https://example.com', issues, r.ai);
+    expect('analysis' in result && result.analysis.contentScore).toBe(71);
+
+    const sent = JSON.parse(readFileSync(log, 'utf8'));
+    expect(sent.maxTokens).toBe(1200);
+    expect(sent.system).toMatch(/SEO expert/);
+    expect(sent.prompt).toMatch(/15 lower-severity issues omitted/); // 40 issues, 25 shown
+  });
+
+  it('reports a helper error instead of failing silently', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rankcli-apple-'));
+    const helper = join(dir, 'helper.cjs');
+    writeFileSync(helper, `#!/usr/bin/env node
+process.stdin.resume();
+process.stdin.on('end', () => { process.stdout.write(JSON.stringify({ error: 'the prompt is too long for the on-device model' })); process.exit(1); });
+`);
+    chmodSync(helper, 0o755);
+    const r = await resolveAIProvider({ aiProvider: 'apple' }, {}, noOllama, async () => ({ available: true as const, helper }));
+    if (!r.ok) throw new Error('expected apple');
+    const result = await runAIAnalysis('https://example.com', [], r.ai);
+    expect('error' in result && result.error).toMatch(/too long for the on-device model/);
   });
 });

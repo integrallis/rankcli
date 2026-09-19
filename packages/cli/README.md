@@ -157,7 +157,11 @@ The gates are opt-in: without them, a completed audit exits `0` however many iss
 
 #### AI analysis (`--ai`)
 
-AI analysis runs on your own provider - nothing goes through RankCLI. With no `--ai-provider`, the first key found wins, in this order (OpenRouter first):
+AI analysis runs on your own provider - nothing goes through RankCLI.
+
+**On a Mac with Apple Intelligence, it's the default.** On macOS 26 or later on Apple silicon with Apple Intelligence turned on, `--ai` uses Apple's on-device model: free, private, no key and no network round trip. The first run builds a small Swift helper with the Xcode command-line tools (a few seconds, cached in `~/Library/Caches/rankcli`). The on-device model has a small context window, so it sees the 25 most severe issues. To use another provider, pass `--ai-provider`, or set it once with `RANKCLI_AI_PROVIDER=openrouter` (any provider id below).
+
+Otherwise, with no `--ai-provider`, the first key found wins, in this order (OpenRouter first):
 
 | Provider | Env var | Base URL | Default model |
 |----------|---------|----------|---------------|

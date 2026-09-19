@@ -57,7 +57,7 @@ program
 
 program
   .command('audit')
-  .description('Run a comprehensive SEO audit (200+ checks, Ahrefs-level)')
+  .description('Run an SEO + GEO audit (280+ checks)')
   .option('-u, --url <url>', 'URL to audit')
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
@@ -65,7 +65,7 @@ program
   .option('--fail-on <level>', 'CI gate: exit 1 if any issue is at or above this severity (error, warning, notice)')
   .option('--min-score <n>', 'CI gate: exit 1 if the overall score is below n (0-100)')
   .option('--ai', 'Enable AI analysis (your own key, or a local model)')
-  .option('--ai-provider <provider>', 'AI provider (auto-detected if omitted): openrouter, openai, anthropic, groq, gemini, deepseek, mistral, cerebras, together, fireworks, ollama, lmstudio, llamacpp, vllm, custom')
+  .option('--ai-provider <provider>', 'AI provider (auto-detected if omitted; Apple Intelligence on a Mac that has it, or set RANKCLI_AI_PROVIDER): apple, openrouter, openai, anthropic, groq, gemini, deepseek, mistral, cerebras, together, fireworks, ollama, lmstudio, llamacpp, vllm, custom')
   .option('--ai-key <key>', 'AI provider API key (or set the provider\'s env var, e.g. OPENROUTER_API_KEY)')
   .option('--ai-model <model>', 'Model id (defaults to a cheap model per provider, or the local server\'s loaded model)')
   .option('--ai-base-url <url>', 'OpenAI-compatible base URL, e.g. http://localhost:8080/v1 (implies --ai-provider custom)')
