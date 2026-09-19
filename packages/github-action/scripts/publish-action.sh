@@ -76,6 +76,12 @@ done
 
 SOURCE_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 git -C "$TARGET" add -A
+# -f: dist/ is often in a global gitignore, and a release without it can't run.
+git -C "$TARGET" add -f dist
+if [ -z "$(git -C "$TARGET" ls-files dist/index.js)" ]; then
+  echo "error: dist/index.js is not staged - the release would not run" >&2
+  exit 1
+fi
 git -C "$TARGET" commit -q -m "Release v$VERSION
 
 Built from rankcli.dev@$SOURCE_SHA (packages/github-action)."
