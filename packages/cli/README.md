@@ -211,7 +211,7 @@ rankcli apply --url https://mysite.com --auto      # Auto-apply
 
 ### `rankcli keywords`
 
-AI-powered keyword research.
+AI-powered keyword research. `--ai` runs on the same provider as `audit --ai` (Apple Intelligence on a Mac that has it, else your key, else a local Ollama) and takes the same `--ai-provider` / `--ai-key` / `--ai-model` / `--ai-base-url` flags. Keyword clustering uses embeddings on OpenAI and term vectors everywhere else; local models judge 5 tool ideas instead of 15.
 
 ```bash
 rankcli keywords --url https://mysite.com --ai

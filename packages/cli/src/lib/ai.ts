@@ -453,24 +453,40 @@ export async function runAIAnalysis(
   issues: AuditIssue[],
   ai: ResolvedAI,
 ): Promise<{ analysis: AIAnalysis } | { error: string }> {
-  const system = 'You are an SEO expert. Respond with valid JSON only.';
+  const reply = await completeWithAI(ai, {
+    system: 'You are an SEO expert. Respond with valid JSON only.',
+    prompt: buildPrompt(url, issues, ai.provider === 'apple' ? APPLE_MAX_ISSUES : MAX_ISSUES_IN_PROMPT),
+    json: true,
+  });
+  if ('error' in reply) return reply;
+  return parseAnalysis(reply.text, ai);
+}
+
+/**
+ * One prompt to the resolved provider; the reply's text, or why there isn't one. `json` asks
+ * for JSON mode where the provider is known to honour it (replies are parsed defensively anyway).
+ */
+export async function completeWithAI(
+  ai: ResolvedAI,
+  request: { system?: string; prompt: string; maxTokens?: number; json?: boolean },
+): Promise<{ text: string } | { error: string }> {
+  const { system, prompt } = request;
 
   if (ai.provider === 'apple' && ai.helper) {
     const reply = await generateWithAppleAI(ai.helper, {
       system,
-      prompt: buildPrompt(url, issues, APPLE_MAX_ISSUES),
-      maxTokens: APPLE_MAX_TOKENS,
+      prompt,
+      maxTokens: Math.min(request.maxTokens ?? APPLE_MAX_TOKENS, APPLE_MAX_TOKENS),
     });
     if ('error' in reply) return { error: `${ai.label} request failed: ${reply.error}` };
-    return parseAnalysis(reply.text, ai);
+    return reply;
   }
 
-  const prompt = buildPrompt(url, issues);
   // Local models on a laptop CPU can take minutes; hosted ones shouldn't.
   const timeoutMs = ai.local ? 300_000 : 90_000;
   // Generous: reasoning models (gpt-oss, GPT-5.6, DeepSeek) spend part of
   // the budget thinking, and an exhausted budget returns empty content.
-  const maxTokens = 4096;
+  const maxTokens = Math.max(request.maxTokens ?? 4096, 4096);
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   let endpoint: string;
@@ -480,7 +496,7 @@ export async function runAIAnalysis(
     endpoint = `${ai.baseUrl}/messages`;
     headers['x-api-key'] = ai.apiKey || '';
     headers['anthropic-version'] = '2023-06-01';
-    body = { model: ai.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+    body = { model: ai.model, max_tokens: maxTokens, ...(system ? { system } : {}), messages: [{ role: 'user', content: prompt }] };
   } else {
     endpoint = `${ai.baseUrl}/chat/completions`;
     if (ai.apiKey) headers['Authorization'] = `Bearer ${ai.apiKey}`;
@@ -492,12 +508,12 @@ export async function runAIAnalysis(
     body = {
       model: ai.model,
       messages: [
-        { role: 'system', content: system },
+        ...(system ? [{ role: 'system', content: system }] : []),
         { role: 'user', content: prompt },
       ],
       // OpenAI's GPT-5.6 rejects max_tokens (and temperature); everyone else expects max_tokens.
       ...(ai.provider === 'openai' && !ai.local ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
-      ...(ai.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      ...(ai.jsonMode && request.json ? { response_format: { type: 'json_object' } } : {}),
     };
   }
 
@@ -531,8 +547,9 @@ export async function runAIAnalysis(
     return { error: `${ai.label} returned no content (a reasoning model may have used its whole token budget - try another --ai-model)` };
   }
 
-  return parseAnalysis(content, ai);
+  return { text: content };
 }
+
 
 function parseAnalysis(content: string, ai: ResolvedAI): { analysis: AIAnalysis } | { error: string } {
   const parsed = extractJsonObject(content);

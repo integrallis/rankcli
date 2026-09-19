@@ -10,7 +10,8 @@
  * - Topic modeling (LDA-inspired)
  */
 
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { keywordLLM, type KeywordLLM } from './llm.js';
 
 // Stop words to filter out
 const STOP_WORDS = new Set([
@@ -358,12 +359,21 @@ export function createTermVectors(
   });
 }
 
+/** An OpenAI client, or any function returning one embedding per text (llm.ts). */
+export type Embedder = OpenAI | ((texts: string[]) => Promise<number[][]>);
+
+async function embedBatch(embedder: Embedder, batch: string[]): Promise<number[][]> {
+  if (typeof embedder === 'function') return embedder(batch);
+  const response = await embedder.embeddings.create({ model: 'text-embedding-3-small', input: batch });
+  return response.data.map((item) => item.embedding);
+}
+
 /**
- * Get embeddings from OpenAI for semantic clustering
+ * Get embeddings for semantic clustering
  */
 export async function getEmbeddings(
   texts: string[],
-  openai: OpenAI
+  openai: Embedder
 ): Promise<number[][]> {
   const embeddings: number[][] = [];
 
@@ -373,14 +383,7 @@ export async function getEmbeddings(
     const batch = texts.slice(i, i + batchSize);
 
     try {
-      const response = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: batch,
-      });
-
-      for (const item of response.data) {
-        embeddings.push(item.embedding);
-      }
+      embeddings.push(...(await embedBatch(openai, batch)));
     } catch (error) {
       // Fallback: create simple bag-of-words vectors
       console.warn('Embedding API failed, using fallback BOW vectors');
@@ -417,7 +420,7 @@ function simpleHash(str: string): number {
  */
 export async function clusterKeywordsByEmbedding(
   keywords: string[],
-  openai: OpenAI,
+  openai: Embedder,
   numClusters?: number
 ): Promise<KeywordCluster[]> {
   if (keywords.length === 0) return [];
@@ -616,6 +619,8 @@ export function extractTopics(
 export async function runNLPAnalysis(
   content: string | string[],
   options: {
+    /** Embeddings come from here when it has them (see llm.ts); or an OpenAI key, as before. */
+    llm?: KeywordLLM;
     openaiApiKey?: string;
     numClusters?: number;
     numTopics?: number;
@@ -642,12 +647,12 @@ export async function runNLPAnalysis(
   let clusters: KeywordCluster[] = [];
   const keywordsToCluster = tfidfKeywords.slice(0, 50).map((k) => k.term);
 
-  if (options.openaiApiKey && keywordsToCluster.length > 0) {
+  const embed = keywordLLM(options)?.embed;
+  if (embed && keywordsToCluster.length > 0) {
     try {
-      const openai = new OpenAI({ apiKey: options.openaiApiKey });
       clusters = await clusterKeywordsByEmbedding(
         keywordsToCluster,
-        openai,
+        (texts) => embed(texts),
         options.numClusters
       );
     } catch (error) {

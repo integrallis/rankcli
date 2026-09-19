@@ -123,17 +123,22 @@ program
   .option('-s, --seed <keywords>', 'Seed keywords (comma-separated)')
   .option('--auto', 'Auto-extract seed keywords from your page')
   .option('--quick', 'Quick mode - skip questions, use defaults')
-  .option('--ai', 'Use GPT-4 for enhanced analysis with free tool ideas')
-  .option('--local', 'Force local processing (skip cloud worker)')
+  .option('--ai', 'AI keyword research with free tool ideas, on your own provider (Apple Intelligence on a Mac that has it)')
+  .option('--ai-provider <provider>', 'AI provider for --ai (auto-detected if omitted, or set RANKCLI_AI_PROVIDER)')
+  .option('--ai-key <key>', 'AI provider API key (or the provider\'s env var)')
+  .option('--ai-model <model>', 'Override the provider\'s default model')
+  .option('--ai-base-url <url>', 'Any OpenAI-compatible server (implies --ai-provider custom)')
+  .option('--local', 'No effect; --ai always runs locally on your provider (kept for old scripts)')
   .option('--competitor', 'Competitor gap analysis mode (SpyFu Kombat-style)')
   .option('-c, --competitors <domains>', 'Competitor domains (comma-separated)')
   .action(async (options) => {
     if (options.ai && options.url) {
-      // AI-powered keyword research with enhanced tool ideas
-      // Auto-detect: use cloud worker if available, otherwise run locally
+      // AI keyword research with enhanced tool ideas, on the provider audit --ai would use
       await keywordsAI(options.url, {
-        forceLocal: options.local,
-        openaiApiKey: process.env.OPENAI_API_KEY,
+        aiProvider: options.aiProvider,
+        aiKey: options.aiKey,
+        aiModel: options.aiModel,
+        aiBaseUrl: options.aiBaseUrl,
       });
     } else if (options.competitor && options.url && options.seed) {
       // Competitor gap analysis mode

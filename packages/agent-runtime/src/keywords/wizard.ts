@@ -5,7 +5,7 @@
  * Works with CLI (inquirer-style) and Web (JSON responses).
  */
 
-import OpenAI from 'openai';
+import { keywordLLM, type KeywordLLM } from './llm.js';
 import { crawlSite } from './site-crawler.js';
 import { summarizeSite, type SiteSummary } from './ai-summarizer.js';
 
@@ -54,6 +54,8 @@ export interface WizardResult {
 export async function startWizardSession(
   url: string,
   options: {
+    /** The model for the site summary (see llm.ts); or an OpenAI key, as before. */
+    llm?: KeywordLLM;
     openaiApiKey?: string;
     existingResponses?: WizardResponse[];
   } = {}
@@ -62,12 +64,11 @@ export async function startWizardSession(
   console.log('🔍 Analyzing your site...');
   const crawlResult = await crawlSite(url, { maxPages: 10 });
 
-  // Get AI summary if API key available
+  // Get AI summary if a model is available
   let siteSummary: SiteSummary;
-  if (options.openaiApiKey) {
-    siteSummary = await summarizeSite(crawlResult, {
-      openaiApiKey: options.openaiApiKey,
-    });
+  const llm = keywordLLM(options);
+  if (llm) {
+    siteSummary = await summarizeSite(crawlResult, { llm });
   } else {
     // Basic summary without AI
     siteSummary = {

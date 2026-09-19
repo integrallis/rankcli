@@ -12,7 +12,7 @@
  * 4. Easy to build free tools for
  */
 
-import OpenAI from 'openai';
+import { keywordLLM, type KeywordLLM } from './llm.js';
 import { crawlSite, extractKeyPhrases, type SiteCrawlResult } from './site-crawler.js';
 import { summarizeSite, generateUncertaintyQuestions, type SiteSummary } from './ai-summarizer.js';
 import {
@@ -45,6 +45,8 @@ export type PlanTier = 'free' | 'solo' | 'pro' | 'agency';
 export interface AIKeywordResearchOptions {
   url: string;
   tier: PlanTier;
+  /** The model to ask for paid-tier research (see llm.ts); or an OpenAI key, as before. */
+  llm?: KeywordLLM;
   openaiApiKey?: string;
   maxPages?: number;
   userContext?: {
@@ -200,7 +202,7 @@ export interface KeywordRecommendation {
 export async function runAIKeywordResearch(
   options: AIKeywordResearchOptions
 ): Promise<FreeKeywordResult | PaidKeywordResult> {
-  const { url, tier, openaiApiKey, maxPages = 20 } = options;
+  const { url, tier, maxPages = 20 } = options;
 
   console.log(`\n🔬 Starting AI Keyword Research (${tier} tier)...\n`);
 
@@ -211,10 +213,11 @@ export async function runAIKeywordResearch(
   if (tier === 'free') {
     return runFreeKeywordResearch(crawlResult, options);
   } else {
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key required for paid tier keyword research');
+    const llm = keywordLLM(options);
+    if (!llm) {
+      throw new Error('An AI provider (or an OpenAI API key) is required for paid tier keyword research');
     }
-    return runPaidKeywordResearch(crawlResult, options);
+    return runPaidKeywordResearch(crawlResult, options, llm);
   }
 }
 
@@ -298,17 +301,16 @@ async function runFreeKeywordResearch(
  */
 async function runPaidKeywordResearch(
   crawlResult: SiteCrawlResult,
-  options: AIKeywordResearchOptions
+  options: AIKeywordResearchOptions,
+  llm: KeywordLLM
 ): Promise<PaidKeywordResult> {
-  const { openaiApiKey, userContext, wizardResponses, ciMode, competitiveSearchKeys } = options;
+  const { userContext, wizardResponses, ciMode, competitiveSearchKeys } = options;
   const enableEnhancedToolIdeas = options.enableEnhancedToolIdeas !== false; // Default true
 
   console.log('🚀 Running full AI analysis...');
 
   // Step 1: AI Site Summary
-  let siteSummary = await summarizeSite(crawlResult, {
-    openaiApiKey: openaiApiKey!,
-  });
+  let siteSummary = await summarizeSite(crawlResult, { llm });
 
   // Apply user context to improve summary
   if (userContext) {
@@ -323,7 +325,7 @@ async function runPaidKeywordResearch(
   // Step 2: Full NLP Analysis
   const documents = crawlResult.pages.map((p) => p.mainContent);
   const nlpAnalysis = await runNLPAnalysis(documents, {
-    openaiApiKey,
+    llm,
     numClusters: 8,
     numTopics: 6,
   });
@@ -366,13 +368,13 @@ async function runPaidKeywordResearch(
   // Step 6: Generate free tool ideas with competitive research and LLM judge
   let freeToolIdeas: FreeToolIdea[];
 
-  if (enableEnhancedToolIdeas && openaiApiKey) {
+  if (enableEnhancedToolIdeas) {
     console.log('🔬 Running enhanced tool idea analysis with competitive research...');
     freeToolIdeas = await generateEnhancedFreeToolIdeas(
       opportunities,
       siteSummary,
       {
-        openaiApiKey,
+        llm,
         ...competitiveSearchKeys,
       }
     );
@@ -533,7 +535,7 @@ async function generateEnhancedFreeToolIdeas(
   opportunities: KeywordOpportunity[],
   summary: SiteSummary,
   options: {
-    openaiApiKey: string;
+    llm: KeywordLLM;
     braveApiKey?: string;
     serperApiKey?: string;
     githubToken?: string;
@@ -558,7 +560,8 @@ async function generateEnhancedFreeToolIdeas(
   );
 
   // Prepare basic tool ideas for enhancement
-  const basicIdeas = toolKeywords.slice(0, 15).map((kw) => ({
+  // Each idea costs two model calls; slow local models judge fewer.
+  const basicIdeas = toolKeywords.slice(0, options.llm.maxToolIdeas ?? 15).map((kw) => ({
     keyword: kw.keyword,
     toolName: generateToolName(kw.keyword),
     toolDescription: generateToolDescription(kw.keyword, summary),
@@ -595,7 +598,7 @@ async function generateEnhancedFreeToolIdeas(
     basicIdeas,
     summary,
     getCompetitiveData,
-    { openaiApiKey: options.openaiApiKey }
+    { llm: options.llm }
   );
 
   // Convert enhanced ideas to FreeToolIdea format

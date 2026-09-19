@@ -5,9 +5,15 @@
  * Prevents vague or unbuildable tool suggestions.
  */
 
-import OpenAI from 'openai';
+import { keywordLLM, parseJsonReply, type KeywordLLM } from './llm.js';
 import type { CompetitorTool, CompetitiveSearchResult } from './sources/competitive-search.js';
 import type { SiteSummary } from './ai-summarizer.js';
+
+function judgeLLM(options: LLMJudgeOptions): KeywordLLM {
+  const llm = keywordLLM(options);
+  if (!llm) throw new Error('An AI provider is required to judge tool ideas');
+  return llm;
+}
 
 export interface ToolFeasibilityScore {
   /** Overall feasibility score 1-5 */
@@ -66,7 +72,9 @@ export interface EnhancedToolIdea {
 }
 
 export interface LLMJudgeOptions {
-  openaiApiKey: string;
+  /** The model to ask (see llm.ts); or an OpenAI key, as before. */
+  llm?: KeywordLLM;
+  openaiApiKey?: string;
   minFeasibilityScore?: number; // Default: 3
   minSpecificityScore?: number; // Default: 3
   minProductFitScore?: number; // Default: 2
@@ -85,7 +93,7 @@ export async function evaluateToolFeasibility(
   competitiveData: CompetitiveSearchResult | null,
   options: LLMJudgeOptions
 ): Promise<ToolFeasibilityScore> {
-  const openai = new OpenAI({ apiKey: options.openaiApiKey });
+  const llm = judgeLLM(options);
 
   const minFeasibility = options.minFeasibilityScore ?? 3;
   const minSpecificity = options.minSpecificityScore ?? 3;
@@ -167,14 +175,11 @@ Respond in JSON:
   "improvements": ["<suggestions to make it more specific/buildable>"]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [{ role: 'user', content: prompt }],
-    response_format: { type: 'json_object' },
-    temperature: 0.3,
-  });
-
-  const result = JSON.parse(response.choices[0].message.content || '{}');
+  // An unparseable reply scores 0 across the board, so the idea is dropped rather than crashing the run.
+  const result = parseJsonReply(await llm.complete(prompt, { temperature: 0.3 })) ?? {};
+  for (const key of ['feasibility', 'specificity', 'productFit', 'marketOpportunity']) {
+    result[key] = Number(result[key]) || 0;
+  }
 
   // Calculate overall score (weighted average)
   const overallScore =
@@ -217,7 +222,7 @@ export async function enhanceToolIdea(
   competitiveData: CompetitiveSearchResult | null,
   options: LLMJudgeOptions
 ): Promise<EnhancedToolIdea | null> {
-  const openai = new OpenAI({ apiKey: options.openaiApiKey });
+  const llm = judgeLLM(options);
 
   // First, evaluate feasibility
   const feasibilityScore = await evaluateToolFeasibility(
@@ -269,14 +274,7 @@ ${competitiveData?.openSourceOptions.slice(0, 3).map(t => `- OSS: ${t.name} (${t
   "ossLibrary": "<name of OSS library to use, or null>"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{ role: 'user', content: prompt }],
-    response_format: { type: 'json_object' },
-    temperature: 0.5,
-  });
-
-  const enhanced = JSON.parse(response.choices[0].message.content || '{}');
+  const enhanced = parseJsonReply(await llm.complete(prompt, { temperature: 0.5, best: true })) ?? {};
 
   // Calculate priority based on scores and metrics
   const priority = Math.round(

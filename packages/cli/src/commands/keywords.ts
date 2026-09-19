@@ -15,6 +15,8 @@ import {
   type KeywordResearchOptions,
   type PlanTier,
 } from '@rankcli/agent-runtime';
+import { resolveAIProvider, completeWithAI, type AIRequestOptions } from '../lib/ai.js';
+import { keywordLLMFromAI } from '../lib/keyword-llm.js';
 
 interface KeywordsOptions {
   url?: string;
@@ -228,90 +230,49 @@ export async function keywordsQuick(url: string, providedSeeds?: string): Promis
   }
 }
 
-// RankCLI cloud endpoint
-const SUPABASE_URL = 'https://eqzlmjbvrtrglknphdai.supabase.co';
-
-// AI-powered keyword research mode
+// AI-powered keyword research, run here on the user's own provider - the same one
+// `audit --ai` picks: Apple Intelligence on a Mac that has it, else a key from the env
+// (OpenRouter first), else a running Ollama. It used to try a "cloud" endpoint first - a
+// Supabase project that no longer exists - and then insisted on OPENAI_API_KEY.
 export async function keywordsAI(
   url: string,
-  options: {
-    forceLocal?: boolean;
-    openaiApiKey?: string;
-  } = {}
+  options: AIRequestOptions = {}
 ): Promise<void> {
   console.log('\n🤖 AI-Powered Keyword Research\n');
-  console.log('This uses GPT-4 to analyze your site and generate keyword recommendations');
-  console.log('with competitive analysis and free tool ideas.\n');
-
-  const openaiApiKey = options.openaiApiKey || process.env.OPENAI_API_KEY;
 
   try {
     const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
     url = parsed.href;
 
-    console.log(`📍 Analyzing: ${url}`);
-    console.log('');
-
-    // Try cloud first (unless --local flag)
-    if (!options.forceLocal) {
-      console.log('🔗 Connecting to RankCLI cloud...');
-
-      try {
-        // TODO: Get auth token from stored credentials (rankcli login)
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-keywords`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Auth header would go here if user is logged in
-          },
-          body: JSON.stringify({
-            url,
-            mode: 'analyze',
-          }),
-        });
-
-        if (response.ok) {
-          // Same loosely-typed shape displayAIKeywordResults already accepts
-          // as `any` below - this endpoint's response isn't typed elsewhere
-          // in this file either.
-          const result = await response.json() as any;
-
-          if (result.tier === 'free' && result.teaser) {
-            // Show teaser for free tier
-            console.log('\n' + '─'.repeat(60));
-            console.log('🔒 FREE TIER - Limited Preview');
-            console.log('─'.repeat(60));
-            console.log(`Found ${result.teaser.totalKeywordsFound} keywords`);
-            console.log(`Top keywords: ${result.teaser.topKeywords.join(', ')}`);
-            console.log(`\n${result.teaser.upgradeMessage}`);
-            console.log('\n💡 Run "rankcli login" to access your paid plan features.\n');
-            return;
-          }
-
-          displayAIKeywordResults(result);
-          return;
-        } else {
-          const errorText = await response.text();
-          console.log(`⚠️  Cloud request failed, running locally...\n`);
-        }
-      } catch (err) {
-        console.log('⚠️  Cloud unavailable, running locally...\n');
-      }
+    const resolution = await resolveAIProvider(options);
+    if (!resolution.ok) {
+      console.log(`❌ ${resolution.error}`);
+      for (const hint of resolution.hints) console.log(`   ${hint}`);
+      console.log('');
+      process.exitCode = 1;
+      return;
     }
+    const { ai } = resolution;
+    if (ai.notice) console.log(ai.notice);
 
-    // Run locally using agent-runtime
-    if (!openaiApiKey) {
-      console.log('❌ OpenAI API key required for local processing.');
-      console.log('   Set OPENAI_API_KEY environment variable, or use "rankcli login" for cloud processing.\n');
+    // Research is dozens of model calls; one tiny call first turns a rejected key, a retired
+    // model or a stopped server into one clear error instead of a page of failures.
+    const check = await completeWithAI(ai, { prompt: 'Reply with the JSON object {"ok": true} and nothing else.', maxTokens: 50, json: true });
+    if ('error' in check) {
+      console.log(`❌ ${check.error}`);
+      console.log('   Choose another provider with --ai-provider, or fix the key or model and try again.\n');
+      process.exitCode = 1;
       return;
     }
 
-    console.log('🔬 Running local AI analysis (this may take a minute)...\n');
+    console.log(`📍 Analyzing: ${url}`);
+    console.log(`🧠 Model: ${ai.label} (${ai.model})\n`);
+    console.log(`🔬 Running AI analysis (${ai.local ? 'a few minutes on a local model' : 'this may take a minute'})...\n`);
 
     const result = await runAIKeywordResearch({
       url,
       tier: 'solo',
-      openaiApiKey,
+      llm: keywordLLMFromAI(ai),
       enableEnhancedToolIdeas: true,
       competitiveSearchKeys: {
         braveApiKey: process.env.BRAVE_API_KEY,
@@ -324,6 +285,7 @@ export async function keywordsAI(
 
   } catch (error) {
     console.log(`\n❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+    process.exitCode = 1;
   }
 }
 

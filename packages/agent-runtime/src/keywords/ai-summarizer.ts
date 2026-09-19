@@ -1,12 +1,12 @@
 /**
  * AI-Powered Site Summarizer
  *
- * Uses OpenAI to understand what a site does from crawled content.
+ * Uses the configured AI provider (llm.ts) to understand what a site does from crawled content.
  * Extracts: product, audience, features, industry, positioning.
  */
 
-import OpenAI from 'openai';
 import type { SiteCrawlResult } from './site-crawler.js';
+import { openAIKeywordLLM, parseJsonReply, type KeywordLLM } from './llm.js';
 
 export interface SiteSummary {
   /** Primary product/service name */
@@ -42,9 +42,18 @@ export interface SiteSummary {
 }
 
 export interface SummarizerOptions {
-  openaiApiKey: string;
+  /** The model to ask (see llm.ts); or an OpenAI key, as before. */
+  llm?: KeywordLLM;
+  openaiApiKey?: string;
+  /** OpenAI model override, with openaiApiKey. */
   model?: string;
   maxTokens?: number;
+}
+
+function summarizerLLM(options: SummarizerOptions): KeywordLLM {
+  const llm = options.llm ?? (options.openaiApiKey ? openAIKeywordLLM(options.openaiApiKey, { model: options.model }) : undefined);
+  if (!llm) throw new Error('An AI provider is required to summarize the site');
+  return llm;
 }
 
 const SUMMARIZER_PROMPT = `You are an expert SEO analyst. Analyze the following website content and extract key information for keyword research.
@@ -96,13 +105,13 @@ export async function summarizeSite(
   crawlResult: SiteCrawlResult,
   options: SummarizerOptions
 ): Promise<SiteSummary> {
-  const openai = new OpenAI({ apiKey: options.openaiApiKey });
-  const model = options.model || 'gpt-4o-mini';
+  const llm = summarizerLLM(options);
 
-  // Prepare content (limit for token constraints)
+  // Prepare content (limit for token constraints; small-context models get less)
+  const maxContent = llm.maxContentChars ?? 15000;
   let content = crawlResult.aggregatedContent;
-  if (content.length > 15000) {
-    content = content.substring(0, 15000) + '\n...[truncated]';
+  if (content.length > maxContent) {
+    content = content.substring(0, maxContent) + '\n...[truncated]';
   }
 
   // Prepare headings
@@ -120,31 +129,18 @@ export async function summarizeSite(
   console.log('🤖 Analyzing site content with AI...');
 
   try {
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert SEO analyst. Always respond with valid JSON only.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
+    const responseText = await llm.complete(prompt, {
+      system: 'You are an expert SEO analyst. Always respond with valid JSON only.',
       temperature: 0.3,
-      max_tokens: options.maxTokens || 2000,
+      maxTokens: options.maxTokens || 2000,
     });
 
-    const responseText = response.choices[0]?.message?.content || '';
-
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const parsed = parseJsonReply(responseText);
+    if (!parsed) {
       throw new Error('No JSON found in response');
     }
 
-    const summary = JSON.parse(jsonMatch[0]) as SiteSummary;
+    const summary = parsed as SiteSummary;
 
     // Validate and set defaults
     return {
@@ -234,7 +230,7 @@ export async function enhanceSummaryWithCompetitors(
   competitors: string[],
   options: SummarizerOptions
 ): Promise<SiteSummary & { competitivePositioning: string }> {
-  const openai = new OpenAI({ apiKey: options.openaiApiKey });
+  const llm = summarizerLLM(options);
 
   const prompt = `Given this product summary:
 Product: ${summary.productName}
@@ -255,20 +251,13 @@ Analyze the competitive positioning. If this product focuses on a niche segment 
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: options.model || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'Respond with valid JSON only.' },
-        { role: 'user', content: prompt },
-      ],
+    const responseText = await llm.complete(prompt, {
+      system: 'Respond with valid JSON only.',
       temperature: 0.3,
-      max_tokens: 1000,
+      maxTokens: 1000,
     });
-
-    const responseText = response.choices[0]?.message?.content || '';
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const analysis = JSON.parse(jsonMatch[0]);
+    const analysis = parseJsonReply(responseText);
+    if (analysis) {
       return {
         ...summary,
         competitivePositioning: analysis.competitivePositioning || '',

@@ -140,6 +140,9 @@ export {
   type CompetitiveSearchOptions,
 } from './sources/competitive-search.js';
 
+// The model the AI features ask (any provider; OpenAI key as a shortcut)
+export { openAIKeywordLLM, keywordLLM, parseJsonReply, type KeywordLLM } from './llm.js';
+
 // LLM Judge for Tool Feasibility
 export {
   evaluateToolFeasibility,
