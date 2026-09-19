@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { table } from 'table';
 import { RankTracker, TIER_LIMITS } from '@rankcli/agent-runtime';
 import { isLoggedIn, getUserInfo, getAuthenticatedClient, WEB_APP_URL } from '../lib/config.js';
-import { showUpsell, type TierId } from '../lib/upsell.js';
+import { showUpsell, tierFromPlanId } from '../lib/upsell.js';
 
 // ============================================================================
 // Types
@@ -177,8 +177,9 @@ export async function trackAdd(options: TrackAddOptions): Promise<TrackResult> {
     }
 
     // Check tier limits
-    const { planName } = getUserInfo();
-    const tier = (planName?.toLowerCase() || 'free') as TierId;
+    // The plan id ('pro_annual', 'pro_founding', ...), not its display name: 'pro annual' matched
+    // no tier and every annual or founding subscriber got Free's limits.
+    const tier = tierFromPlanId(getUserInfo().planId) ?? 'free';
     const { maxKeywords } = getTierLimits(tier);
 
     const supabase = await getAuthenticatedClient();
@@ -558,8 +559,9 @@ export async function trackCheck(options: TrackCheckOptions): Promise<TrackResul
     }
 
     // Check rate limit
-    const { planName } = getUserInfo();
-    const tier = (planName?.toLowerCase() || 'free') as TierId;
+    // The plan id ('pro_annual', 'pro_founding', ...), not its display name: 'pro annual' matched
+    // no tier and every annual or founding subscriber got Free's limits.
+    const tier = tierFromPlanId(getUserInfo().planId) ?? 'free';
     const { checksPerDay } = getTierLimits(tier);
 
     if (!options.force && project.lastRankCheckAt) {

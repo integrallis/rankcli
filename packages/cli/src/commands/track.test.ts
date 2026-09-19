@@ -18,7 +18,8 @@ vi.mock('../lib/config.js', () => ({
   WEB_APP_URL: 'https://rankcli.dev',
 }));
 
-vi.mock('../lib/upsell.js', () => ({
+vi.mock('../lib/upsell.js', async (importOriginal) => ({
+  tierFromPlanId: (await importOriginal<typeof import('../lib/upsell.js')>()).tierFromPlanId,
   showUpsell: vi.fn(),
   hasFeature: vi.fn(() => true),
 }));
@@ -160,6 +161,24 @@ describe('rankcli track command', () => {
       const printed = JSON.parse(log.mock.calls.map((c) => c[0]).find((c) => String(c).startsWith('{')) as string);
       expect(printed.history.map((h: { position: number }) => h.position)).toEqual([4, 7]);
       log.mockRestore();
+    });
+
+    it('gives an annual subscriber their plan\'s keyword cap, not Free\'s', async () => {
+      const { client } = fakeSupabase({
+        projects: { id: 'p1', domain: 'example.com', last_rank_check_at: null },
+        keywords: [],
+      });
+      const config = await import('../lib/config.js');
+      vi.mocked(config.getAuthenticatedClient).mockResolvedValue(client as never);
+      const keywords = Array.from({ length: 20 }, (_, i) => `keyword ${i}`); // Free allows 10
+
+      vi.mocked(config.getUserInfo).mockReturnValue({ planName: 'Pro (Annual)', planId: 'pro_annual', userId: 'test-user' } as never);
+      const pro = await trackAdd({ keywords, url: 'https://example.com' });
+      expect(pro.error ?? '').not.toMatch(/limit/i);
+
+      vi.mocked(config.getUserInfo).mockReturnValue({ planName: 'Free', planId: 'free', userId: 'test-user' } as never);
+      const free = await trackAdd({ keywords, url: 'https://example.com' });
+      expect(free.error).toMatch(/limit/i);
     });
   });
 
