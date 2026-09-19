@@ -313,12 +313,12 @@ export async function audit(options: AuditOptions): Promise<number> {
     const tierId: TierId = tierFromPlanId(planId) ?? (loggedIn ? 'free' : 'free_anon');
     const checksLimit: number = TIER_LIMITS[tierId].checks;
 
-    // Only paid tiers get premium checks, and only if this build actually
-    // has a decrypt passphrase embedded (local/dev builds may not). A
-    // decrypt failure here falls back to running without premium checks
-    // rather than failing the whole audit.
+    // Every plan runs the premium checks (they're part of the 280), if this
+    // build actually has a decrypt passphrase embedded (local/dev builds may
+    // not). A decrypt failure falls back to running without them rather than
+    // failing the whole audit.
     let premiumChecks: PremiumChecks | undefined;
-    if (checksLimit > TIER_LIMITS.free.checks) {
+    {
       const passphrase = getDecryptPassphrase();
       if (passphrase) {
         try {
@@ -598,22 +598,6 @@ export async function audit(options: AuditOptions): Promise<number> {
       }
 
       console.log('\n' + chalk.bold('═'.repeat(60)));
-
-      const isFreeTier = tierId === 'free' || tierId === 'free_anon';
-
-      // Show checks limit message for free users
-      if (isFreeTier) {
-        const checksRun = mergedIssues.length > 0 ? (loggedIn ? 100 : 50) : 0;
-        showUpsell('checks_limit', {
-          tier: loggedIn ? 'free' : 'free_anon',
-          current: checksRun
-        });
-      }
-
-      // Show GEO limited message if --geo was used on free tier
-      if (options.geo && isFreeTier) {
-        showUpsell('geo_limited', { tier: loggedIn ? 'free' : 'free_anon' });
-      }
 
       // Sync to cloud if logged in
       if (loggedIn) {

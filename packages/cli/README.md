@@ -256,10 +256,10 @@ jobs:
       - run: rankcli audit --url "$SITE_URL" --fail-on error --min-score 80 -o json > "$RUNNER_TEMP/audit.json"
         env:
           SITE_URL: ${{ vars.SITE_URL }}
-          RANKCLI_API_KEY: ${{ secrets.RANKCLI_API_KEY }}   # optional: paid-plan checks + dashboard sync
+          RANKCLI_API_KEY: ${{ secrets.RANKCLI_API_KEY }}   # optional: dashboard sync + your plan's limits
 ```
 
-`rankcli setup --github-action --url https://yoursite.com [--sync]` writes a scheduled workflow that files the report as an issue (and, with `--sync` and a Solo+ key, opens auto-fix PRs).
+`rankcli setup --github-action --url https://yoursite.com [--sync]` writes a scheduled workflow that files the report as an issue (and, with `--sync` and a RankCLI API key, opens auto-fix PRs - 3 a month on Free).
 
 ## Environment Variables
 
@@ -278,11 +278,13 @@ The npm package needs **Node 20.19+ or 22.12+** (any 23+ works). The CLI is a Co
 
 | Feature | Free | Solo+ (from $9/mo) |
 |---------|------|--------------|
-| SEO Checks | 100 | 280+ |
-| GEO Analysis | Basic | Full |
-| Framework Fixes | - | ✅ 25+ |
-| Auto-Fix PRs | - | ✅ |
-| Sites | 1 | 3+ |
+| SEO + GEO checks | All 280+ | All 280+ |
+| Local fixes (`rankcli fix`, 25+ frameworks) | ✅ | ✅ |
+| Auto-fix PRs (GitHub App) | 3 a month | ✅ |
+| Hosted sites | 1, audited weekly | 3+, weekly or daily |
+| Slack & Discord alerts | - | ✅ |
+
+See [rankcli.dev/pricing](https://rankcli.dev/pricing).
 
 ## Links
 

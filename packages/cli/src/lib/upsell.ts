@@ -4,17 +4,19 @@ export const WEB_APP_URL = 'https://rankcli.dev';
 
 // Tier limits for client-side checks
 export const TIER_LIMITS = {
+  // Every plan runs every check (pricing-tiers.json: free_audit / free_registered 280). Plans
+  // differ in sites, schedules, pages per audit, PRs and alerts - not in what an audit checks.
   free_anon: {
-    checks: 50,
+    checks: 280,
     sites: 0,
     domains_per_month: 1,
-    features: { geo: false, auto_fix: true, github: false, ai: false },
+    features: { geo: true, auto_fix: true, github: false, ai: false },
   },
   free: {
-    checks: 100,
+    checks: 280,
     sites: 1,
     domains_per_month: 2,
-    features: { geo: 'basic', auto_fix: true, github: true, ai: false },
+    features: { geo: true, auto_fix: true, github: true, ai: false },
   },
   solo: {
     checks: 280,
@@ -65,20 +67,12 @@ const UPSELL_MESSAGES: Record<string, (ctx: UpsellContext) => string[]> = {
   free_audit_complete: () => [
     '',
     chalk.yellow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
-    chalk.yellow.bold('  🚀 Get 2x more checks + audit history'),
-    chalk.dim('  Create a free account to unlock 100 checks and save your results.'),
+    chalk.yellow.bold('  🚀 Keep this site audited, free'),
+    chalk.dim('  A free account audits one site weekly, keeps the history and'),
+    chalk.dim('  emails you a weekly report.'),
     '',
     chalk.cyan(`  → rankcli login`),
     chalk.yellow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
-    '',
-  ],
-
-  // When checks limit is reached
-  checks_limit: (ctx) => [
-    '',
-    chalk.yellow(`⚠️  Running ${ctx.current || 50} of ${TIER_LIMITS.solo.checks} available checks`),
-    chalk.dim(`   Unlock all ${TIER_LIMITS.solo.checks}+ checks with Solo ($9/mo)`),
-    chalk.cyan(`   → ${WEB_APP_URL}/pricing?from=cli_checks`),
     '',
   ],
 
@@ -92,19 +86,6 @@ const UPSELL_MESSAGES: Record<string, (ctx: UpsellContext) => string[]> = {
     chalk.dim('  Upgrade to audit more sites:'),
     chalk.cyan(`  → ${WEB_APP_URL}/pricing?from=cli_domain_limit`),
     chalk.red('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
-    '',
-  ],
-
-  // When GEO features are limited
-  geo_limited: (ctx) => [
-    '',
-    chalk.yellow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
-    chalk.yellow.bold('  🤖 Full GEO analysis requires Solo'),
-    chalk.dim('  You\'re seeing basic AI crawler access checks.'),
-    chalk.dim('  Full analysis includes: LLM signals, citation readiness, content structure'),
-    '',
-    chalk.cyan(`  → ${WEB_APP_URL}/pricing?from=cli_geo`),
-    chalk.yellow('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
     '',
   ],
 
