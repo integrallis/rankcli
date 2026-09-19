@@ -28,7 +28,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import Conf from 'conf';
 
-import { ANALYSIS_TOOLS, handleAnalysisTool } from './server.js';
+import { ANALYSIS_TOOLS, handleAnalysisTool, SERVER_VERSION } from './server.js';
 
 // Backend for the optional rankcli_connect bridge - the only thing in this
 // server that ever contacts rankcli.dev, and only when explicitly invoked.
@@ -82,7 +82,7 @@ const TOOLS: Tool[] = [...ANALYSIS_TOOLS, ...ACCOUNT_TOOLS];
 const server = new Server(
   {
     name: 'rankcli',
-    version: '0.0.1',
+    version: SERVER_VERSION,
   },
   {
     capabilities: {

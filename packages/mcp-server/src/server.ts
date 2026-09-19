@@ -7,6 +7,7 @@
  * instance can't safely do per-user "connect this session to your account"
  * via local file storage.
  */
+import { createRequire } from 'node:module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -753,6 +754,15 @@ export async function handleAnalysisTool(
   }
 }
 
+/** The published package version, reported to MCP clients (it was hard-coded as 0.0.1). */
+export const SERVER_VERSION: string = (() => {
+  try {
+    return createRequire(import.meta.url)('../package.json').version;
+  } catch {
+    return '0.0.0';
+  }
+})();
+
 /**
  * A fresh Server exposing only the stateless analysis tools - used by the
  * remote HTTP endpoint, one instance per request (see packages/audit-worker),
@@ -764,7 +774,7 @@ export async function handleAnalysisTool(
  */
 export function createAnalysisServer(options: AnalysisServerOptions = {}): Server {
   const server = new Server(
-    { name: 'rankcli', version: '0.0.1' },
+    { name: 'rankcli', version: SERVER_VERSION },
     { capabilities: { tools: {} } }
   );
 
