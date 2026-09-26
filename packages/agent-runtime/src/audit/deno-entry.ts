@@ -69,6 +69,12 @@ export {
   analyzeFreshnessSignals,
 } from '@rankcli/agent-runtime-premium';
 
+// CI workflow generator. Pure string templates, no fs - shared with the CLI's
+// `rankcli setup --github-action` so the workflow the dashboard button commits and the
+// one the CLI writes are the same file, generated from one source.
+export { generateWorkflow, generateSecretsDoc } from '../tracking/github-action-template.js';
+export type { WorkflowConfig } from '../tracking/github-action-template.js';
+
 // Page discovery (multi-page crawling)
 export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';
 export { discoverRoutesFromRepo, detectFramework, routesToUrls } from './discovery/repo-routes.js';
