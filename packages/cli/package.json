@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/cli",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
   "main": "dist/index.js",

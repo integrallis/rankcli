@@ -1,6 +1,8 @@
 import { runFullAudit, discoverPagesFromLinks, frameworks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
+import inquirer from 'inquirer';
+import { execSync } from 'node:child_process';
 
 const { detectFramework, getFrameworkDisplayName } = frameworks;
 import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
@@ -160,7 +162,7 @@ async function syncToCloud(
   aiAnalysis: AIAnalysis | null,
   durationMs: number,
   checksRun: number
-): Promise<{ projectId: string; auditId: string } | null> {
+): Promise<{ projectId: string; auditId: string; githubLinked: boolean } | null> {
   // Resolve the caller's own credential rather than requiring a Supabase
   // session specifically - the default login path (browser device-flow,
   // and MCP's rankcli_connect) only ever stores an API key, which
@@ -211,6 +213,7 @@ async function syncToCloud(
       limit?: number;
       projectId?: string;
       auditId?: string;
+      githubLinked?: boolean;
     };
 
     if (!res.ok) {
@@ -230,12 +233,82 @@ async function syncToCloud(
       return null;
     }
 
-    return { projectId: data.projectId, auditId: data.auditId };
+    return { projectId: data.projectId, auditId: data.auditId, githubLinked: !!data.githubLinked };
   } catch (error) {
     // Say why. This swallowed the reason, so a missing RANKCLI_SUPABASE_URL, an offline
     // machine and a server returning HTML instead of JSON were all the same three words.
     console.error(chalk.dim(`Cloud sync failed: ${error instanceof Error ? error.message : String(error)}`));
     return null;
+  }
+}
+
+/**
+ * The github.com repository this working directory points at, as an https URL, or null.
+ * Handles both remote spellings (git@github.com:owner/repo.git and the https form).
+ */
+function githubRemoteUrl(): string | null {
+  try {
+    const remote = execSync('git remote get-url origin', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const match = remote.match(/github\.com[:/]([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?$/);
+    return match ? `https://github.com/${match[1]}/${match[2]}` : null;
+  } catch {
+    return null; // not a git repo, no origin, or no git
+  }
+}
+
+/**
+ * After a synced audit, offer to link the repository we are standing in. Asking is the
+ * point: linking lets RankCLI open PRs against that repo, which is not something to do
+ * to someone silently. Skipped when there is nothing to ask (no remote, already linked)
+ * and when nobody can answer (JSON output, CI, no TTY).
+ */
+async function offerRepoLink(projectId: string): Promise<void> {
+  const repoUrl = githubRemoteUrl();
+  if (!repoUrl) return;
+
+  console.error('');
+  const { link } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'link',
+      message: `Link ${repoUrl} to this project? RankCLI can then open SEO fix PRs against it.`,
+      default: true,
+    },
+  ]);
+  if (!link) {
+    console.error(chalk.dim('  Skipped. Link it any time from the project page.'));
+    return;
+  }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (isApiKeyAuth()) {
+    const apiKey = getApiKey();
+    if (apiKey) headers['X-API-Key'] = apiKey;
+  } else {
+    const session = await getSession();
+    if (session) headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  const spinner = ora('Linking repository...').start();
+  try {
+    const response = await fetch(`${getApiUrl()}/functions/v1/connect-github-repo`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ projectId, repoUrl }),
+    });
+    const result = (await response.json()) as { linked?: boolean; reason?: string; error?: string };
+    if (result.linked) {
+      spinner.succeed('Repository linked - auto-fix PRs are available for this project.');
+    } else {
+      // Nothing was saved, so say what to fix rather than claiming success.
+      spinner.warn(result.reason || result.error || 'Could not link this repository.');
+    }
+  } catch (error) {
+    spinner.warn(`Could not link this repository: ${error instanceof Error ? error.message : error}`);
   }
 }
 
@@ -483,7 +556,7 @@ export async function audit(options: AuditOptions): Promise<number> {
 
     if (json) {
       // Sync to cloud for JSON output too (silent, no spinner)
-      let syncResult: { projectId: string; auditId: string } | null = null;
+      let syncResult: { projectId: string; auditId: string; githubLinked: boolean } | null = null;
       if (loggedIn) {
         syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun);
       }
@@ -610,6 +683,13 @@ export async function audit(options: AuditOptions): Promise<number> {
           syncSpinner.succeed('Results synced to cloud');
           console.log(chalk.cyan(`\n  View and manage issues in the web dashboard:`));
           console.log(chalk.bold(`  ${WEB_APP_URL}/dashboard/projects/${syncResult.projectId}\n`));
+
+          // Standing in the repository this site is built from is the one moment linking
+          // it is obvious, so ask here - but only where a human can answer.
+          const interactive = process.stdout.isTTY && !process.env.CI;
+          if (!syncResult.githubLinked && interactive) {
+            await offerRepoLink(syncResult.projectId);
+          }
         } else {
           syncSpinner.warn('Could not sync to cloud');
         }
