@@ -101,6 +101,34 @@ describe('Framework Detector', () => {
       expect(result?.framework).not.toBe('symfony');
     });
 
+    // /th:/ used to match "width:" in an inline style, so any styled page was Spring Boot.
+    it('does not detect a framework from CSS declarations', () => {
+      const html = '<div style="width:100%;height:20px"><p>hello</p></div>';
+      const result = detectFromHtml(html);
+      expect(result?.framework).not.toBe('spring');
+    });
+
+    it('detects Spring from a Thymeleaf attribute', () => {
+      const html = '<p th:text="${greeting}">placeholder</p>';
+      const result = detectFromHtml(html);
+      expect(result?.framework).toBe('spring');
+    });
+
+    // Phoenix is a city, Hugo is a name, Jekyll is a novel.
+    it('does not detect a framework from prose naming one', () => {
+      const html =
+        '<p>Our Phoenix office ships with Hugo and Jekyll, plus Blazor and Qwik support.</p>';
+      const result = detectFromHtml(html);
+      for (const framework of ['phoenix', 'hugo', 'jekyll', 'aspnet', 'qwik']) {
+        expect(result?.framework).not.toBe(framework);
+      }
+    });
+
+    it('detects Hugo and Jekyll from their generator tags', () => {
+      expect(detectFromHtml('<meta name="generator" content="Hugo 0.128.0">')?.framework).toBe('hugo');
+      expect(detectFromHtml('<meta name="generator" content="Jekyll v4.3.3">')?.framework).toBe('jekyll');
+    });
+
     it('detects Rails from turbolinks', () => {
       const html = '<script src="/assets/turbolinks.js"></script>';
       const result = detectFromHtml(html);

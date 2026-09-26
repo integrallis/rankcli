@@ -72,6 +72,16 @@ interface HtmlSignature {
   confidence: 'high' | 'medium' | 'low';
 }
 
+// Every pattern here runs against the whole page, so a pattern must be something only
+// the framework itself emits. Three rules, each of them learned from a real false
+// positive on rankcli.dev's own homepage:
+//   1. Never the framework's name on its own - /wordpress/i matched a feature list that
+//      named it, /phoenix/ matches a city, /hugo/ a person, /jekyll/ a novel.
+//   2. Never a fragment that appears in CSS or ordinary markup - /th:/ matched "width:"
+//      in an inline style, which made every styled page a Spring Boot app.
+//   3. Never a bare hyphenated English word - /fresh-/, /remix-/, /solid-/.
+// A framework that only announces itself in prose announces itself in a generator meta
+// tag too; match that instead.
 const HTML_SIGNATURES: HtmlSignature[] = [
   // ============ JavaScript/TypeScript Frameworks ============
   
@@ -121,28 +131,28 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'remix',
     language: 'typescript',
-    patterns: [/__remix/, /remix-/, /data-remix/],
+    patterns: [/__remix/, /data-remix/],
     confidence: 'high',
   },
   // Solid.js
   {
     framework: 'solidjs',
     language: 'typescript',
-    patterns: [/solid-/, /data-solid/, /_solid/],
+    patterns: [/data-solid/, /_solid/],
     confidence: 'high',
   },
   // Qwik
   {
     framework: 'qwik',
     language: 'typescript',
-    patterns: [/q:/, /qwik/, /q-/],
+    patterns: [/q:container/, /q:base/, /q:version/, /q:id=/, /qwik/],
     confidence: 'high',
   },
   // Fresh (Deno)
   {
     framework: 'fresh',
     language: 'typescript',
-    patterns: [/fresh-/, /_frsh\//, /data-fresh/],
+    patterns: [/_frsh\//, /data-fresh/],
     confidence: 'high',
   },
   // React (generic - lower priority)
@@ -183,7 +193,7 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'hotwire',
     language: 'ruby',
-    patterns: [/turbo-frame/, /turbo-stream/, /data-turbo/, /stimulus/],
+    patterns: [/turbo-frame/, /turbo-stream/, /data-turbo/],
     confidence: 'high',
   },
   
@@ -258,7 +268,10 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'spring',
     language: 'java',
-    patterns: [/spring/, /thymeleaf/, /th:/, /_csrf/],
+    // /th:/ matched "width:" and "height:" in inline CSS, which made almost every styled
+    // page on the web a Spring Boot app - rankcli.dev included, once WordPress stopped
+    // matching first. Thymeleaf attributes are what th: actually means.
+    patterns: [/\sth:[a-z-]+=/, /thymeleaf/, /_csrf/],
     confidence: 'medium',
   },
   
@@ -268,7 +281,7 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'aspnet',
     language: 'csharp',
-    patterns: [/aspnetcore/, /__RequestVerificationToken/, /blazor/, /_framework\/blazor/],
+    patterns: [/aspnetcore/, /__RequestVerificationToken/, /_framework\/blazor/],
     confidence: 'medium',
   },
   
@@ -278,7 +291,7 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'phoenix',
     language: 'elixir',
-    patterns: [/phx-/, /phoenix/, /live-socket/, /data-phx/],
+    patterns: [/phx-/, /live-socket/, /data-phx/],
     confidence: 'high',
   },
   
@@ -288,14 +301,14 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'hugo',
     language: 'go',
-    patterns: [/hugo/, /generator.*hugo/i],
+    patterns: [/name=["']generator["'][^>]*content=["']Hugo/i],
     confidence: 'medium',
   },
   // Jekyll
   {
     framework: 'jekyll',
     language: 'ruby',
-    patterns: [/jekyll/, /generator.*jekyll/i],
+    patterns: [/name=["']generator["'][^>]*content=["']Jekyll/i],
     confidence: 'medium',
   },
   // Eleventy
