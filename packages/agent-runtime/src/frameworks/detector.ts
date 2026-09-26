@@ -193,21 +193,28 @@ const HTML_SIGNATURES: HtmlSignature[] = [
   {
     framework: 'wordpress',
     language: 'php',
-    patterns: [/wp-content/, /wp-includes/, /wp-json/, /wordpress/i],
+    // Technical signatures only. These patterns run over the whole page, so the old
+    // /wordpress/i matched the word anywhere in the copy: rankcli.dev's own "detects
+    // Rails, Django, Laravel, and WordPress" line was enough to detect its React SPA as
+    // WordPress and then tell it to install an SEO plugin. A generator meta tag is the
+    // one place the page says it about itself.
+    patterns: [/wp-content/, /wp-includes/, /wp-json/, /name=["']generator["'][^>]*content=["']WordPress/i],
     confidence: 'high',
   },
   // Laravel
   {
     framework: 'laravel',
     language: 'php',
-    patterns: [/laravel_session/, /XSRF-TOKEN/, /@csrf/, /laravel/i],
+    // /laravel/i had the same problem as WordPress above - it matched the word in prose.
+    patterns: [/laravel_session/, /XSRF-TOKEN/, /@csrf/],
     confidence: 'medium',
   },
   // Symfony
   {
     framework: 'symfony',
     language: 'php',
-    patterns: [/symfony/, /sf2/, /_sf_/, /profiler\.css/],
+    // Likewise /symfony/, which matched any lowercase mention.
+    patterns: [/sf2/, /_sf_/, /profiler\.css/],
     confidence: 'medium',
   },
   

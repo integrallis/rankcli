@@ -84,6 +84,23 @@ describe('Framework Detector', () => {
       expect(result?.framework).toBe('wordpress');
     });
 
+    it('detects WordPress from a generator meta tag', () => {
+      const html = '<meta name="generator" content="WordPress 6.5.2">';
+      const result = detectFromHtml(html);
+      expect(result?.framework).toBe('wordpress');
+    });
+
+    // rankcli.dev's own copy lists the frameworks it supports, which used to be enough
+    // to detect a React SPA as WordPress and advise it to install an SEO plugin.
+    it('does not detect WordPress, Laravel or Symfony from prose that names them', () => {
+      const html =
+        '<div id="root"></div><p>Detects Next.js, Astro, Rails, Django, Laravel, Symfony and WordPress.</p>';
+      const result = detectFromHtml(html);
+      expect(result?.framework).not.toBe('wordpress');
+      expect(result?.framework).not.toBe('laravel');
+      expect(result?.framework).not.toBe('symfony');
+    });
+
     it('detects Rails from turbolinks', () => {
       const html = '<script src="/assets/turbolinks.js"></script>';
       const result = detectFromHtml(html);
