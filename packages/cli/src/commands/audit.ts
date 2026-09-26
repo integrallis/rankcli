@@ -220,7 +220,7 @@ async function syncToCloud(
         console.error(chalk.yellow(`\n⚠️  Project limit reached (${data.count}/${data.limit})`));
         console.error(chalk.dim(`   Upgrade at: ${WEB_APP_URL}/account`));
       } else {
-        console.error(chalk.dim(data.error || 'Cloud sync failed'));
+        console.error(chalk.dim(data.error || `Cloud sync failed (HTTP ${res.status})`));
       }
       return null;
     }
@@ -232,7 +232,9 @@ async function syncToCloud(
 
     return { projectId: data.projectId, auditId: data.auditId };
   } catch (error) {
-    console.error(chalk.dim('Cloud sync failed'));
+    // Say why. This swallowed the reason, so a missing RANKCLI_SUPABASE_URL, an offline
+    // machine and a server returning HTML instead of JSON were all the same three words.
+    console.error(chalk.dim(`Cloud sync failed: ${error instanceof Error ? error.message : String(error)}`));
     return null;
   }
 }
