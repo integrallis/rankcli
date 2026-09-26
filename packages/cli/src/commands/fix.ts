@@ -259,7 +259,12 @@ async function runFix(options: FixOptions): Promise<FixResult> {
     return { success: false, error: `Analysis failed: ${errorMsg}` };
   }
 
-  analyzeSpinner?.succeed(`Score: ${score}/100, Issues: ${issues.length}`);
+  // runDirectAnalysis is a small fixable-issues scan, not the 280-check audit. Printing a
+  // bare "Score: 98/100" here put a second, higher number against the same URL that
+  // `rankcli audit` scored 67 - same product, same site, no way to tell which was real.
+  analyzeSpinner?.succeed(
+    `${issues.length} fixable issue(s) found (quick scan: ${score}/100 - \`rankcli audit\` runs the full check set)`
+  );
 
   // Filter issues if --only flag is used
   if (options.only && options.only.length > 0) {
