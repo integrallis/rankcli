@@ -67,6 +67,35 @@ const NAMED_COLORS: Record<string, [number, number, number]> = {
   transparent: [255, 255, 255], // Treat as white for calculation
 };
 
+/**
+ * The background an element sits on, from the nearest ancestor that declares one
+ * inline. Null when nothing up the tree does.
+ *
+ * Returning null rather than guessing is the whole point. This used to default to
+ * white, which turned every muted colour on a dark page into a critical contrast
+ * failure. Our own /login shell - a <noscript> block with background #0a0a0a and
+ * #a1a1aa text, a real ratio of about 9:1 - was reported at 2.56:1 as "critical,
+ * this text may be unreadable". A confident wrong error is worse than a gap: it
+ * teaches people that the red ones are noise.
+ *
+ * Inline styles only, deliberately. Resolving a stylesheet cascade without a browser
+ * is a much larger job, and half-doing it would reintroduce the same kind of
+ * confident guess this removes.
+ */
+function inheritedBackground($el: ReturnType<cheerio.CheerioAPI>): string | null {
+  for (const ancestor of $el.parents().toArray()) {
+    const style: string | undefined = (ancestor as { attribs?: Record<string, string> }).attribs
+      ?.style;
+    if (!style) continue;
+    const match = style.match(/(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/i);
+    if (!match) continue;
+    const value = match[1].trim();
+    // A transparent ancestor paints nothing; keep looking outward.
+    if (!/^(transparent|none)$/i.test(value)) return value;
+  }
+  return null;
+}
+
 export function analyzeColorContrast(
   html: string,
   url: string
@@ -100,7 +129,7 @@ export function analyzeColorContrast(
     const bgMatch = style.match(/(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/i);
 
     const foreground = colorMatch ? colorMatch[1].trim() : null;
-    const background = bgMatch ? bgMatch[1].trim() : null;
+    const background = bgMatch ? bgMatch[1].trim() : inheritedBackground($el);
 
     // Skip if we can't determine both colors
     if (!foreground) {
@@ -108,8 +137,14 @@ export function analyzeColorContrast(
       return;
     }
 
-    // Default background to white if not specified
-    const bgColor = background || 'white';
+    // Nothing up the tree paints a background, so we genuinely do not know what this
+    // text sits on. Count it as undetermined rather than assuming.
+    if (!background) {
+      cannotDetermine++;
+      return;
+    }
+
+    const bgColor = background;
 
     // Parse colors
     const fgRgb = parseColor(foreground);
