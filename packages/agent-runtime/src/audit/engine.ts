@@ -583,7 +583,17 @@ function calculateHealthScore(issues: AuditIssue[]): HealthScore {
   const links = Math.max(0, 100 - categoryDeductions.links * 3);
   const performance = Math.max(0, 100 - categoryDeductions.performance * 4);
   const security = Math.max(0, 100 - categoryDeductions.security * 5);
-  const aiReadiness = Math.max(0, 100 - categoryDeductions['ai-readiness'] * 3);
+  // Multiplier 1, not 3, because this category has three to four times as many checks as any
+  // other - 15 to 27 fire on a typical page, most of them 'aspirational content' notices (no
+  // comparison table, no testimonials, no original data). At 3 the score saturated at the floor
+  // for every site measured on 2026-09-27, including ones that ought to score well:
+  //
+  //   stripe.com 13    vercel.com 7    cloudflare.com 0    docs.astro.build 0    rankcli.dev 1
+  //
+  // A sub-score that reads ~0 for everyone carries no information and cannot be acted on, which
+  // matters more here than elsewhere: AI readiness is the differentiator people come for. At 1
+  // the same pages spread 51-71 and rank in a defensible order.
+  const aiReadiness = Math.max(0, 100 - categoryDeductions['ai-readiness'] * 1);
   const social = Math.max(0, 100 - categoryDeductions.social * 2);
   const localSeo = Math.max(0, 100 - categoryDeductions['local-seo'] * 2);
   const accessibility = Math.max(0, 100 - categoryDeductions.accessibility * 4);
