@@ -72,6 +72,7 @@ export {
 // Model-free SEO fixes: robots.txt, sitemap.xml, llms.txt and a JSON-LD block, all derived
 // from the site's URL and name. What an account with no AI key gets.
 export { buildDeterministicFixes } from '../fixer/deterministic.js';
+export { findAppRoot } from '../fixer/app-root.js';
 
 // CI workflow generator. Pure string templates, no fs - shared with the CLI's
 // `rankcli setup --github-action` so the workflow the dashboard button commits and the

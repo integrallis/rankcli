@@ -37,6 +37,8 @@ export interface DeterministicFile {
   path: string;
   content: string;
   message: string;
+  /** 'created' for a new file, 'edited' for an insertion into an existing one. */
+  action: 'created' | 'edited';
 }
 
 export interface DeterministicFixes {
@@ -130,6 +132,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
       path: `${root}public/robots.txt`,
       content: generateAIFriendlyRobotsTxt(base),
       message: 'fix(seo): add robots.txt allowing search and AI crawlers',
+      action: 'created',
     });
     addressed.push('ROBOTS_TXT_MISSING');
   }
@@ -139,6 +142,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
       path: `${root}public/sitemap.xml`,
       content: sitemap(pages),
       message: 'fix(seo): add sitemap.xml',
+      action: 'created',
     });
     addressed.push('SITEMAP_MISSING');
   }
@@ -148,6 +152,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
       path: `${root}public/llms.txt`,
       content: llmsTxt(input.siteName, base, input.description, pages),
       message: 'fix(seo): add llms.txt for AI assistants',
+      action: 'created',
     });
     addressed.push('LLMS_TXT_MISSING');
   }
@@ -165,12 +170,20 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
       path: `${root}index.html`,
       content: indexHtml.replace('</head>', `${jsonLdBlock(input.siteName, base, input.description)}  </head>`),
       message: 'fix(seo): add WebSite and Organization JSON-LD',
+      action: 'edited',
     });
     addressed.push(...SCHEMA_CODES.filter((code) => codes.has(code)));
   }
 
+  const name = (file: DeterministicFile) => file.path.split('/').pop();
+  const created = files.filter((f) => f.action === 'created').map(name);
+  const edited = files.filter((f) => f.action === 'edited').map(name);
+  const parts = [
+    created.length ? `Added ${created.join(', ')}` : null,
+    edited.length ? `updated ${edited.join(', ')}` : null,
+  ].filter(Boolean);
   const summary = files.length
-    ? `Added ${files.map((f) => f.path.split('/').pop()).join(', ')} from RankCLI's templates - generated from the site's URL and name, with no AI and nothing invented.`
+    ? `${parts.join('; ')} from RankCLI's templates - generated from the site's URL and name, with no AI and nothing invented.`
     : 'No template-generatable issues were open on this report.';
 
   return { files, addressed, summary };

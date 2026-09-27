@@ -9,6 +9,18 @@ const base = {
 };
 
 describe('buildDeterministicFixes', () => {
+  it('says whether each file was created or edited', () => {
+    const { files, summary } = buildDeterministicFixes({
+      ...base,
+      issueCodes: ['ROBOTS_TXT_MISSING', 'SCHEMA_MISSING'],
+      existing: { indexHtml: '<head><title>x</title></head>' },
+    });
+    expect(files.map((f) => f.action)).toEqual(['created', 'edited']);
+    expect(summary).toContain('Added robots.txt');
+    expect(summary).toContain('updated index.html');
+    expect(summary).not.toContain('Added index.html');
+  });
+
   it('adds nothing when nothing was reported', () => {
     const { files, addressed } = buildDeterministicFixes({ ...base, issueCodes: [] });
     expect(files).toEqual([]);
