@@ -1,7 +1,7 @@
 // AI/LLM Readiness Checks
 // Checks for llms.txt, AI bot blocking, and JS rendering ratio
 
-import { httpGet } from '../../utils/http.js';
+import { httpGet, looksLikeHtmlFallback } from '../../utils/http.js';
 import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
@@ -80,6 +80,18 @@ export async function checkLlmsTxt(baseUrl: string): Promise<{ issues: AuditIssu
     }
 
     const content = response.data as string;
+
+    // A single-page app answers 200 with its own HTML for any unknown path, so a 2xx here
+    // is not evidence the file exists. Without this the SPA shell was validated as an
+    // llms.txt and reported as invalid - "no title", "no description" - for a file the site
+    // never had, sending the user to fix something that wasn't there.
+    if (looksLikeHtmlFallback(content, response.headers?.['content-type'])) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.LLMS_TXT_MISSING,
+        affectedUrls: [url],
+      });
+      return { issues, data: { exists: false, valid: false, errors: ['File not found (the site served HTML)'] } };
+    }
 
     // Basic validation of llms.txt format
     // Expected format starts with # followed by site name, then markdown content

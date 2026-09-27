@@ -45,6 +45,21 @@ function headersToObject(headers: Headers): Record<string, string> {
 /**
  * HTTP GET request
  */
+/**
+ * True when a response is really the site's HTML being served for a path that has no file.
+ *
+ * A single-page app's catch-all answers 200 with index.html for /sitemap.xml, /llms.txt,
+ * /robots.txt - anything. Trusting the status code there turns "you have no llms.txt" into
+ * "your llms.txt is invalid and has no title", which sends the user looking for a file that
+ * was never there. animerm.ai is exactly this: a real robots.txt, and HTML at the other two.
+ */
+export function looksLikeHtmlFallback(body: unknown, contentType?: string | null): boolean {
+  if (contentType && /text\/html/i.test(contentType)) return true;
+  if (typeof body !== 'string') return false;
+  const head = body.trimStart().slice(0, 200).toLowerCase();
+  return head.startsWith('<!doctype html') || head.startsWith('<html');
+}
+
 export async function httpGet<T = string>(
   url: string,
   config: HttpRequestConfig = {}

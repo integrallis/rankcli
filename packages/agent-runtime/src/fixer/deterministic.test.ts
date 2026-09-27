@@ -21,6 +21,31 @@ describe('buildDeterministicFixes', () => {
     expect(summary).not.toContain('Added index.html');
   });
 
+  it('lists Home once, however the page URL is spelled', () => {
+    const { files } = buildDeterministicFixes({
+      ...base,
+      issueCodes: ['LLMS_TXT_MISSING'],
+      pages: ['https://example.com', 'https://example.com/', 'https://example.com/pricing'],
+    });
+    const body = files[0].content;
+    expect(body.match(/https:\/\/example\.com\/?\)/g)?.length).toBe(1);
+    expect(body).not.toContain('- [/](');
+    expect(body).toContain('- [/pricing](https://example.com/pricing)');
+  });
+
+  // Their own copy, read off the page - not written. Without it we generate an llms.txt
+  // that our own audit then flags for having no description.
+  it("uses the page's own meta description", () => {
+    const html = '<head><meta name="description" content="A real description"></head>';
+    const { files } = buildDeterministicFixes({
+      ...base,
+      issueCodes: ['LLMS_TXT_MISSING', 'SCHEMA_MISSING'],
+      existing: { indexHtml: html },
+    });
+    expect(files.find((f) => f.path.endsWith('llms.txt'))!.content).toContain('> A real description');
+    expect(files.find((f) => f.path.endsWith('index.html'))!.content).toContain('"description": "A real description"');
+  });
+
   it('adds nothing when nothing was reported', () => {
     const { files, addressed } = buildDeterministicFixes({ ...base, issueCodes: [] });
     expect(files).toEqual([]);

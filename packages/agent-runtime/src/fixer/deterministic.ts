@@ -79,10 +79,13 @@ ${entries}
 // the facts we hold - no invented feature list, no invented description.
 function llmsTxt(siteName: string, siteUrl: string, description: string | null | undefined, pages: string[]): string {
   const base = siteUrl.replace(/\/$/, '');
+  const trim = (url: string) => url.replace(/\/$/, '');
   const links = pages
-    .filter((url) => url !== siteUrl && url !== base)
+    .filter((url) => trim(url) !== base)
+    .map((url) => ({ url, path: url.replace(base, '').replace(/^$/, '/') }))
+    .filter((page) => page.path !== '/')
     .slice(0, 20)
-    .map((url) => `- [${url.replace(base, '') || '/'}](${url})`)
+    .map((page) => `- [${page.path}](${page.url})`)
     .join('\n');
   return `# ${siteName}
 
@@ -118,6 +121,15 @@ const SCHEMA_CODES = [
   'STRUCTURED_DATA_MISSING',
 ];
 
+/** The page's own meta description. Their copy, read - never written. */
+export function metaDescriptionOf(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const match =
+    html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ||
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
+  return match?.[1]?.trim() || null;
+}
+
 export function buildDeterministicFixes(input: DeterministicFixInput): DeterministicFixes {
   const codes = new Set(input.issueCodes);
   const has = (...wanted: string[]) => wanted.some((code) => codes.has(code));
@@ -126,6 +138,8 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
   const addressed: string[] = [];
   const base = input.siteUrl.replace(/\/$/, '');
   const pages = input.pages?.length ? input.pages : [`${base}/`];
+  // Given one explicitly, use it; otherwise read the page's own.
+  const description = input.description ?? metaDescriptionOf(input.existing.indexHtml);
 
   if (has('ROBOTS_TXT_MISSING', 'AI_BOTS_BLOCKED', 'AI_CRAWLERS_BLOCKED') && !input.existing.robotsTxt) {
     files.push({
@@ -150,7 +164,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
   if (has('LLMS_TXT_MISSING') && !input.existing.llmsTxt) {
     files.push({
       path: `${root}public/llms.txt`,
-      content: llmsTxt(input.siteName, base, input.description, pages),
+      content: llmsTxt(input.siteName, base, description, pages),
       message: 'fix(seo): add llms.txt for AI assistants',
       action: 'created',
     });
@@ -168,7 +182,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
   ) {
     files.push({
       path: `${root}index.html`,
-      content: indexHtml.replace('</head>', `${jsonLdBlock(input.siteName, base, input.description)}  </head>`),
+      content: indexHtml.replace('</head>', `${jsonLdBlock(input.siteName, base, description)}  </head>`),
       message: 'fix(seo): add WebSite and Organization JSON-LD',
       action: 'edited',
     });

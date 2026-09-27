@@ -1,4 +1,4 @@
-import { httpGet } from '../../utils/http.js';
+import { httpGet, looksLikeHtmlFallback } from '../../utils/http.js';
 import type { AuditIssue, PageData } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -79,6 +79,22 @@ export async function checkRobotsTxt(baseUrl: string): Promise<{ issues: AuditIs
     }
 
     const content = response.data as string;
+
+    // Same SPA catch-all problem as llms.txt: HTML served at /robots.txt is not a robots.txt.
+    // Parsed as one it yields no directives and no sitemap line, so the site looked like it
+    // had a permissive robots.txt with nothing to say, instead of none at all.
+    if (looksLikeHtmlFallback(content, response.headers?.['content-type'])) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.ROBOTS_TXT_MISSING,
+        affectedUrls: [url],
+        details: { servedHtml: true },
+      });
+      return {
+        issues,
+        data: { exists: false, blocksAll: false, hasSitemap: false, sitemapUrls: [] },
+      };
+    }
+
     const lines = content.toLowerCase().split('\n');
 
     // Check if robots.txt blocks all crawlers

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { httpGet } from './http.js';
+import { httpGet, looksLikeHtmlFallback } from './http.js';
 
 // A server that sends headers straight away and then stalls the body: the timeout used to be
 // cleared once headers arrived, so reading the body hung with no limit.
@@ -36,5 +36,31 @@ describe('httpGet', () => {
   it('returns a body that arrives in time', async () => {
     const response = await httpGet<string>(`${base}/ok`, { timeout: 2000 });
     expect(response.data).toBe('<html>ok</html>');
+  });
+});
+
+describe('looksLikeHtmlFallback', () => {
+  it('recognises an SPA catch-all by content type', () => {
+    expect(looksLikeHtmlFallback('User-agent: *', 'text/html; charset=utf-8')).toBe(true);
+  });
+
+  it('recognises one by its body when the content type is missing', () => {
+    expect(looksLikeHtmlFallback('<!DOCTYPE html>\n<html lang="en">')).toBe(true);
+    expect(looksLikeHtmlFallback('  <html><head></head></html>')).toBe(true);
+  });
+
+  it('accepts a real text file', () => {
+    expect(looksLikeHtmlFallback('User-agent: *\nAllow: /', 'text/plain; charset=utf-8')).toBe(false);
+    expect(looksLikeHtmlFallback('# Example\n\n> A site')).toBe(false);
+  });
+
+  // An XML sitemap opens with a declaration, not a doctype.
+  it('accepts XML', () => {
+    expect(looksLikeHtmlFallback('<?xml version="1.0"?><urlset/>', 'application/xml')).toBe(false);
+  });
+
+  it('is false for a non-string body', () => {
+    expect(looksLikeHtmlFallback({ parsed: true })).toBe(false);
+    expect(looksLikeHtmlFallback(undefined)).toBe(false);
   });
 });
