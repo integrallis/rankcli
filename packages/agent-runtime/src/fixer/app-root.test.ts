@@ -66,6 +66,25 @@ describe('findAppRoot', () => {
     expect(findAppRoot(['apps/site/package.json', 'apps/site/next.config.js'])).toBe('apps/site/');
   });
 
+  // integrallis.com: GitHub Pages serving docs/, no package.json anywhere.
+  it('finds a static site served from a subdirectory', () => {
+    const files = [
+      'README.md',
+      'scripts/sync.py',
+      'docs/index.html',
+      'docs/CNAME',
+      'docs/.nojekyll',
+      'docs/robots.txt',
+      'docs/assets/site.css',
+    ];
+    expect(findAppRoot(files)).toBe('docs/');
+  });
+
+  it('prefers a real package over a static marker directory', () => {
+    const files = ['package.json', 'index.html', 'docs/index.html', 'docs/CNAME'];
+    expect(findAppRoot(files)).toBe('');
+  });
+
   it('returns the root for an empty repository', () => {
     expect(findAppRoot([])).toBe('');
   });

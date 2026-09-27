@@ -55,6 +55,20 @@ export function findAppRoot(files: string[]): string {
     return best === '' ? '' : `${best}/`;
   }
 
+  // A static site with no build step and therefore no package.json: GitHub Pages serving
+  // docs/, or a plain html directory. integrallis.com is exactly this - docs/index.html
+  // beside docs/CNAME - and keying only on package.json put its app root at the repository
+  // root, where nothing is served from.
+  const PAGES_MARKERS = ['CNAME', '.nojekyll', '404.html', 'site.webmanifest'];
+  const staticRoots = real
+    .filter((f) => f === 'index.html' || f.endsWith('/index.html'))
+    .map(directoryOf)
+    .filter((dir) => PAGES_MARKERS.some((marker) => real.includes(dir ? `${dir}/${marker}` : marker)));
+  if (staticRoots.length > 0) {
+    staticRoots.sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+    return staticRoots[0] === '' ? '' : `${staticRoots[0]}/`;
+  }
+
   // No index.html anywhere (Next.js, Astro, Rails...). Fall back to the shallowest
   // package.json that isn't the workspace root, then the root itself.
   const nonRoot = [...packageDirs].filter((dir) => dir !== '');

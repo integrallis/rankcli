@@ -76,6 +76,25 @@ describe('buildDeterministicFixes', () => {
     expect(files).toEqual([]);
   });
 
+  // A GitHub Pages site serving docs/ as-is: docs/public/robots.txt would never be fetched.
+  it('writes beside index.html when there is no public directory', () => {
+    const { files } = buildDeterministicFixes({
+      ...base,
+      appRoot: 'docs/',
+      publicDir: '',
+      issueCodes: ['ROBOTS_TXT_MISSING', 'SITEMAP_MISSING'],
+    });
+    expect(files.map((f) => f.path)).toEqual(['docs/robots.txt', 'docs/sitemap.xml']);
+  });
+
+  it('accepts a public dir with or without its slash', () => {
+    const paths = (publicDir: string) =>
+      buildDeterministicFixes({ ...base, publicDir, issueCodes: ['ROBOTS_TXT_MISSING'] }).files[0].path;
+    expect(paths('public')).toBe('public/robots.txt');
+    expect(paths('public/')).toBe('public/robots.txt');
+    expect(paths('static/')).toBe('static/robots.txt');
+  });
+
   it('honours a monorepo app root on every path', () => {
     const { files } = buildDeterministicFixes({
       ...base,

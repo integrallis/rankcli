@@ -18,6 +18,14 @@ export interface DeterministicFixInput {
   siteName: string;
   /** Monorepo app root, '' at the repository root. Every emitted path starts with it. */
   appRoot: string;
+  /**
+   * Where files served at the site root live, relative to appRoot. 'public/' for Vite, CRA
+   * and most bundlers; '' for a static site that serves its directory as-is (GitHub Pages
+   * from docs/), where a public/ subdirectory would simply never be served. Defaults to
+   * 'public/' because that is the common case, but getting it wrong means committing a
+   * robots.txt nobody can fetch.
+   */
+  publicDir?: string;
   /** Issue codes open on the audit; a fix is only offered for something actually reported. */
   issueCodes: Set<string> | string[];
   /** Current file contents, null when the file does not exist. */
@@ -134,6 +142,9 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
   const codes = new Set(input.issueCodes);
   const has = (...wanted: string[]) => wanted.some((code) => codes.has(code));
   const root = input.appRoot || '';
+  // Normalised so callers can pass 'public', 'public/' or ''.
+  const publicDir = input.publicDir === undefined ? 'public/' : input.publicDir.replace(/\/?$/, input.publicDir ? '/' : '');
+  const served = `${root}${publicDir}`;
   const files: DeterministicFile[] = [];
   const addressed: string[] = [];
   const base = input.siteUrl.replace(/\/$/, '');
@@ -143,7 +154,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
 
   if (has('ROBOTS_TXT_MISSING', 'AI_BOTS_BLOCKED', 'AI_CRAWLERS_BLOCKED') && !input.existing.robotsTxt) {
     files.push({
-      path: `${root}public/robots.txt`,
+      path: `${served}robots.txt`,
       content: generateAIFriendlyRobotsTxt(base),
       message: 'fix(seo): add robots.txt allowing search and AI crawlers',
       action: 'created',
@@ -153,7 +164,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
 
   if (has('SITEMAP_MISSING') && !input.existing.sitemapXml) {
     files.push({
-      path: `${root}public/sitemap.xml`,
+      path: `${served}sitemap.xml`,
       content: sitemap(pages),
       message: 'fix(seo): add sitemap.xml',
       action: 'created',
@@ -163,7 +174,7 @@ export function buildDeterministicFixes(input: DeterministicFixInput): Determini
 
   if (has('LLMS_TXT_MISSING') && !input.existing.llmsTxt) {
     files.push({
-      path: `${root}public/llms.txt`,
+      path: `${served}llms.txt`,
       content: llmsTxt(input.siteName, base, description, pages),
       message: 'fix(seo): add llms.txt for AI assistants',
       action: 'created',
