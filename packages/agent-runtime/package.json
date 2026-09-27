@@ -27,7 +27,8 @@
     "build:wasm": "tsup --config tsup.wasm.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "benchmark:detection": "node scripts/benchmark-detection.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

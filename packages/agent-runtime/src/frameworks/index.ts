@@ -35,6 +35,16 @@ export {
 } from './detector.js';
 
 export {
+  type Signal,
+  type Evidence,
+  type DetectionResult,
+  detectFromEvidence,
+  SIGNALS,
+  WEIGHT,
+  SCORE_FLOOR,
+} from './signals.js';
+
+export {
   type FrameworkCheck,
   type FrameworkRecipe,
   loadRecipe,
