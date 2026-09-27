@@ -73,6 +73,7 @@ export {
 // from the site's URL and name. What an account with no AI key gets.
 export { buildDeterministicFixes } from '../fixer/deterministic.js';
 export { findAppRoot } from '../fixer/app-root.js';
+export { servedDir } from '../fixer/served-dir.js';
 export { assessReplacement, describeConcerns } from '../fixer/safety.js';
 export { buildFrameworkGuidance } from '../fixer/framework-guidance.js';
 export { loadRecipe } from '../frameworks/suggestion-engine.js';

@@ -171,6 +171,12 @@ export const SIGNALS: Signal[] = [
   // Sphinx: what nearly every Python project's documentation is built with, and the shape
   // flask.palletsprojects.com turned out to be. Structural markers only - not the word
   // "sphinx", which appears in plenty of prose.
+  // Validated against docusaurus.io, jestjs.io and redux.js.org - all three carry the mount
+  // point and the skip-to-content id. Deliberately not the word "docusaurus", which appears on
+  // deno.com purely as a link in a logo list; that near-miss is why this needed a real marker.
+  { framework: 'docusaurus', language: 'typescript', weight: WEIGHT.DECISIVE, name: 'docusaurus-root', html: /id=["']__docusaurus/ },
+  { framework: 'docusaurus', language: 'typescript', weight: WEIGHT.STRONG, name: 'docusaurus-skip-link', html: /__docusaurus_skipToContent/ },
+
   { framework: 'sphinx', language: 'python', weight: WEIGHT.DECISIVE, name: 'sphinx-doc-options', html: /_static\/documentation_options\.js/ },
   { framework: 'sphinx', language: 'python', weight: WEIGHT.STRONG, name: 'sphinx-theme-markup', html: /class=["'][^"']*sphinxsidebar|sphinx-highlight|_static\/searchtools\.js/ },
   { framework: 'sphinx', language: 'python', weight: WEIGHT.STRONG, name: 'docutils-generator', html: /name=["']?generator["']?[^>]*content=["']?Docutils/i },

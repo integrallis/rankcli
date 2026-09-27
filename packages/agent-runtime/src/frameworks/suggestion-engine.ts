@@ -99,6 +99,7 @@ const RECIPES: Record<Framework, FrameworkRecipe | null> = {
   eleventy: null,
   pelican: null,
   sphinx: null,
+  docusaurus: null,
   
   // Unknown
   unknown: null,

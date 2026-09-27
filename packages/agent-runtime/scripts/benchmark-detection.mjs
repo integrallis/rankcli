@@ -53,6 +53,8 @@ const HOLDOUT = [
   ['https://www.smashingmagazine.com/', 'unknown'], ['https://deno.com/', 'unknown'],
   ['https://bun.sh/', 'unknown'], ['https://docs.docker.com/', 'unknown'],
   ['https://docs.nestjs.com/', 'unknown'], ['https://hub.docker.com/', 'unknown'],
+  ['https://docusaurus.io/', 'docusaurus'], ['https://jestjs.io/', 'docusaurus'],
+  ['https://redux.js.org/', 'docusaurus'],
 ];
 
 async function run(name, sites) {

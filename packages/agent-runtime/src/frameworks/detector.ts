@@ -54,6 +54,7 @@ export type Framework =
   | 'eleventy'
   | 'pelican'
   | 'sphinx'
+  | 'docusaurus'
   // Unknown
   | 'unknown';
 
@@ -847,6 +848,7 @@ export function getFrameworkDisplayName(framework: Framework): string {
     eleventy: 'Eleventy (11ty)',
     pelican: 'Pelican',
     sphinx: 'Sphinx',
+    docusaurus: 'Docusaurus',
     
     unknown: 'Unknown',
   };

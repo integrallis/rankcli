@@ -37,6 +37,7 @@ export type { FixGeneratorOptions, GeneratedFix } from './fixer.js';
 export * from './fixer/framework-fixes.js';
 export { buildDeterministicFixes } from './fixer/deterministic.js';
 export { findAppRoot } from './fixer/app-root.js';
+export { servedDir } from './fixer/served-dir.js';
 export { assessReplacement, describeConcerns } from './fixer/safety.js';
 export { buildFrameworkGuidance } from './fixer/framework-guidance.js';
 export type { DeterministicFixes, DeterministicFixInput } from './fixer/deterministic.js';
