@@ -14,6 +14,7 @@ seo_challenges:
 
 checks:
   - code: VUE_CSR_DETECTED
+    indexable_only: true
     severity: error
     title: "Client-side rendered Vue app detected"
     description: "Vue apps without SSR send empty HTML to crawlers."
@@ -30,6 +31,7 @@ checks:
       missing_content: true
 
   - code: VUE_NO_META_MANAGEMENT
+    indexable_only: true
     severity: error
     title: "No meta tag management library"
     description: "Title and meta description are not dynamically managed."

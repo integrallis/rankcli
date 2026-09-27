@@ -14,6 +14,7 @@ seo_strengths:
 
 checks:
   - code: RAILS_NO_META_TAGS_GEM
+    indexable_only: true
     severity: warning
     title: "Not using meta-tags gem"
     description: "The meta-tags gem provides a clean API for SEO tags."
@@ -86,6 +87,7 @@ checks:
       ```
 
   - code: RAILS_TURBO_BREAKS_CRAWLERS
+    indexable_only: true
     severity: notice
     title: "Turbo may affect JavaScript-dependent crawlers"
     description: "Turbo Drive updates pages via JavaScript, which some crawlers may miss."

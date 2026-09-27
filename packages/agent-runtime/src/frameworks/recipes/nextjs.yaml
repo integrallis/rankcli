@@ -18,6 +18,7 @@ seo_strengths:
 checks:
   # App Router specific
   - code: NEXTJS_NO_METADATA_API
+    indexable_only: true
     severity: warning
     title: "Not using Next.js Metadata API"
     description: "Next.js 13+ has a built-in Metadata API that's better than react-helmet."

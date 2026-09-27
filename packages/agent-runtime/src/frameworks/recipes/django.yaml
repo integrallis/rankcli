@@ -52,6 +52,7 @@ checks:
       ```
 
   - code: DJANGO_NO_META_FRAMEWORK
+    indexable_only: true
     severity: warning
     title: "No SEO meta framework detected"
     description: "Use django-meta for consistent meta tag management."

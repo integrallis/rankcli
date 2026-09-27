@@ -25,6 +25,13 @@ export interface FrameworkCheck {
   };
   app_router_only?: boolean;
   pages_router_only?: boolean;
+  /**
+   * Only meaningful on a page search engines are allowed to index. A check that
+   * says "crawlers will not see your content" is not a finding on a page that
+   * asks not to be crawled - every SaaS has a noindex /login, and reporting a
+   * critical SEO error on it is noise that drags the score down.
+   */
+  indexable_only?: boolean;
 }
 
 export interface FrameworkRecipe {
@@ -160,15 +167,18 @@ export async function loadRecipe(framework: Framework): Promise<FrameworkRecipe 
 export async function getFrameworkIssues(
   frameworkInfo: FrameworkInfo,
   html: string,
-  url: string
+  url: string,
+  options: { indexable?: boolean } = {}
 ): Promise<AuditIssue[]> {
   const recipe = await loadRecipe(frameworkInfo.framework);
   if (!recipe) return [];
 
   const issues: AuditIssue[] = [];
+  // Default true: a caller that does not know stays on the old behaviour.
+  const indexable = options.indexable ?? true;
 
   for (const check of recipe.checks) {
-    const matched = evaluateCheck(check, html, frameworkInfo);
+    const matched = evaluateCheck(check, html, frameworkInfo, indexable);
     if (matched) {
       issues.push({
         code: check.code,
@@ -196,8 +206,13 @@ export async function getFrameworkIssues(
 function evaluateCheck(
   check: FrameworkCheck,
   html: string,
-  frameworkInfo: FrameworkInfo
+  frameworkInfo: FrameworkInfo,
+  indexable = true
 ): boolean {
+  if (check.indexable_only && !indexable) {
+    return false;
+  }
+
   // Skip router-specific checks. Pages Router renders a <div id="__next">
   // hydration root; App Router does not use that wrapper at all - so its
   // presence is the Pages Router signal, not the App Router one.

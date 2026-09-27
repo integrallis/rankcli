@@ -61,6 +61,60 @@ function metaHasNoindex(content: string | undefined): boolean {
   return content.toLowerCase().split(',').some(d => ['noindex', 'none'].includes(d.trim()));
 }
 
+/** What a page says about being indexed, from its meta tags and its headers. */
+export interface RobotsDirectives {
+  /** Every robots/googlebot meta content value found, in document order. */
+  metaValues: string[];
+  metaNoindex: boolean;
+  /** The X-Robots-Tag header value, if the caller passed headers. */
+  xRobotsTag: string | undefined;
+  headerNoindex: boolean;
+  hasNoindex: boolean;
+}
+
+/**
+ * Read the page's indexing directives once, so every caller agrees on them.
+ *
+ * The parts stay separate because a noindex meta tag and an X-Robots-Tag header
+ * are different findings with different fixes - one is in the site's HTML, the
+ * other in server or CDN config.
+ */
+export function readRobotsDirectives(
+  html: string,
+  headers?: Record<string, string>
+): RobotsDirectives {
+  const $ = cheerio.load(html);
+  const metaValues: string[] = [];
+  $('meta[name]').each((_, el) => {
+    const name = ($(el).attr('name') || '').toLowerCase();
+    if (name === 'robots' || name === 'googlebot') {
+      metaValues.push($(el).attr('content') || '');
+    }
+  });
+
+  const metaNoindex = metaValues.some(metaHasNoindex);
+  const xRobotsTag = headers
+    ? Object.entries(headers).find(([k]) => k.toLowerCase() === 'x-robots-tag')?.[1]
+    : undefined;
+  const headerNoindex = xRobotsTagHasNoindex(xRobotsTag);
+
+  return { metaValues, metaNoindex, xRobotsTag, headerNoindex, hasNoindex: metaNoindex || headerNoindex };
+}
+
+/**
+ * Whether the page asks search engines not to index it.
+ *
+ * Exported because more than on-page cares. A page that is deliberately noindex
+ * cannot be harmed by being invisible to search, so checks whose entire
+ * rationale is organic visibility must not fire on it - we were reporting
+ * "Critical - your content is likely invisible to Google" on our own /login,
+ * which is noindex on purpose, while reporting NOINDEX_TAG for that same page
+ * in the same run.
+ */
+export function pageHasNoindex(html: string, headers?: Record<string, string>): boolean {
+  return readRobotsDirectives(html, headers).hasNoindex;
+}
+
 /** The site root ("/" with no query) - a noindex there removes the whole site from search. */
 export function isSiteRoot(url: string): boolean {
   try {
@@ -95,21 +149,8 @@ export function analyzeOnPage(
   const canonical = $('link[rel="canonical"]').attr('href');
   const metaRobots = $('meta[name="robots"]').attr('content');
 
-  // Check noindex: <meta name="robots"> or <meta name="googlebot"> (any
-  // case), plus the X-Robots-Tag header when the caller passed headers.
-  const robotsMetaValues: string[] = [];
-  $('meta[name]').each((_, el) => {
-    const name = ($(el).attr('name') || '').toLowerCase();
-    if (name === 'robots' || name === 'googlebot') {
-      robotsMetaValues.push($(el).attr('content') || '');
-    }
-  });
-  const metaNoindex = robotsMetaValues.some(metaHasNoindex);
-  const headerLookup = headers
-    ? Object.entries(headers).find(([k]) => k.toLowerCase() === 'x-robots-tag')?.[1]
-    : undefined;
-  const headerNoindex = xRobotsTagHasNoindex(headerLookup);
-  const hasNoindex = metaNoindex || headerNoindex;
+  const { metaValues: robotsMetaValues, metaNoindex, xRobotsTag: headerLookup, headerNoindex, hasNoindex } =
+    readRobotsDirectives(html, headers);
 
   // Extract headings
   const h1s: string[] = [];

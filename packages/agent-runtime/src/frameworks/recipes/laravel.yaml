@@ -14,6 +14,7 @@ seo_strengths:
 
 checks:
   - code: LARAVEL_NO_META_PACKAGE
+    indexable_only: true
     severity: warning
     title: "No SEO package detected"
     description: "Laravel benefits from an SEO package like artesaos/seotools."
@@ -65,6 +66,7 @@ checks:
       ```
 
   - code: LARAVEL_INERTIA_NO_SSR
+    indexable_only: true
     severity: error
     title: "Inertia.js without SSR"
     description: "Inertia apps are client-rendered by default, losing SEO benefits."

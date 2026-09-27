@@ -5,7 +5,7 @@ import type { PremiumChecks } from './premium-checks.types.js';
 import { detectFramework } from '../frameworks/detector.js';
 import { getFrameworkIssues } from '../frameworks/suggestion-engine.js';
 import { runCrawlabilityChecks } from './checks/crawlability.js';
-import { analyzeOnPage, isSiteRoot } from './checks/on-page.js';
+import { pageHasNoindex, analyzeOnPage, isSiteRoot } from './checks/on-page.js';
 import { analyzeLinks } from './checks/links.js';
 import { analyzeImages } from './checks/images.js';
 import { analyzePerformance, fetchCoreWebVitals } from './checks/performance.js';
@@ -402,7 +402,11 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   asyncChecks.push(safeAsyncIssues('Framework Detection', async () => {
     const frameworkInfo = detectFramework({ html, headers });
     if (frameworkInfo.framework === 'unknown') return [];
-    return getFrameworkIssues(frameworkInfo, html, url);
+    // A noindex page is exempt from the checks that only matter for search
+    // visibility - see FrameworkCheck.indexable_only.
+    return getFrameworkIssues(frameworkInfo, html, url, {
+      indexable: !pageHasNoindex(html, headers),
+    });
   }));
 
   // ===== EXTENDED ASYNC CHECKS (registered + paid tiers) =====

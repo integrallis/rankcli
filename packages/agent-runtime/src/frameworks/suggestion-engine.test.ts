@@ -68,3 +68,31 @@ describe('getFrameworkIssues - detection wiring', () => {
     expect(issues.map(i => i.code)).not.toContain('NEXTJS_NO_METADATA_API');
   });
 });
+
+// Found by running RankCLI on rankcli.dev: our own /login is noindex on purpose, and the audit
+// reported NOINDEX_TAG for it and, in the same run, REACT_CSR_DETECTED - "Critical, your content
+// is likely invisible to Google". A page that asks not to be indexed cannot be harmed by not
+// being indexed. Every SaaS has a noindex /login, so this fired for everyone.
+describe('checks that only matter on an indexable page', () => {
+  const CSR_HTML = '<html><head><meta name="robots" content="noindex, nofollow"></head><body><div id="root"></div></body></html>';
+  const react = { framework: 'react' as const, language: 'typescript' as const, confidence: 'high' as const };
+
+  it('does not report a search-visibility issue on a noindex page', async () => {
+    const issues = await getFrameworkIssues(react, CSR_HTML, 'https://example.com/login', {
+      indexable: false,
+    });
+    expect(issues.map((i) => i.code)).not.toContain('REACT_CSR_DETECTED');
+  });
+
+  it('still reports it on a page that is meant to be indexed', async () => {
+    const issues = await getFrameworkIssues(react, CSR_HTML, 'https://example.com/', {
+      indexable: true,
+    });
+    expect(issues.map((i) => i.code)).toContain('REACT_CSR_DETECTED');
+  });
+
+  it('assumes indexable when the caller says nothing, so old callers are unchanged', async () => {
+    const issues = await getFrameworkIssues(react, CSR_HTML, 'https://example.com/');
+    expect(issues.map((i) => i.code)).toContain('REACT_CSR_DETECTED');
+  });
+});

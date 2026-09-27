@@ -19,6 +19,7 @@ seo_challenges:
 
 checks:
   - code: ANGULAR_NO_UNIVERSAL
+    indexable_only: true
     severity: error
     title: "Angular app without Universal (SSR)"
     description: "Client-side Angular apps send empty HTML to crawlers."
@@ -37,6 +38,7 @@ checks:
       missing_content: true
 
   - code: ANGULAR_NO_TITLE_SERVICE
+    indexable_only: true
     severity: error
     title: "Not using Title/Meta services"
     description: "Angular has built-in services for managing title and meta tags."
@@ -85,6 +87,7 @@ checks:
       \`\`\`
 
   - code: ANGULAR_PRERENDER_MISSING
+    indexable_only: true
     severity: warning
     title: "Static routes not prerendered"
     description: "Static pages should be prerendered at build time."
@@ -443,6 +446,7 @@ checks:
       \`\`\`
 
   - code: DJANGO_NO_META_FRAMEWORK
+    indexable_only: true
     severity: warning
     title: "No SEO meta framework detected"
     description: "Use django-meta for consistent meta tag management."
@@ -590,6 +594,7 @@ seo_strengths:
 
 checks:
   - code: LARAVEL_NO_META_PACKAGE
+    indexable_only: true
     severity: warning
     title: "No SEO package detected"
     description: "Laravel benefits from an SEO package like artesaos/seotools."
@@ -641,6 +646,7 @@ checks:
       \`\`\`
 
   - code: LARAVEL_INERTIA_NO_SSR
+    indexable_only: true
     severity: error
     title: "Inertia.js without SSR"
     description: "Inertia apps are client-rendered by default, losing SEO benefits."
@@ -735,6 +741,7 @@ seo_strengths:
 checks:
   # App Router specific
   - code: NEXTJS_NO_METADATA_API
+    indexable_only: true
     severity: warning
     title: "Not using Next.js Metadata API"
     description: "Next.js 13+ has a built-in Metadata API that's better than react-helmet."
@@ -1007,6 +1014,7 @@ seo_strengths:
 
 checks:
   - code: NUXT_NO_USESEOMETA
+    indexable_only: true
     severity: warning
     title: "Not using useSeoMeta composable"
     description: "Nuxt 3 has built-in SEO meta composables that are cleaner than useHead."
@@ -1116,6 +1124,7 @@ checks:
       \`\`\`
 
   - code: NUXT_SPA_MODE
+    indexable_only: true
     severity: error
     title: "Nuxt running in SPA mode"
     description: "SPA mode disables SSR, losing SEO benefits."
@@ -1141,6 +1150,7 @@ checks:
       missing_content: true
 
   - code: NUXT_NO_PRERENDER
+    indexable_only: true
     severity: notice
     title: "Static pages not pre-rendered"
     description: "Static pages could be pre-rendered for better performance."
@@ -1184,6 +1194,7 @@ seo_strengths:
 
 checks:
   - code: RAILS_NO_META_TAGS_GEM
+    indexable_only: true
     severity: warning
     title: "Not using meta-tags gem"
     description: "The meta-tags gem provides a clean API for SEO tags."
@@ -1256,6 +1267,7 @@ checks:
       \`\`\`
 
   - code: RAILS_TURBO_BREAKS_CRAWLERS
+    indexable_only: true
     severity: notice
     title: "Turbo may affect JavaScript-dependent crawlers"
     description: "Turbo Drive updates pages via JavaScript, which some crawlers may miss."
@@ -1378,6 +1390,7 @@ seo_challenges:
 checks:
   # Critical - these will severely hurt SEO
   - code: REACT_CSR_DETECTED
+    indexable_only: true
     severity: error
     title: "Client-side rendered React app detected"
     description: "React apps without SSR send empty HTML to crawlers. Search engines may not index your content."
@@ -1393,6 +1406,7 @@ checks:
       missing_content: true  # Body has minimal text content
 
   - code: REACT_NO_SSR_META
+    indexable_only: true
     severity: error
     title: "Meta tags not server-rendered"
     description: "Title and meta description are set client-side and won't be seen by crawlers."
@@ -1459,6 +1473,7 @@ checks:
       \`\`\`
 
   - code: REACT_ROUTER_NO_SSR
+    indexable_only: true
     severity: warning
     title: "React Router without server-side support"
     description: "Client-side routing breaks when crawlers access URLs directly."
@@ -1477,6 +1492,7 @@ checks:
       \`\`\`
 
   - code: REACT_NO_PRERENDER
+    indexable_only: true
     severity: warning
     title: "No prerendering configured"
     description: "Static pages could be prerendered for better SEO and performance."
@@ -1633,6 +1649,7 @@ checks:
         - 'name="description"'
 
   - code: SVELTEKIT_NO_PRERENDER
+    indexable_only: true
     severity: notice
     title: "Static pages not prerendered"
     description: "Static pages should be prerendered for best performance."
@@ -1738,6 +1755,7 @@ seo_challenges:
 
 checks:
   - code: VUE_CSR_DETECTED
+    indexable_only: true
     severity: error
     title: "Client-side rendered Vue app detected"
     description: "Vue apps without SSR send empty HTML to crawlers."
@@ -1754,6 +1772,7 @@ checks:
       missing_content: true
 
   - code: VUE_NO_META_MANAGEMENT
+    indexable_only: true
     severity: error
     title: "No meta tag management library"
     description: "Title and meta description are not dynamically managed."

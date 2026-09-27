@@ -14,6 +14,7 @@ seo_challenges:
 
 checks:
   - code: ANGULAR_NO_UNIVERSAL
+    indexable_only: true
     severity: error
     title: "Angular app without Universal (SSR)"
     description: "Client-side Angular apps send empty HTML to crawlers."
@@ -32,6 +33,7 @@ checks:
       missing_content: true
 
   - code: ANGULAR_NO_TITLE_SERVICE
+    indexable_only: true
     severity: error
     title: "Not using Title/Meta services"
     description: "Angular has built-in services for managing title and meta tags."
@@ -80,6 +82,7 @@ checks:
       ```
 
   - code: ANGULAR_PRERENDER_MISSING
+    indexable_only: true
     severity: warning
     title: "Static routes not prerendered"
     description: "Static pages should be prerendered at build time."

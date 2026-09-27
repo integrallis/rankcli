@@ -16,6 +16,7 @@ seo_challenges:
 checks:
   # Critical - these will severely hurt SEO
   - code: REACT_CSR_DETECTED
+    indexable_only: true
     severity: error
     title: "Client-side rendered React app detected"
     description: "React apps without SSR send empty HTML to crawlers. Search engines may not index your content."
@@ -31,6 +32,7 @@ checks:
       missing_content: true  # Body has minimal text content
 
   - code: REACT_NO_SSR_META
+    indexable_only: true
     severity: error
     title: "Meta tags not server-rendered"
     description: "Title and meta description are set client-side and won't be seen by crawlers."
@@ -97,6 +99,7 @@ checks:
       ```
 
   - code: REACT_ROUTER_NO_SSR
+    indexable_only: true
     severity: warning
     title: "React Router without server-side support"
     description: "Client-side routing breaks when crawlers access URLs directly."
@@ -115,6 +118,7 @@ checks:
       ```
 
   - code: REACT_NO_PRERENDER
+    indexable_only: true
     severity: warning
     title: "No prerendering configured"
     description: "Static pages could be prerendered for better SEO and performance."

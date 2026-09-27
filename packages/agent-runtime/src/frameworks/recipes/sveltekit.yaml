@@ -68,6 +68,7 @@ checks:
         - 'name="description"'
 
   - code: SVELTEKIT_NO_PRERENDER
+    indexable_only: true
     severity: notice
     title: "Static pages not prerendered"
     description: "Static pages should be prerendered for best performance."

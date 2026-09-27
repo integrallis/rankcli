@@ -17,6 +17,7 @@ seo_strengths:
 
 checks:
   - code: NUXT_NO_USESEOMETA
+    indexable_only: true
     severity: warning
     title: "Not using useSeoMeta composable"
     description: "Nuxt 3 has built-in SEO meta composables that are cleaner than useHead."
@@ -126,6 +127,7 @@ checks:
       ```
 
   - code: NUXT_SPA_MODE
+    indexable_only: true
     severity: error
     title: "Nuxt running in SPA mode"
     description: "SPA mode disables SSR, losing SEO benefits."
@@ -151,6 +153,7 @@ checks:
       missing_content: true
 
   - code: NUXT_NO_PRERENDER
+    indexable_only: true
     severity: notice
     title: "Static pages not pre-rendered"
     description: "Static pages could be pre-rendered for better performance."
