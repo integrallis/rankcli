@@ -17,7 +17,7 @@
  * - [Link Text](url): Description
  */
 
-import { httpGet } from '../../utils/http.js';
+import { httpGet, looksLikeHtmlFallback } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 
 export interface LlmsTxtData {
@@ -106,7 +106,11 @@ export async function analyzeLlmsTxt(
       validateStatus: () => true,
     });
 
-    if (response.status === 200) {
+    // A 200 is not the file: an SPA catch-all answers every unknown path with its own HTML.
+    // Treated as content, that shell was analysed as an llms.txt and reported as having no
+    // title, no description and too few links - three findings about a file that isn't there.
+    // The same guard lives in ai-readiness.ts's checkLlmsTxt; both checks fetch this file.
+    if (response.status === 200 && !looksLikeHtmlFallback(response.data, response.headers?.['content-type'])) {
       exists = true;
       content = response.data as string;
       contentLength = content.length;
@@ -119,7 +123,7 @@ export async function analyzeLlmsTxt(
       validateStatus: () => true,
     });
 
-    if (fullResponse.status === 200) {
+    if (fullResponse.status === 200 && !looksLikeHtmlFallback(fullResponse.data, fullResponse.headers?.['content-type'])) {
       fullVersionExists = true;
     }
   } catch {
