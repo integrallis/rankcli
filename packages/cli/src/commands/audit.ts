@@ -161,7 +161,9 @@ async function syncToCloud(
   pagesAudited: number,
   aiAnalysis: AIAnalysis | null,
   durationMs: number,
-  checksRun: number
+  checksRun: number,
+  /** The detected framework, so the dashboard can show what the CLI already printed. */
+  framework?: string
 ): Promise<{ projectId: string; auditId: string; githubLinked: boolean } | null> {
   // Resolve the caller's own credential rather than requiring a Supabase
   // session specifically - the default login path (browser device-flow,
@@ -204,6 +206,7 @@ async function syncToCloud(
         durationMs,
         healthScores,
         aiAnalysis,
+        framework,
       }),
     });
 
@@ -558,7 +561,7 @@ export async function audit(options: AuditOptions): Promise<number> {
       // Sync to cloud for JSON output too (silent, no spinner)
       let syncResult: { projectId: string; auditId: string; githubLinked: boolean } | null = null;
       if (loggedIn) {
-        syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun);
+        syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName);
       }
 
       const jsonOutput = {
@@ -677,7 +680,7 @@ export async function audit(options: AuditOptions): Promise<number> {
       // Sync to cloud if logged in
       if (loggedIn) {
         const syncSpinner = ora('Syncing to cloud...').start();
-        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun);
+        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName);
 
         if (syncResult) {
           syncSpinner.succeed('Results synced to cloud');

@@ -50,19 +50,24 @@ export {
 } from './suggestion-engine.js';
 
 // Convenience function to get all available frameworks
+// Frameworks with a recipe in ./recipes - the ones that get framework-specific fixes rather
+// than generic advice. This list claimed svelte, remix and gatsby, which have no recipe, while
+// the marketing copy listed the eleven that do; index.test.ts now asserts it against the
+// directory so the two cannot drift again.
+//
+// Detection recognises far more than this (see the Framework type in detector.ts - Spring,
+// Phoenix, Hugo, Jekyll, htmx and the rest). Those are identified and reported; they just have
+// no recipe to fix them with.
 export const SUPPORTED_FRAMEWORKS = [
-  'react',
-  'nextjs',
-  'vue',
-  'nuxt',
   'angular',
-  'svelte',
-  'sveltekit',
   'astro',
-  'remix',
-  'gatsby',
-  'rails',
-  'laravel',
   'django',
+  'laravel',
+  'nextjs',
+  'nuxt',
+  'rails',
+  'react',
+  'sveltekit',
+  'vue',
   'wordpress',
 ] as const;
