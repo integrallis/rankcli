@@ -74,6 +74,8 @@ export {
 export { buildDeterministicFixes } from '../fixer/deterministic.js';
 export { findAppRoot } from '../fixer/app-root.js';
 export { assessReplacement, describeConcerns } from '../fixer/safety.js';
+export { buildFrameworkGuidance } from '../fixer/framework-guidance.js';
+export { loadRecipe } from '../frameworks/suggestion-engine.js';
 
 // CI workflow generator. Pure string templates, no fs - shared with the CLI's
 // `rankcli setup --github-action` so the workflow the dashboard button commits and the

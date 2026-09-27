@@ -38,6 +38,7 @@ export * from './fixer/framework-fixes.js';
 export { buildDeterministicFixes } from './fixer/deterministic.js';
 export { findAppRoot } from './fixer/app-root.js';
 export { assessReplacement, describeConcerns } from './fixer/safety.js';
+export { buildFrameworkGuidance } from './fixer/framework-guidance.js';
 export type { DeterministicFixes, DeterministicFixInput } from './fixer/deterministic.js';
 // Schemas are exported from ./fixer/schemas.js - import directly to avoid conflicts
 // with generateFAQJsonLd and other duplicates in framework-fixes
