@@ -18,6 +18,7 @@
 // Usage: node scripts/build-mcpb.mjs   (from packages/mcp-server)
 
 import { execFileSync } from 'node:child_process';
+import { build } from 'esbuild';
 import { mkdirSync, rmSync, writeFileSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,21 +31,21 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'server'), { recursive: true });
 
 // 1. One self-contained file. A downloaded bundle has no node_modules to fall back on.
-const esbuild = join(ROOT, 'node_modules/.bin/esbuild');
-execFileSync(
-  esbuild,
-  [
-    join(ROOT, 'src/index.ts'),
-    '--bundle',
-    '--platform=node',
-    '--format=esm',
-    '--target=node20',
-    `--outfile=${join(OUT, 'server/index.js')}`,
-    // ESM output that still needs require() for the package.json lookup below.
-    `--banner:js=import{createRequire as __cr}from'module';const require=__cr(import.meta.url);`,
-  ],
-  { stdio: 'inherit' }
-);
+//
+// esbuild's Node API rather than its binary: pnpm does not put a .bin/esbuild inside this
+// package unless it is a declared dependency, so spawning a path worked locally (hoisted via
+// tsup) and failed on CI with ENOENT. It is a devDependency now and imported directly, which
+// cannot depend on layout.
+await build({
+  entryPoints: [join(ROOT, 'src/index.ts')],
+  outfile: join(OUT, 'server/index.js'),
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node20',
+  // ESM output that still needs require() for the package.json lookup below.
+  banner: { js: "import{createRequire as __cr}from'module';const require=__cr(import.meta.url);" },
+});
 
 // 2. The version the server reports to Claude. See the header note.
 writeFileSync(
