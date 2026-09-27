@@ -1,6 +1,6 @@
 {
   "name": "@rankcli/agent-runtime",
-  "version": "0.0.32",
+  "version": "0.0.33",
   "description": "RankCLI agent runtime - executes SEO audits and fixes with AI",
   "homepage": "https://rankcli.dev",
   "main": "dist/index.js",
