@@ -75,7 +75,7 @@ describe('getFrameworkIssues - detection wiring', () => {
 // being indexed. Every SaaS has a noindex /login, so this fired for everyone.
 describe('checks that only matter on an indexable page', () => {
   const CSR_HTML = '<html><head><meta name="robots" content="noindex, nofollow"></head><body><div id="root"></div></body></html>';
-  const react = { framework: 'react' as const, language: 'typescript' as const, confidence: 'high' as const };
+  const react = info('react');
 
   it('does not report a search-visibility issue on a noindex page', async () => {
     const issues = await getFrameworkIssues(react, CSR_HTML, 'https://example.com/login', {
