@@ -255,11 +255,18 @@ export function analyzeResponsiveImages(
 
   // Generate issues
 
-  // Critical: Many images without dimensions (CLS impact)
+  // Not an error, deliberately. `--fail-on error` exits 1, so this severity decides whether a
+  // build breaks - and measured on 2026-09-28 it fired at error for svelte.dev, tailwindcss.com,
+  // rust-lang.org, laravel.com and fastapi.tiangolo.com. Breaking the build of five
+  // professionally built sites over missing width/height is what gets a linter uninstalled.
+  //
+  // It is a real CLS cost and still worth reporting; it is not "your site is broken". The other
+  // two emitters of this code already treat it as notice (image-dimensions.ts) and info
+  // (tools/analyzer.ts), so error was the outlier rather than the consensus.
   if (imagesWithoutDimensions >= 3) {
     issues.push({
       code: 'IMAGES_MISSING_DIMENSIONS',
-      severity: 'error',
+      severity: 'warning',
       category: 'performance',
       title: `${imagesWithoutDimensions} images missing width/height attributes`,
       description: `Found ${imagesWithoutDimensions} images without explicit dimensions.`,
@@ -274,7 +281,8 @@ export function analyzeResponsiveImages(
   } else if (imagesWithoutDimensions > 0) {
     issues.push({
       code: 'IMAGES_MISSING_DIMENSIONS',
-      severity: 'warning',
+      // One or two keeps a gradient below the >=3 case rather than flattening both to warning.
+      severity: 'notice',
       category: 'performance',
       title: `${imagesWithoutDimensions} image(s) missing width/height attributes`,
       description: `Found ${imagesWithoutDimensions} images without explicit dimensions.`,

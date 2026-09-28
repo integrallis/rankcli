@@ -21,23 +21,27 @@ export interface DOMAnalysisData {
 }
 
 /**
- * Count total DOM nodes
+ * Count DOM elements.
+ *
+ * Elements only - not text, whitespace or comment nodes. This used to count every node cheerio
+ * hands back, while the thresholds it feeds (1500 / 3000) are taken from Lighthouse, which
+ * counts elements. Measured on tailwindcss.com: 3,231 nodes against 2,230 elements, the
+ * difference being 796 whitespace nodes and 205 comments. That pushed a page with a
+ * warning-sized DOM over the error line, and `--fail-on error` exits 1 - so re-indenting a
+ * template or leaving comments in the output could fail a build.
  */
 function countNodes($: cheerio.CheerioAPI): number {
   let count = 0;
 
-  function traverse(element: unknown): void {
-    count++;
-    const el = element as { children?: unknown[] };
+  function traverse(node: unknown): void {
+    const el = node as { type?: string; children?: unknown[] };
+    if (el.type === 'tag') count++;
     if (el.children) {
-      for (const child of el.children) {
-        traverse(child);
-      }
+      for (const child of el.children) traverse(child);
     }
   }
 
-  const root = $.root();
-  root.each((_, el) => traverse(el));
+  $.root().each((_, el) => traverse(el));
 
   return count;
 }
