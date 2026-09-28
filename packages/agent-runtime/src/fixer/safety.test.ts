@@ -111,3 +111,55 @@ describe('assessReplacement', () => {
     expect(describeConcerns(concerns)).toMatch(/shrunk|lost_closing_tag/);
   });
 });
+
+// Both of these come from a real generated PR against rankcli.dev (#11), reviewed before it
+// was merged. It would have deindexed the site and published a phone number and street
+// address that do not exist.
+describe('invented content', () => {
+  const SHELL = '<html><head><title>x</title></head><body><div id="root"></div></body></html>';
+
+  it('flags a fabricated phone number and address', () => {
+    const ld = `<script type="application/ld+json">{"@type":"Organization","telephone":"+1-800-555-0199","address":{"streetAddress":"123 Main Street","addressLocality":"Anytown"}}</script>`;
+    const codes = assessReplacement('index.html', SHELL, SHELL.replace('</head>', `${ld}</head>`)).map((c) => c.code);
+    expect(codes).toContain('placeholder_content');
+  });
+
+  it('flags an unfilled your_... placeholder', () => {
+    const codes = assessReplacement(
+      'index.html',
+      SHELL,
+      SHELL.replace('</head>', '<link rel="me" href="https://youtube.com/channel/your_youtube_channel"></head>')
+    ).map((c) => c.code);
+    expect(codes).toContain('placeholder_content');
+  });
+
+  it('does not blame us for a placeholder that was already there', () => {
+    const withPlaceholder = SHELL.replace('</head>', '<meta name="x" content="Anytown"></head>');
+    const codes = assessReplacement('index.html', withPlaceholder, withPlaceholder + '<!-- edited -->').map((c) => c.code);
+    expect(codes).not.toContain('placeholder_content');
+  });
+
+  it('flags a canonical added to a single-page-app shell', () => {
+    const codes = assessReplacement(
+      'index.html',
+      SHELL,
+      SHELL.replace('</head>', '<link rel="canonical" href="https://example.dev/"></head>')
+    ).map((c) => c.code);
+    expect(codes).toContain('canonical_in_shared_shell');
+  });
+
+  it('allows a canonical on a real single page', () => {
+    const page = '<html><head><title>x</title></head><body><h1>About</h1></body></html>';
+    const codes = assessReplacement(
+      'about.html',
+      page,
+      page.replace('</head>', '<link rel="canonical" href="https://example.dev/about"></head>')
+    ).map((c) => c.code);
+    expect(codes).not.toContain('canonical_in_shared_shell');
+  });
+
+  it('leaves ordinary real content alone', () => {
+    const page = '<html><head><title>x</title></head><body><p>Call +1-480-463-4962</p></body></html>';
+    expect(assessReplacement('about.html', page, page + '<!-- ok -->').map((c) => c.code)).toEqual([]);
+  });
+});

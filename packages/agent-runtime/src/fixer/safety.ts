@@ -24,7 +24,9 @@ export interface ReplacementConcern {
     | 'invalid_xml'
     | 'invalid_json_ld'
     | 'fewer_sitemap_urls'
-    | 'lastmod_moved_backwards';
+    | 'lastmod_moved_backwards'
+    | 'placeholder_content'
+    | 'canonical_in_shared_shell';
   detail: string;
 }
 
@@ -120,6 +122,35 @@ function jsonLdConcerns(html: string): string[] {
  * to commit. `original` is null for a file being created, where there is nothing to lose and
  * only the content's own validity matters.
  */
+/**
+ * Text a model invents when it has no real value to put somewhere.
+ *
+ * A generated PR for rankcli.dev proposed Organization JSON-LD carrying
+ * "+1-800-555-0199", "123 Main Street, Anytown, CA 90210" and a sameAs entry of
+ * "youtube.com/channel/your_youtube_channel". Published structured data asserting a business
+ * address and phone number that do not exist is worse than having none: it is a false claim
+ * about a real company, and search engines act on it.
+ *
+ * Kept narrow on purpose. These are strings that essentially never appear in real content -
+ * 555 numbers are reserved for fiction, and "Anytown" and "your_" are what a template looks
+ * like when nobody filled it in.
+ */
+const PLACEHOLDERS: { pattern: RegExp; what: string }[] = [
+  { pattern: /\+?1[-\s.]?\(?800\)?[-\s.]?555[-\s.]?\d{4}/i, what: 'a reserved 555 phone number' },
+  { pattern: /\b555[-\s.]?01\d{2}\b/, what: 'a reserved 555 phone number' },
+  { pattern: /\bAnytown\b/i, what: '"Anytown"' },
+  { pattern: /\b123 Main (Street|St)\b/i, what: '"123 Main Street"' },
+  { pattern: /your_[a-z_]+/i, what: 'an unfilled "your_..." placeholder' },
+  { pattern: /\b(yourdomain|your-domain|example)\.(com|org|net)\b/i, what: 'a placeholder domain' },
+  { pattern: /\blorem ipsum\b/i, what: 'lorem ipsum' },
+  { pattern: /\bXXX-XXX-XXXX\b/i, what: 'an unfilled phone template' },
+];
+
+/** An SPA shell: one file that serves many routes. */
+function isSharedShell(html: string): boolean {
+  return /<div[^>]+id=["'](root|app|__next|__nuxt)["']/i.test(html);
+}
+
 export function assessReplacement(
   path: string,
   original: string | null,
@@ -127,6 +158,30 @@ export function assessReplacement(
 ): ReplacementConcern[] {
   const concerns: ReplacementConcern[] = [];
   const add = (code: ReplacementConcern['code'], detail: string) => concerns.push({ code, detail });
+
+  // --- Invented content: applies to new files too -------------------------------
+  for (const { pattern, what } of PLACEHOLDERS) {
+    const hit = replacement.match(pattern);
+    // Only a concern if we are the ones introducing it.
+    if (hit && !(original && pattern.test(original))) {
+      add('placeholder_content', `contains ${what} (${hit[0]})`);
+    }
+  }
+
+  // A canonical in a file that serves every route tells search engines every page is a
+  // duplicate of one URL. A generated PR proposed exactly this for rankcli.dev's index.html,
+  // whose own comment says not to, and merging it would have deindexed the site.
+  if (/\.html?$/i.test(path) && isSharedShell(replacement)) {
+    const addsCanonical =
+      /<link[^>]+rel=["']canonical["']/i.test(replacement) &&
+      !(original && /<link[^>]+rel=["']canonical["']/i.test(original));
+    if (addsCanonical) {
+      add(
+        'canonical_in_shared_shell',
+        `${path} mounts a single-page app, so a canonical here applies to every route`
+      );
+    }
+  }
 
   // --- Content validity: applies to new files too -------------------------------
   if (/\.json$/i.test(path) || /\.webmanifest$/i.test(path)) {
