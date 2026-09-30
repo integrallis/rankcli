@@ -28,7 +28,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "benchmark:detection": "node scripts/benchmark-detection.mjs"
+    "benchmark:detection": "node scripts/benchmark-detection.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

@@ -17,8 +17,14 @@ function mockByAgent(statusFor: (ua: string) => number | 'throw') {
 const isBot = (ua: string, name: string) => ua.includes(name);
 
 describe('crawler access at the edge', () => {
-  beforeEach(() => vi.restoreAllMocks());
-  afterEach(() => vi.restoreAllMocks());
+  // Block bodies, not concise ones: restoreAllMocks returns VitestUtils, and a concise arrow
+  // returns it where the hook expects void.
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   // The Cloudflare 2026-09-15 case: robots.txt says nothing is blocked, and Googlebot gets a
   // 403 anyway because a CDN rule refuses it before the origin is reached.

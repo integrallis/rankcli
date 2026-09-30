@@ -42,7 +42,8 @@
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
     "test:wasm": "node test-wasm.js",
-    "update-version": "node scripts/update-version.js"
+    "update-version": "node scripts/update-version.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@rankcli/agent-runtime": "workspace:*",
