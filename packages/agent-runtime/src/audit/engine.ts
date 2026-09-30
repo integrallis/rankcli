@@ -20,6 +20,7 @@ import { analyzeAnchorText } from './checks/anchor-text.js';
 import { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 import { analyzePagination } from './checks/pagination.js';
 import { analyzeRedirects } from './checks/redirect-analysis.js';
+import { analyzeCrawlerAccess } from './checks/crawler-access.js';
 // New competitor-parity checks
 import { runAIReadinessChecks } from './checks/ai-readiness.js';
 import { analyzeSERPPreview } from './checks/serp-preview.js';
@@ -393,6 +394,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   asyncChecks.push(safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues));
   asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
   asyncChecks.push(safeAsync('Robots Validation', () => validateRobotsTxt(url)));
+  // robots.txt is necessary and not sufficient: a CDN or WAF can refuse a crawler before
+  // robots.txt is ever consulted, which is exactly what Cloudflare's 2026-09-15 default does to
+  // Googlebot on ad-supported pages. This asks as each crawler and compares with a browser.
+  asyncChecks.push(safeAsyncIssues('Crawler Access', async () => (await analyzeCrawlerAccess(url)).issues));
   asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
   // Framework-specific checks (React/Next.js/WordPress/etc recipes) - this
   // was previously CLI-only (packages/cli/src/commands/audit.ts ran it as
