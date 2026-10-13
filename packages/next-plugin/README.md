@@ -4,8 +4,6 @@ Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt.
 
 ## Installation
 
-> **Not on npm yet.** `next-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter next-rankcli build`) and install the folder.
-
 ```bash
 npm install next-rankcli
 ```

@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "Vite plugin for SEO validation, sitemap generation, and meta tag injection - RankCLI",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://rankcli.dev",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +20,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "keywords": [
     "vite",
     "vite-plugin",
@@ -27,9 +33,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/rankcli/rankcli"
+    "url": "https://github.com/integrallis/rankcli.dev",
+    "directory": "packages/vite-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli.dev/issues"
   },
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --format esm --dts --watch",
     "test": "vitest run"

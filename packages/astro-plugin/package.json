@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "description": "Astro integration for SEO automation - sitemap, robots.txt, meta injection - RankCLI",
   "license": "MIT",
-  "homepage": "https://rankcli.dev",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://rankcli.dev/seo/astro",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -17,6 +20,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "keywords": [
     "astro",
     "astro-integration",
@@ -26,9 +32,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/rankcli/rankcli"
+    "url": "https://github.com/integrallis/rankcli.dev",
+    "directory": "packages/astro-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli.dev/issues"
   },
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --format esm --dts --watch",
     "test": "vitest run"

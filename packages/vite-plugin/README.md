@@ -4,8 +4,6 @@ Vite plugin for SEO validation, sitemap generation, and meta tag injection.
 
 ## Installation
 
-> **Not on npm yet.** `vite-plugin-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter vite-plugin-rankcli build`) and install the folder.
-
 ```bash
 npm install vite-plugin-rankcli -D
 ```

@@ -4,8 +4,6 @@ Astro integration for SEO automation - sitemap, robots.txt, meta validation.
 
 ## Installation
 
-> **Not on npm yet.** `astro-rankcli` is the name it will publish under. Until then, build it from this repo (`pnpm --filter astro-rankcli build`) and install the folder.
-
 ```bash
 npm install astro-rankcli
 ```
