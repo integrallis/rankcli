@@ -82,8 +82,18 @@ export function analyzeAnchorText(
       internalLinks++; // Relative URLs are internal
     }
 
-    // Check for empty anchor text
-    const hasAccessibleText = text.length > 0 || ariaLabel || title;
+    // Check for empty anchor text. A logo link (<a><img alt="Acme"></a>) and an
+    // icon link with an SVG <title> are read aloud and indexed by their alt/title,
+    // so they are not empty.
+    const imgAlt = $(el)
+      .find('img[alt]')
+      .map((_, img) => ($(img).attr('alt') || '').trim())
+      .get()
+      .join(' ')
+      .trim();
+    const svgTitle = $(el).find('svg title').text().trim();
+    const hasAccessibleText =
+      text.length > 0 || ariaLabel || title || imgAlt.length > 0 || svgTitle.length > 0;
     if (!hasAccessibleText) {
       emptyAnchors++;
       if (emptyAnchorUrls.length < 5) {
