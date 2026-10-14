@@ -1,11 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeTrackingVerification } from './tracking-verification.js';
+import { lookupSiteVerification, type SiteVerification } from './site-verification.js';
+
+// The DNS/BingSiteAuth.xml lookup is the helper's business (site-verification.test.ts); here
+// it answers what each test says, and never touches the network.
+vi.mock('./site-verification.js', () => ({ lookupSiteVerification: vi.fn() }));
+
+const lookup = vi.mocked(lookupSiteVerification);
+const nothing: SiteVerification = { dnsChecked: true, googleDns: false, bingDns: false, bingSiteAuthFile: false };
+
+beforeEach(() => {
+  lookup.mockReset();
+  lookup.mockResolvedValue(nothing);
+});
 
 describe('analyzeTrackingVerification', () => {
   const testUrl = 'https://example.com';
 
   describe('Google Analytics 4 detection', () => {
-    it('detects GA4 gtag.js tracking code', () => {
+    it('detects GA4 gtag.js tracking code', async () => {
       const html = `
         <html>
           <head>
@@ -20,7 +33,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.ga4.detected).toBe(true);
       expect(data.ga4.measurementId).toBe('G-ABC123XYZ');
@@ -29,7 +42,7 @@ describe('analyzeTrackingVerification', () => {
       expect(ga4Issue).toBeUndefined();
     });
 
-    it('detects GA4 from script src only', () => {
+    it('detects GA4 from script src only', async () => {
       const html = `
         <html>
           <head>
@@ -38,16 +51,16 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data } = analyzeTrackingVerification(html, testUrl);
+      const { data } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.ga4.detected).toBe(true);
       expect(data.ga4.measurementId).toBe('G-TESTID123');
     });
 
-    it('reports missing GA4 when not present', () => {
+    it('reports missing GA4 when not present', async () => {
       const html = `<html><head></head></html>`;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.ga4.detected).toBe(false);
       expect(data.ga4.measurementId).toBeUndefined();
@@ -58,7 +71,7 @@ describe('analyzeTrackingVerification', () => {
       expect(ga4Issue?.affectedUrls).toContain(testUrl);
     });
 
-    it('does not report missing GA4 if GTM is present', () => {
+    it('does not report missing GA4 if GTM is present', async () => {
       const html = `
         <html>
           <head>
@@ -71,7 +84,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { issues } = analyzeTrackingVerification(html, testUrl);
+      const { issues } = await analyzeTrackingVerification(html, testUrl);
 
       const ga4Issue = issues.find((i) => i.code === 'GA4_MISSING');
       expect(ga4Issue).toBeUndefined();
@@ -79,7 +92,7 @@ describe('analyzeTrackingVerification', () => {
   });
 
   describe('Google Tag Manager detection', () => {
-    it('detects GTM with noscript fallback', () => {
+    it('detects GTM with noscript fallback', async () => {
       const html = `
         <html>
           <head>
@@ -96,7 +109,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gtm.detected).toBe(true);
       expect(data.gtm.containerId).toBe('GTM-TESTID');
@@ -109,7 +122,7 @@ describe('analyzeTrackingVerification', () => {
       expect(noscriptIssue).toBeUndefined();
     });
 
-    it('reports missing noscript when GTM present without it', () => {
+    it('reports missing noscript when GTM present without it', async () => {
       const html = `
         <html>
           <head>
@@ -119,7 +132,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gtm.detected).toBe(true);
       expect(data.gtm.hasNoscript).toBe(false);
@@ -129,10 +142,10 @@ describe('analyzeTrackingVerification', () => {
       expect(noscriptIssue?.severity).toBe('notice');
     });
 
-    it('reports missing GTM as informational', () => {
+    it('reports missing GTM as informational', async () => {
       const html = `<html><head></head></html>`;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gtm.detected).toBe(false);
 
@@ -143,7 +156,7 @@ describe('analyzeTrackingVerification', () => {
   });
 
   describe('Google Search Console verification', () => {
-    it('detects GSC verification meta tag', () => {
+    it('detects GSC verification meta tag', async () => {
       const html = `
         <html>
           <head>
@@ -152,7 +165,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gsc.verified).toBe(true);
       expect(data.gsc.verificationCode).toBe('abc123xyz789verificationcode');
@@ -161,10 +174,10 @@ describe('analyzeTrackingVerification', () => {
       expect(gscIssue).toBeUndefined();
     });
 
-    it('reports missing GSC verification', () => {
+    it('reports missing GSC verification', async () => {
       const html = `<html><head></head></html>`;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gsc.verified).toBe(false);
 
@@ -173,7 +186,7 @@ describe('analyzeTrackingVerification', () => {
       expect(gscIssue?.severity).toBe('warning');
     });
 
-    it('rejects short verification codes as invalid', () => {
+    it('rejects short verification codes as invalid', async () => {
       const html = `
         <html>
           <head>
@@ -182,14 +195,14 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data } = analyzeTrackingVerification(html, testUrl);
+      const { data } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.gsc.verified).toBe(false);
     });
   });
 
   describe('Bing Webmaster Tools verification', () => {
-    it('detects Bing verification meta tag', () => {
+    it('detects Bing verification meta tag', async () => {
       const html = `
         <html>
           <head>
@@ -198,7 +211,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.bing.verified).toBe(true);
       expect(data.bing.verificationCode).toBe('BING12345678901234567890');
@@ -207,10 +220,10 @@ describe('analyzeTrackingVerification', () => {
       expect(bingIssue).toBeUndefined();
     });
 
-    it('reports missing Bing verification as notice', () => {
+    it('reports missing Bing verification as notice', async () => {
       const html = `<html><head></head></html>`;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.bing.verified).toBe(false);
 
@@ -221,7 +234,7 @@ describe('analyzeTrackingVerification', () => {
   });
 
   describe('Schema.org structured data detection', () => {
-    it('detects JSON-LD structured data', () => {
+    it('detects JSON-LD structured data', async () => {
       const html = `
         <html>
           <head>
@@ -237,7 +250,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.schemaOrg.detected).toBe(true);
       expect(data.schemaOrg.types).toContain('Organization');
@@ -247,7 +260,7 @@ describe('analyzeTrackingVerification', () => {
       expect(schemaIssue).toBeUndefined();
     });
 
-    it('detects microdata structured data', () => {
+    it('detects microdata structured data', async () => {
       const html = `
         <html>
           <body>
@@ -258,7 +271,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.schemaOrg.detected).toBe(true);
 
@@ -266,10 +279,10 @@ describe('analyzeTrackingVerification', () => {
       expect(schemaIssue).toBeUndefined();
     });
 
-    it('reports missing structured data', () => {
+    it('reports missing structured data', async () => {
       const html = `<html><head></head><body></body></html>`;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.schemaOrg.detected).toBe(false);
 
@@ -278,7 +291,7 @@ describe('analyzeTrackingVerification', () => {
       expect(schemaIssue?.severity).toBe('warning');
     });
 
-    it('reports invalid JSON-LD', () => {
+    it('reports invalid JSON-LD', async () => {
       const html = `
         <html>
           <head>
@@ -289,7 +302,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.schemaOrg.detected).toBe(true);
       expect(data.schemaOrg.hasValidJson).toBe(false);
@@ -299,7 +312,7 @@ describe('analyzeTrackingVerification', () => {
       expect(invalidIssue?.severity).toBe('error');
     });
 
-    it('extracts multiple schema types', () => {
+    it('extracts multiple schema types', async () => {
       const html = `
         <html>
           <head>
@@ -313,7 +326,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data } = analyzeTrackingVerification(html, testUrl);
+      const { data } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.schemaOrg.types).toContain('Organization');
       expect(data.schemaOrg.types).toContain('WebSite');
@@ -321,7 +334,7 @@ describe('analyzeTrackingVerification', () => {
   });
 
   describe('Complete tracking analysis', () => {
-    it('analyzes fully configured page with all tracking', () => {
+    it('analyzes fully configured page with all tracking', async () => {
       const html = `
         <!DOCTYPE html>
         <html lang="en">
@@ -343,7 +356,7 @@ describe('analyzeTrackingVerification', () => {
         </html>
       `;
 
-      const { data, issues } = analyzeTrackingVerification(html, testUrl);
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
 
       expect(data.ga4.detected).toBe(true);
       expect(data.gsc.verified).toBe(true);
@@ -355,10 +368,10 @@ describe('analyzeTrackingVerification', () => {
       expect(criticalIssues).toHaveLength(0);
     });
 
-    it('analyzes page with no tracking configured', () => {
+    it('analyzes page with no tracking configured', async () => {
       const html = `<html><head></head><body></body></html>`;
 
-      const { issues } = analyzeTrackingVerification(html, testUrl);
+      const { issues } = await analyzeTrackingVerification(html, testUrl);
 
       const issueCodes = issues.map((i) => i.code);
       expect(issueCodes).toContain('GA4_MISSING');
@@ -366,6 +379,126 @@ describe('analyzeTrackingVerification', () => {
       expect(issueCodes).toContain('BING_VERIFICATION_MISSING');
       expect(issueCodes).toContain('GTM_MISSING');
       expect(issueCodes).toContain('SCHEMA_ORG_MISSING');
+    });
+  });
+
+  describe('other analytics', () => {
+    // rankcli.dev loads Cloudflare Web Analytics: it measures its traffic and has no use for GA4
+    // or a tag manager, so neither notice applies.
+    it('does not ask a Cloudflare Web Analytics site for GA4 or GTM', async () => {
+      const html = `<html><head>
+        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "abc"}'></script>
+      </head></html>`;
+
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
+
+      expect(data.otherAnalytics).toEqual(['Cloudflare Web Analytics']);
+      expect(data.ga4.detected).toBe(false);
+      const codes = issues.map((i) => i.code);
+      expect(codes).not.toContain('GA4_MISSING');
+      expect(codes).not.toContain('GTM_MISSING');
+    });
+
+    it.each([
+      ['Plausible', '<script defer data-domain="example.com" src="https://plausible.io/js/script.js"></script>'],
+      ['Fathom', '<script src="https://cdn.usefathom.com/script.js" data-site="ABCDEFG" defer></script>'],
+      ['Umami', '<script defer src="https://analytics.example.com/script.js" data-website-id="9d8a-1"></script>'],
+      ['PostHog', '<script>posthog.init("phc_x", { api_host: "https://us.i.posthog.com" })</script>'],
+      ['Matomo', '<script>var _paq = window._paq = window._paq || []; _paq.push(["trackPageView"]);</script>'],
+      ['Simple Analytics', '<script async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>'],
+      ['Mixpanel', '<script src="https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"></script>'],
+      ['Segment', '<script src="https://cdn.segment.com/analytics.js/v1/KEY/analytics.min.js"></script>'],
+    ])('recognises %s', async (name, snippet) => {
+      const { data, issues } = await analyzeTrackingVerification(`<html><head>${snippet}</head></html>`, testUrl);
+
+      expect(data.otherAnalytics).toContain(name);
+      const codes = issues.map((i) => i.code);
+      expect(codes).not.toContain('GA4_MISSING');
+      expect(codes).not.toContain('GTM_MISSING');
+    });
+
+    it('still reports both when no analytics at all is present', async () => {
+      const html = `<html><head><script src="/assets/app.js"></script></head></html>`;
+
+      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
+
+      expect(data.otherAnalytics).toEqual([]);
+      const codes = issues.map((i) => i.code);
+      expect(codes).toContain('GA4_MISSING');
+      expect(codes).toContain('GTM_MISSING');
+    });
+  });
+
+  describe('verification through DNS and BingSiteAuth.xml', () => {
+    const bare = `<html><head></head></html>`;
+
+    it('accepts a google-site-verification TXT record in place of the meta tag', async () => {
+      lookup.mockResolvedValue({ ...nothing, googleDns: true });
+
+      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
+
+      expect(data.gsc).toEqual({ verified: true, verificationCode: undefined, source: 'dns' });
+      expect(issues.map((i) => i.code)).not.toContain('GSC_VERIFICATION_MISSING');
+      expect(lookup).toHaveBeenCalledWith(testUrl);
+    });
+
+    it('accepts an MS= TXT record for Bing', async () => {
+      lookup.mockResolvedValue({ ...nothing, bingDns: true });
+
+      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
+
+      expect(data.bing.verified).toBe(true);
+      expect(data.bing.source).toBe('dns');
+      expect(issues.map((i) => i.code)).not.toContain('BING_VERIFICATION_MISSING');
+    });
+
+    it('accepts /BingSiteAuth.xml for Bing', async () => {
+      lookup.mockResolvedValue({ ...nothing, bingSiteAuthFile: true });
+
+      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
+
+      expect(data.bing.source).toBe('file');
+      expect(issues.map((i) => i.code)).not.toContain('BING_VERIFICATION_MISSING');
+    });
+
+    it('prefers the meta tag as the source when both are present', async () => {
+      lookup.mockResolvedValue({ ...nothing, googleDns: true });
+      const html = `<html><head><meta name="google-site-verification" content="abc123xyz789verificationcode" /></head></html>`;
+
+      const { data } = await analyzeTrackingVerification(html, testUrl);
+
+      expect(data.gsc.source).toBe('meta');
+    });
+
+    it('says the record is absent when DNS was checked and found nothing', async () => {
+      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
+
+      expect(data.dnsChecked).toBe(true);
+      const gsc = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
+      expect(gsc?.title).toBe('Google Search Console verification not found');
+      expect(gsc?.description).toContain('no google-site-verification TXT record');
+      expect(gsc?.details).toEqual({ dnsChecked: true });
+      const bing = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
+      expect(bing?.description).toContain('no MS= TXT record');
+    });
+
+    // Deno and offline runs have no resolver: the site may well be verified, so say only what
+    // was seen.
+    it('only says the tag is not in the HTML when DNS could not be checked', async () => {
+      lookup.mockResolvedValue({ ...nothing, dnsChecked: false });
+
+      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
+
+      expect(data.dnsChecked).toBe(false);
+      const gsc = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
+      expect(gsc).toBeDefined();
+      expect(gsc?.title).toBe('Google Search Console verification not visible in the HTML');
+      expect(gsc?.description).toContain('could not check');
+      expect(gsc?.description).not.toContain('no google-site-verification TXT record');
+      expect(gsc?.details).toEqual({ dnsChecked: false });
+      const bing = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
+      expect(bing?.title).toBe('Bing Webmaster Tools verification not visible in the HTML');
+      expect(bing?.description).toContain('could not check');
     });
   });
 });

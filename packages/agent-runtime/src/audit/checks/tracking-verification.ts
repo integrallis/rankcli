@@ -7,10 +7,36 @@
  * - Bing Webmaster Tools verification
  * - Google Tag Manager
  * - Schema.org structured data
+ *
+ * GA4 and GTM are one choice among many, and GSC and Bing verification is often done in DNS
+ * rather than the <head>: both are allowed for, so a site on Plausible that is verified by a
+ * TXT record is not told four times that it lacks Google's tags.
  */
 
 import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';
+import { lookupSiteVerification } from './site-verification.js';
+
+/**
+ * Analytics that are not Google's, by script host or init call. A site on one of these
+ * measures its traffic fine and has no use for a tag manager, so it gets neither notice.
+ */
+const OTHER_ANALYTICS: Array<{ name: string; pattern: RegExp }> = [
+  { name: 'Cloudflare Web Analytics', pattern: /cloudflareinsights\.com\/beacon(?:\.min)?\.js/i },
+  { name: 'Plausible', pattern: /plausible\.io\/js\/|<script[^>]*data-domain=[^>]*plausible|<script[^>]*plausible[^>]*data-domain=/i },
+  { name: 'Fathom', pattern: /cdn\.usefathom\.com/i },
+  // data-website-id is Umami's attribute, on the hosted script and on self-hosted ones alike.
+  { name: 'Umami', pattern: /<script[^>]*\bdata-website-id=/i },
+  { name: 'PostHog', pattern: /posthog\.init\s*\(|\.posthog\.com\//i },
+  { name: 'Matomo', pattern: /matomo\.js|piwik\.js|_paq\s*(?:=|\.push)/i },
+  { name: 'Simple Analytics', pattern: /scripts\.simpleanalyticscdn\.com/i },
+  { name: 'Mixpanel', pattern: /cdn\.mxpnl\.com|mixpanel\.init\s*\(/i },
+  { name: 'Segment', pattern: /cdn\.segment\.com/i },
+];
+
+export function detectOtherAnalytics(html: string): string[] {
+  return OTHER_ANALYTICS.filter(({ pattern }) => pattern.test(html)).map(({ name }) => name);
+}
 
 // =============================================================================
 // Local Check Types (for compatibility with check runner)
@@ -60,14 +86,20 @@ export interface TrackingData {
     containerId?: string;
     hasNoscript: boolean;
   };
+  /** Non-Google analytics found on the page, e.g. "Plausible". */
+  otherAnalytics: string[];
   gsc: {
     verified: boolean;
     verificationCode?: string;
+    source?: 'meta' | 'dns';
   };
   bing: {
     verified: boolean;
     verificationCode?: string;
+    source?: 'meta' | 'dns' | 'file';
   };
+  /** Whether the domain's DNS TXT records could be read (not in Deno, offline, or on a timeout). */
+  dnsChecked: boolean;
   schemaOrg: {
     detected: boolean;
     types: string[];
@@ -81,10 +113,10 @@ export interface TrackingData {
 // =============================================================================
 // Main Analyze Function
 // =============================================================================
-export function analyzeTrackingVerification(
+export async function analyzeTrackingVerification(
   html: string,
   url: string
-): { issues: AuditIssue[]; data: TrackingData } {
+): Promise<{ issues: AuditIssue[]; data: TrackingData }> {
   const issues: AuditIssue[] = [];
   const $ = cheerio.load(html);
 
@@ -100,13 +132,20 @@ export function analyzeTrackingVerification(
   const gtmContainerId = gtmMatch ? gtmMatch[1] : undefined;
   const hasGtmNoscript = /googletagmanager\.com\/ns\.html\?id=GTM-[A-Z0-9]+/i.test(html);
 
-  // Detect GSC verification
-  const gscMeta = $('meta[name="google-site-verification"]').attr('content');
-  const hasGscVerification = !!(gscMeta && gscMeta.length > 10);
+  const otherAnalytics = detectOtherAnalytics(html);
 
-  // Detect Bing verification
+  // Verification: a meta tag in the HTML, or a DNS TXT record / BingSiteAuth.xml on the site.
+  const verification = await lookupSiteVerification(url);
+
+  const gscMeta = $('meta[name="google-site-verification"]').attr('content');
+  const hasGscMeta = !!(gscMeta && gscMeta.length > 10);
+  const hasGscVerification = hasGscMeta || verification.googleDns;
+  const gscSource = hasGscMeta ? 'meta' : verification.googleDns ? 'dns' : undefined;
+
   const bingMeta = $('meta[name="msvalidate.01"]').attr('content');
-  const hasBingVerification = !!(bingMeta && bingMeta.length > 10);
+  const hasBingMeta = !!(bingMeta && bingMeta.length > 10);
+  const hasBingVerification = hasBingMeta || verification.bingDns || verification.bingSiteAuthFile;
+  const bingSource = hasBingMeta ? 'meta' : verification.bingDns ? 'dns' : verification.bingSiteAuthFile ? 'file' : undefined;
 
   // Detect Schema.org
   const jsonLdScripts = $('script[type="application/ld+json"]');
@@ -133,14 +172,17 @@ export function analyzeTrackingVerification(
   const data: TrackingData = {
     ga4: { detected: hasGa4, measurementId: ga4MeasurementId },
     gtm: { detected: hasGtm, containerId: gtmContainerId, hasNoscript: hasGtmNoscript },
-    gsc: { verified: hasGscVerification, verificationCode: gscMeta },
-    bing: { verified: hasBingVerification, verificationCode: bingMeta },
+    otherAnalytics,
+    gsc: { verified: hasGscVerification, verificationCode: gscMeta, source: gscSource },
+    bing: { verified: hasBingVerification, verificationCode: bingMeta, source: bingSource },
+    dnsChecked: verification.dnsChecked,
     schemaOrg: { detected: hasJsonLd || hasMicrodata, types: schemaTypes, hasValidJson },
     sitemap: { inRobotsTxt: false }, // Set later if we check robots.txt
   };
 
   // ==================== GA4 Check ====================
-  if (!hasGa4 && !hasGtm) {
+  // A site on another analytics product has made its choice; GA4 is not missing from it.
+  if (!hasGa4 && !hasGtm && otherAnalytics.length === 0) {
     issues.push({
       code: 'GA4_MISSING',
       severity: 'warning',
@@ -156,51 +198,66 @@ export function analyzeTrackingVerification(
   }
 
   // ==================== GSC Verification Check ====================
+  // Without DNS (Deno, offline) a TXT-verified site looks the same as an unverified one, so the
+  // wording only claims what was seen.
   if (!hasGscVerification) {
+    const dnsChecked = verification.dnsChecked;
     issues.push({
       code: 'GSC_VERIFICATION_MISSING',
       severity: 'warning',
       category: 'on-page',
-      title: 'Google Search Console verification not found',
-      description:
-        'No GSC verification meta tag detected. GSC provides essential data about your search performance.',
+      title: dnsChecked
+        ? 'Google Search Console verification not found'
+        : 'Google Search Console verification not visible in the HTML',
+      description: dnsChecked
+        ? 'No google-site-verification meta tag in the HTML and no google-site-verification TXT record on the domain. GSC provides essential data about your search performance.'
+        : 'No google-site-verification meta tag in the HTML. The site may be verified through a DNS TXT record instead, which this run could not check. GSC provides essential data about your search performance.',
       impact: 'Missing critical insights into Google search visibility, impressions, and clicks.',
-      howToFix:
-        'Add your GSC verification meta tag to the <head> section. Get it from search.google.com/search-console.',
+      howToFix: dnsChecked
+        ? 'Verify the site in Google Search Console: add the meta tag to <head>, or a TXT record to the domain\'s DNS. Get it from search.google.com/search-console.'
+        : 'If the site is not yet verified in Google Search Console, add the meta tag to <head> or a TXT record to the domain\'s DNS. Get it from search.google.com/search-console.',
       affectedUrls: [url],
+      details: { dnsChecked },
     });
   }
 
   // ==================== Bing Verification Check ====================
   if (!hasBingVerification) {
+    const dnsChecked = verification.dnsChecked;
     issues.push({
       code: 'BING_VERIFICATION_MISSING',
       severity: 'notice',
       category: 'on-page',
-      title: 'Bing Webmaster Tools verification not found',
-      description:
-        'No Bing verification meta tag detected. Bing/Yahoo account for 5-8% of search traffic.',
+      title: dnsChecked
+        ? 'Bing Webmaster Tools verification not found'
+        : 'Bing Webmaster Tools verification not visible in the HTML',
+      description: dnsChecked
+        ? 'No msvalidate.01 meta tag in the HTML, no MS= TXT record on the domain and no /BingSiteAuth.xml file. Bing/Yahoo account for 5-8% of search traffic.'
+        : 'No msvalidate.01 meta tag in the HTML and no /BingSiteAuth.xml file. The site may be verified through a DNS record instead, which this run could not check. Bing/Yahoo account for 5-8% of search traffic.',
       impact: 'Missing insights on Bing/Yahoo search traffic.',
       howToFix:
-        'Add Bing Webmaster Tools verification for insights on Bing/Yahoo traffic. Get it from bing.com/webmasters.',
+        'If the site is not yet in Bing Webmaster Tools, add it there: import it from Google Search Console, or verify with the meta tag, a DNS record or BingSiteAuth.xml. Get it from bing.com/webmasters.',
       affectedUrls: [url],
+      details: { dnsChecked },
     });
   }
 
   // ==================== GTM Check (informational) ====================
   if (!hasGtm) {
-    issues.push({
-      code: 'GTM_MISSING',
-      severity: 'notice',
-      category: 'on-page',
-      title: 'Google Tag Manager not detected',
-      description:
-        'GTM not found. While not required, GTM makes it easier to manage tracking tags without code changes.',
-      impact: 'Tag management requires developer involvement for each change.',
-      howToFix:
-        'Consider using GTM for easier tag management. It allows marketing to add tags without developer help.',
-      affectedUrls: [url],
-    });
+    if (otherAnalytics.length === 0) {
+      issues.push({
+        code: 'GTM_MISSING',
+        severity: 'notice',
+        category: 'on-page',
+        title: 'Google Tag Manager not detected',
+        description:
+          'GTM not found. While not required, GTM makes it easier to manage tracking tags without code changes.',
+        impact: 'Tag management requires developer involvement for each change.',
+        howToFix:
+          'Consider using GTM for easier tag management. It allows marketing to add tags without developer help.',
+        affectedUrls: [url],
+      });
+    }
   } else if (!hasGtmNoscript) {
     issues.push({
       code: 'GTM_NOSCRIPT_MISSING',
@@ -276,7 +333,7 @@ export const ga4TrackingCheck: AuditCheck = {
     // Also check for GTM (which might contain GA4)
     const hasGtm = /googletagmanager\.com\/gtm\.js/.test(html);
 
-    if (!hasGa4 && !hasGtm) {
+    if (!hasGa4 && !hasGtm && detectOtherAnalytics(html).length === 0) {
       return {
         id: 'ga4-tracking',
         checkId: 'ga4-tracking',
@@ -418,7 +475,7 @@ export const gtmCheck: AuditCheck = {
     const gtmNoscript = /googletagmanager\.com\/ns\.html\?id=GTM-[A-Z0-9]+/i;
     const hasGtmNoscript = gtmNoscript.test(html);
 
-    if (!hasGtm) {
+    if (!hasGtm && detectOtherAnalytics(html).length === 0) {
       return {
         id: 'gtm-installed',
         checkId: 'gtm-installed',

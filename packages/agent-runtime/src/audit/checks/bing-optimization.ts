@@ -8,10 +8,15 @@
 import * as cheerio from 'cheerio';
 import { httpGet } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
+import { lookupSiteVerification } from './site-verification.js';
 
 export interface BingOptimizationData {
   hasBingSiteAuth: boolean;
   hasBingMetaTag: boolean;
+  /** An MS=... TXT record on the domain. */
+  hasBingDnsRecord: boolean;
+  /** Whether the domain's DNS TXT records could be read (not in Deno, offline, or on a timeout). */
+  dnsChecked: boolean;
   hasBingIndexNowKey: boolean;
   bingPlacesDetected: boolean;
   bingSitemapAccessible: boolean;
@@ -32,16 +37,11 @@ export async function analyzeBingOptimization(
   const bingMetaTag = $('meta[name="msvalidate.01"]').attr('content');
   const hasBingMetaTag = !!bingMetaTag && bingMetaTag.length > 0;
 
-  // Check for BingSiteAuth.xml
-  let hasBingSiteAuth = false;
-  try {
-    const authResponse = await httpGet(`${baseUrl}/BingSiteAuth.xml`, { timeout: 5000 });
-    hasBingSiteAuth = authResponse.status === 200 &&
-      authResponse.data.includes('<?xml') &&
-      authResponse.data.toLowerCase().includes('users');
-  } catch {
-    // File doesn't exist or not accessible
-  }
+  // BingSiteAuth.xml and the DNS TXT record, looked up once per site and shared with the
+  // tracking-verification check.
+  const verification = await lookupSiteVerification(url);
+  const hasBingSiteAuth = verification.bingSiteAuthFile;
+  const hasBingDnsRecord = verification.bingDns;
 
   // Check for IndexNow key file (used by Bing)
   let hasBingIndexNowKey = false;
@@ -111,23 +111,32 @@ export async function analyzeBingOptimization(
 
   // Generate issues
 
-  // No Bing verification
-  if (!hasBingMetaTag && !hasBingSiteAuth) {
+  // No Bing verification. Without DNS (Deno, offline) a TXT-verified site looks the same as an
+  // unverified one, so the wording only claims what was seen; a site imported from Google
+  // Search Console leaves no trace at all, hence the "if not yet".
+  if (!hasBingMetaTag && !hasBingSiteAuth && !hasBingDnsRecord) {
     detectedIssues.push('No Bing site verification');
     issues.push({
       code: 'BING_NOT_VERIFIED',
       severity: 'warning',
       category: 'ai-readiness',
-      title: 'Site not verified with Bing Webmaster Tools',
-      description: 'ChatGPT Search uses Bing\'s index. Verifying your site with Bing Webmaster Tools ensures proper indexing and access to Bing-specific SEO tools.',
+      title: verification.dnsChecked
+        ? 'Site not verified with Bing Webmaster Tools'
+        : 'Bing Webmaster Tools verification not visible in the HTML',
+      description: verification.dnsChecked
+        ? 'No msvalidate.01 meta tag in the HTML, no MS= TXT record on the domain and no /BingSiteAuth.xml file. ChatGPT Search uses Bing\'s index. Verifying your site with Bing Webmaster Tools ensures proper indexing and access to Bing-specific SEO tools.'
+        : 'No msvalidate.01 meta tag in the HTML and no /BingSiteAuth.xml file. The site may be verified through a DNS record instead, which this run could not check. ChatGPT Search uses Bing\'s index. Verifying your site with Bing Webmaster Tools ensures proper indexing and access to Bing-specific SEO tools.',
       impact: 'May reduce visibility in ChatGPT Search results and miss Bing-specific optimization opportunities.',
-      howToFix: 'Add Bing verification: 1) Go to Bing Webmaster Tools, 2) Add your site, 3) Choose verification method (meta tag or XML file), 4) Add the verification code to your site.',
+      howToFix: 'If the site is not yet in Bing Webmaster Tools: 1) Go to Bing Webmaster Tools, 2) Add your site (or import it from Google Search Console), 3) Choose a verification method (meta tag, DNS record or XML file), 4) Add the verification code to your site.',
       affectedUrls: [url],
       details: {
         hasBingMetaTag,
         hasBingSiteAuth,
+        hasBingDnsRecord,
+        dnsChecked: verification.dnsChecked,
         verificationMethods: [
           'Add <meta name="msvalidate.01" content="YOUR_CODE"> to <head>',
+          'Add an MS=YOUR_CODE TXT record to the domain\'s DNS',
           'Upload BingSiteAuth.xml to root directory',
         ],
       },
@@ -197,6 +206,8 @@ export async function analyzeBingOptimization(
     data: {
       hasBingSiteAuth,
       hasBingMetaTag,
+      hasBingDnsRecord,
+      dnsChecked: verification.dnsChecked,
       hasBingIndexNowKey,
       bingPlacesDetected,
       bingSitemapAccessible,

@@ -11,6 +11,11 @@
  * - @media queries in inline styles
  * - @media queries in linked stylesheets
  * - Viewport meta tag (required for responsiveness)
+ *
+ * A Vite, Next.js or Tailwind site keeps every rule in an external stylesheet, so the page
+ * itself has no @media at all. The verdict therefore rests on the stylesheets, and when they
+ * cannot all be read (cross-origin, a failed fetch, more than the limit) the check says nothing:
+ * silence beats telling a Tailwind site it is not responsive.
  */
 
 import { httpGet } from '../../utils/http.js';
@@ -26,11 +31,25 @@ export interface ResponsiveCssData {
     inline: number;
     external: string[];
   };
+  /** @media, @container or fluid sizing (clamp/min/max) anywhere in the CSS that was read. */
+  hasResponsiveSignals: boolean;
+  /** Every linked stylesheet was same-origin, within the limit, and fetched. */
+  stylesheetsCovered: boolean;
   breakpoints: string[];
   hasMobileBreakpoint: boolean;
   hasTabletBreakpoint: boolean;
   hasDesktopBreakpoint: boolean;
 }
+
+const MAX_STYLESHEETS = 3;
+const MAX_STYLESHEET_BYTES = 1024 * 1024;
+const STYLESHEET_TIMEOUT_MS = 3000;
+
+/**
+ * CSS that adapts to the viewport. @media is the classic signal; container queries and fluid
+ * sizing are the modern ones, and a site can be responsive on those alone.
+ */
+const RESPONSIVE_SIGNAL = /@media\b|@container\b|\bclamp\(|(?<![\w-])(?:min|max)\(/i;
 
 /**
  * Extract media queries from CSS content
@@ -45,6 +64,10 @@ function extractMediaQueries(css: string): string[] {
   }
   return mediaQueries;
 }
+
+// min-width: 640px, max-width: 48em, and the range form Tailwind v4 emits: (width >= 40rem).
+const WIDTH_RULE =
+  /(?:(?:min|max)-width\s*:|width\s*(?:<=|>=|<|>))\s*(\d+(?:\.\d+)?)\s*(px|em|rem)?|(\d+(?:\.\d+)?)\s*(px|em|rem)?\s*(?:<=|>=|<|>)\s*width/gi;
 
 /**
  * Classify breakpoints
@@ -61,37 +84,28 @@ function classifyBreakpoints(mediaQueries: string[]): {
   let hasDesktop = false;
 
   for (const query of mediaQueries) {
-    // Extract width values from media queries
-    const widthMatches = query.match(/(?:min|max)-width\s*:\s*(\d+)(?:px|em|rem)?/gi);
-    if (widthMatches) {
-      for (const match of widthMatches) {
-        const valueMatch = match.match(/(\d+)/);
-        if (valueMatch) {
-          const value = parseInt(valueMatch[1], 10);
-          breakpoints.add(`${value}px`);
-
-          // Classify breakpoint
-          if (value <= 480) {
-            hasMobile = true;
-          } else if (value <= 768) {
-            hasMobile = true; // Small tablet / large phone
-          } else if (value <= 1024) {
-            hasTablet = true;
-          } else {
-            hasDesktop = true;
-          }
-        }
-      }
-    }
-
-    // Check for common responsive patterns
-    if (/screen\s+and/i.test(query)) {
-      // Has screen media type - indicates responsive design
-    }
-
     // Check for print media (not responsive but valid)
     if (/print/i.test(query)) {
       continue; // Don't count print as responsive
+    }
+
+    // Extract width values from media queries, in px (em and rem taken at the 16px default)
+    for (const match of query.matchAll(WIDTH_RULE)) {
+      const raw = match[1] ?? match[3];
+      const unit = (match[2] ?? match[4] ?? 'px').toLowerCase();
+      const value = Math.round(parseFloat(raw) * (unit === 'px' ? 1 : 16));
+      breakpoints.add(`${value}px`);
+
+      // Classify breakpoint
+      if (value <= 480) {
+        hasMobile = true;
+      } else if (value <= 768) {
+        hasMobile = true; // Small tablet / large phone
+      } else if (value <= 1024) {
+        hasTablet = true;
+      } else {
+        hasDesktop = true;
+      }
     }
   }
 
@@ -122,6 +136,7 @@ export async function analyzeResponsiveCss(
   const allMediaQueries: string[] = [];
   const externalSources: string[] = [];
   let inlineCount = 0;
+  let hasResponsiveSignals = false;
 
   // Check inline styles
   $('style').each((_, el) => {
@@ -131,50 +146,49 @@ export async function analyzeResponsiveCss(
       allMediaQueries.push(...queries);
       inlineCount += queries.length;
     }
+    if (RESPONSIVE_SIGNAL.test(css)) hasResponsiveSignals = true;
   });
 
-  // Check linked stylesheets (first-party only, limit to 3)
-  const cssLinks = $('link[rel="stylesheet"][href]')
-    .toArray()
-    .slice(0, 3)
-    .map((el) => $(el).attr('href'))
-    .filter((href): href is string => {
-      if (!href || href.startsWith('data:')) return false;
-      try {
-        const cssHostname = new URL(href, url).hostname;
-        return cssHostname === baseUrl.hostname;
-      } catch {
-        return false;
-      }
-    });
-
-  // Fetch CSS files in parallel with short timeout
-  const cssPromises = cssLinks.map(async (cssUrl) => {
+  // Linked stylesheets: same-origin ones can be read, the rest only counted. rel can carry more
+  // than one token ("stylesheet preload").
+  const sameOrigin: string[] = [];
+  let crossOrigin = 0;
+  $('link[rel][href]').each((_, el) => {
+    if (!/\bstylesheet\b/i.test($(el).attr('rel') ?? '')) return;
+    const href = $(el).attr('href');
+    if (!href || href.startsWith('data:')) return;
     try {
-      const fullUrl = new URL(cssUrl, url).href;
-      const response = await httpGet<string>(fullUrl, {
-        timeout: 3000, // Reduced timeout
-        validateStatus: () => true,
-      });
-
-      if (response.status === 200 && typeof response.data === 'string') {
-        const queries = extractMediaQueries(response.data);
-        if (queries.length > 0) {
-          allMediaQueries.push(...queries);
-          externalSources.push(cssUrl);
-        }
-      }
+      const resolved = new URL(href, url);
+      if (resolved.hostname === baseUrl.hostname) sameOrigin.push(resolved.href);
+      else crossOrigin++;
     } catch {
-      // Skip failed requests
+      crossOrigin++; // unreadable either way
     }
   });
 
-  // Wait for all CSS checks with overall timeout
-  await Promise.race([
-    Promise.all(cssPromises),
-    new Promise<void>((resolve) => setTimeout(resolve, 6000)), // 6s overall timeout
-  ]);
+  // Fetch the first few in parallel, each with a short timeout and a size cap
+  let fetchFailed = 0;
+  await Promise.all(
+    sameOrigin.slice(0, MAX_STYLESHEETS).map(async (cssUrl) => {
+      try {
+        const response = await httpGet<string>(cssUrl, {
+          timeout: STYLESHEET_TIMEOUT_MS,
+          maxBytes: MAX_STYLESHEET_BYTES,
+        });
+        if (typeof response.data !== 'string') throw new Error('not text');
+        const queries = extractMediaQueries(response.data);
+        if (queries.length > 0) allMediaQueries.push(...queries);
+        if (RESPONSIVE_SIGNAL.test(response.data)) {
+          hasResponsiveSignals = true;
+          externalSources.push(cssUrl);
+        }
+      } catch {
+        fetchFailed++;
+      }
+    })
+  );
 
+  const stylesheetsCovered = crossOrigin === 0 && fetchFailed === 0 && sameOrigin.length <= MAX_STYLESHEETS;
   const hasMediaQueries = allMediaQueries.length > 0;
   const { hasMobile, hasTablet, hasDesktop, breakpoints } = classifyBreakpoints(allMediaQueries);
 
@@ -193,13 +207,13 @@ export async function analyzeResponsiveCss(
     });
   }
 
-  if (!hasMediaQueries) {
+  if (!hasResponsiveSignals && stylesheetsCovered) {
     issues.push({
       code: 'RESPONSIVE_NO_MEDIA_QUERIES',
       severity: 'warning',
       category: 'mobile',
       title: 'No CSS media queries detected',
-      description: 'No @media queries found in inline styles or first-party stylesheets.',
+      description: 'No @media or @container queries and no fluid sizing (clamp, min, max) found in inline styles or first-party stylesheets.',
       impact:
         'Without media queries, the site likely uses fixed layouts that do not adapt to different screen sizes. This hurts mobile usability and SEO.',
       howToFix:
@@ -207,9 +221,10 @@ export async function analyzeResponsiveCss(
       affectedUrls: [url],
       details: {
         suggestion: 'Common breakpoints: 480px (mobile), 768px (tablet), 1024px (desktop)',
+        stylesheetsScanned: sameOrigin.length,
       },
     });
-  } else if (!hasMobile && !hasTablet) {
+  } else if (hasMediaQueries && !hasMobile && !hasTablet) {
     issues.push({
       code: 'RESPONSIVE_NO_MOBILE_BREAKPOINT',
       severity: 'warning',
@@ -238,6 +253,8 @@ export async function analyzeResponsiveCss(
         inline: inlineCount,
         external: externalSources,
       },
+      hasResponsiveSignals,
+      stylesheetsCovered,
       breakpoints,
       hasMobileBreakpoint: hasMobile,
       hasTabletBreakpoint: hasTablet,

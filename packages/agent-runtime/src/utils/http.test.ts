@@ -16,6 +16,10 @@ describe('httpGet', () => {
         res.write('<html>'); // ...and never end
         return;
       }
+      if (req.url === '/big') {
+        res.end(Buffer.alloc(3 * 1024 * 1024, 'a'));
+        return;
+      }
       res.end('<html>ok</html>');
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -36,6 +40,17 @@ describe('httpGet', () => {
   it('returns a body that arrives in time', async () => {
     const response = await httpGet<string>(`${base}/ok`, { timeout: 2000 });
     expect(response.data).toBe('<html>ok</html>');
+  });
+
+  it('stops reading a body at maxBytes', async () => {
+    const response = await httpGet<string>(`${base}/big`, { timeout: 2000, maxBytes: 16 * 1024 });
+    expect(response.data.length).toBeGreaterThanOrEqual(16 * 1024);
+    expect(response.data.length).toBeLessThan(1024 * 1024);
+  });
+
+  it('reads the whole body without maxBytes', async () => {
+    const response = await httpGet<string>(`${base}/big`, { timeout: 5000 });
+    expect(response.data.length).toBe(3 * 1024 * 1024);
   });
 });
 

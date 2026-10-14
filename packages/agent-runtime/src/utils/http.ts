@@ -10,6 +10,8 @@ export interface HttpRequestConfig {
   maxRedirects?: number;
   auth?: { username: string; password: string };
   params?: Record<string, string | number | boolean>;
+  /** Stop reading a text body after about this many bytes (GET only). */
+  maxBytes?: number;
 }
 
 export interface HttpResponse<T = unknown> {
@@ -70,6 +72,7 @@ export async function httpGet<T = string>(
     validateStatus = (status) => status >= 200 && status < 300,
     maxRedirects = 5,
     params,
+    maxBytes,
   } = config;
 
   // Build URL with query params
@@ -104,7 +107,7 @@ export async function httpGet<T = string>(
     if (contentType.includes('application/json')) {
       data = await response.json() as T;
     } else {
-      data = await response.text() as unknown as T;
+      data = await readText(response, maxBytes) as unknown as T;
     }
     clearTimeout(timeoutId);
 
@@ -132,6 +135,29 @@ export async function httpGet<T = string>(
     }
     throw error;
   }
+}
+
+/**
+ * The body as text, read no further than `maxBytes` when a limit is given (plus the rest of
+ * the chunk that crosses it). A stylesheet or XML file is scanned for a few markers, so a
+ * multi-megabyte answer need not be downloaded whole.
+ */
+async function readText(response: Response, maxBytes?: number): Promise<string> {
+  if (!maxBytes || !response.body) return response.text();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  while (received < maxBytes) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+  }
+  if (received >= maxBytes) await reader.cancel().catch(() => undefined);
+  const decoder = new TextDecoder();
+  let text = '';
+  for (const chunk of chunks) text += decoder.decode(chunk, { stream: true });
+  return text + decoder.decode();
 }
 
 /**

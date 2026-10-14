@@ -239,8 +239,6 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // Competitor-parity checks (sync) - important for all users
   const domSizeResult = analyzeDomSize(html, url);
   const imageDimensionsResult = analyzeImageDimensions(html, url);
-  // Tracking & verification checks (GA4, GSC, Bing, Schema.org)
-  const trackingResult = analyzeTrackingVerification(html, url);
 
   // ===== EXTENDED CHECKS (registered + paid tiers) =====
   const anchorResult = runExtendedChecks ? analyzeAnchorText(html, url) : { issues: [], data: {} };
@@ -324,7 +322,6 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     ...pageResourcesResult.issues,
     ...urlSafetyResult.issues,
     ...paginationResult.issues,
-    ...trackingResult.issues,
   );
 
   // Suggest schema types if none found
@@ -394,6 +391,9 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   asyncChecks.push(safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues));
   asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
   asyncChecks.push(safeAsync('Robots Validation', () => validateRobotsTxt(url)));
+  // Tracking and verification (GA4, GSC, Bing, Schema.org). GSC and Bing accept a DNS TXT
+  // record in place of a meta tag, so this one does a lookup and runs with the async checks.
+  asyncChecks.push(safeAsync('Tracking Verification', () => analyzeTrackingVerification(html, url)));
   // robots.txt is necessary and not sufficient: a CDN or WAF can refuse a crawler before
   // robots.txt is ever consulted, which is exactly what Cloudflare's 2026-09-15 default does to
   // Googlebot on ad-supported pages. This asks as each crawler and compares with a browser.
