@@ -163,6 +163,9 @@ function extractBodyText(html: string): string {
   let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
 
+  // Block elements end a paragraph: without this every page was one paragraph, however long.
+  text = text.replace(/<\/(p|li|h[1-6]|blockquote|pre|tr)>|<br\s*\/?>/gi, '\n\n');
+
   // Remove HTML tags
   text = text.replace(/<[^>]+>/g, ' ');
 
@@ -173,8 +176,8 @@ function extractBodyText(html: string): string {
   text = text.replace(/&gt;/g, '>');
   text = text.replace(/&quot;/g, '"');
 
-  // Normalize whitespace
-  text = text.replace(/\s+/g, ' ').trim();
+  // Normalize whitespace, keeping paragraph breaks
+  text = text.replace(/[ \t\r\f\v]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 
   return text;
 }

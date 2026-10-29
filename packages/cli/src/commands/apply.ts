@@ -1,18 +1,16 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
-  runDirectAnalysis,
-  runAuditWithFixes,
   generateFixes,
   applyFixes,
   detectFramework,
   type SEOAnalysisResult,
   type GeneratedFix,
   type FrameworkInfo,
-  type AuditRunnerResult,
 } from '@rankcli/agent-runtime';
-import { isLoggedIn, isApiKeyAuth, getUserInfo } from '../lib/config.js';
-import { showUpsell, hasFeature, type TierId } from '../lib/upsell.js';
+import { ensureApiKeyPlan } from '../lib/config.js';
+import { runSiteAudit } from '../lib/site-audit.js';
+import { toFixerIssues } from '../lib/fixer-issues.js';
 
 interface ApplyOptions {
   url?: string;
@@ -103,43 +101,31 @@ export async function apply(options: ApplyOptions): Promise<void> {
     : { name: 'Unknown', metaPattern: 'html-head' as const };
   console.log(`   Framework: ${framework.name}`);
 
-  // Analyze URL - full audit since we already verified access
+  // The same audit as `rankcli audit`, on this URL alone. It used to run the engine without
+  // the premium checks, which scored the same site 93 where `audit` said 85.
   console.log(`\n\u{1F50D} Analyzing ${url}...`);
-  console.log('   Running full audit (200+ checks)...');
+  await ensureApiKeyPlan();
 
   let issues: SEOAnalysisResult['issues'];
   let score: number;
-  let auditResult: AuditRunnerResult | null = null;
-
   try {
-    // Full audit since we already verified access
-    auditResult = await runAuditWithFixes({
-      url,
-      generateFixes: true,
-    });
-    issues = auditResult.report.issues.map(issue => ({
-      // Squash the audit engine's 5-level severity into generateFixes's
-      // 3-level SEOIssue scheme - matches how audit.ts already treats
-      // 'error' as critical-weight (red ✗) and 'notice' as info-weight.
-      severity: issue.severity === 'error' ? 'critical' as const
-        : issue.severity === 'notice' ? 'info' as const
-        : issue.severity,
-      category: issue.category,
-      code: issue.code,
-      message: issue.title,
-      impact: issue.description || undefined,
-      // Cast covers `category`: the audit engine's categories (17 values,
-      // e.g. 'crawlability', 'links') don't map cleanly onto SEOIssue's
-      // narrower set - generateFixes never reads category off its input
-      // (each fixer hardcodes its own), so this is safe, not just silenced.
-    })) as SEOAnalysisResult['issues'];
-    score = auditResult.score;
+    const site = await runSiteAudit({ url, maxPages: 1 });
+    if (!site) {
+      console.log(`\n\u274C Analysis failed: could not audit ${url}\n`);
+      return;
+    }
+    if (site.pageFailure) {
+      console.log(`\n\u274C ${site.pageFailure.title}: ${site.pageFailure.description}\n`);
+      return;
+    }
+    issues = toFixerIssues(site.issues);
+    score = site.score;
   } catch (error) {
     console.log(`\n\u274C Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
     return;
   }
 
-  console.log(`   Score: ${score}/100`);
+  console.log(`   Score: ${score}/100 (the same audit as \`rankcli audit\`)`);
   console.log(`   Issues found: ${issues.length}`);
 
   if (issues.length === 0) {
@@ -183,7 +169,7 @@ export async function apply(options: ApplyOptions): Promise<void> {
 
   // Apply fixes
   if (actionableFixes.length === 0) {
-    console.log('\n\u26A0\uFE0F  No automatic fixes available. Please address issues manually.\n');
+    console.log(`\n\u26A0\uFE0F  None of the ${issues.length} issue(s) has an automatic fix yet. \`rankcli audit -u ${url} -o json\` lists each with how to fix it.\n`);
     return;
   }
 

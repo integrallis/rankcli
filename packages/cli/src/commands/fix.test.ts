@@ -29,14 +29,26 @@ vi.mock('../lib/upsell.js', async (importOriginal) => ({
   }),
 }));
 
+// `fix` runs the same audit as `rankcli audit` (lib/site-audit.ts); the pipeline is mocked here
+// and its own behaviour is covered by audit.test.ts.
+const siteAudit = {
+  primaryReport: { url: 'https://example.com', issues: [], healthScore: { overall: 65 }, pages: [] },
+  issues: [
+    { code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title tag', description: '', impact: '', howToFix: '', affectedUrls: ['https://example.com'] },
+    { code: 'META_DESC_MISSING', severity: 'warning', category: 'on-page', title: 'Missing meta description', description: '', impact: '', howToFix: '', affectedUrls: ['https://example.com'] },
+  ],
+  score: 65,
+  pagesAudited: 1,
+  pagesDiscovered: 1,
+  framework: 'Vite',
+  checksRun: 280,
+  auditMs: 10,
+};
+vi.mock('../lib/site-audit.js', () => ({
+  runSiteAudit: vi.fn(() => Promise.resolve(siteAudit)),
+}));
+
 vi.mock('@rankcli/agent-runtime', () => ({
-  runDirectAnalysis: vi.fn(() => Promise.resolve({
-    issues: [
-      { code: 'TITLE_MISSING', severity: 'error', category: 'seo', message: 'Missing title tag' },
-      { code: 'META_DESC_MISSING', severity: 'warning', category: 'seo', message: 'Missing meta description' },
-    ],
-    score: 65,
-  })),
   generateFixes: vi.fn(() => Promise.resolve([
     {
       issue: { code: 'TITLE_MISSING', severity: 'error', category: 'seo', message: 'Missing title tag' },
@@ -165,8 +177,8 @@ describe('rankcli fix command', () => {
     it('runs for a Free user instead of refusing', async () => {
       const config = await import('../lib/config.js');
       vi.mocked(config.getUserInfo).mockReturnValueOnce({ planName: 'Free' });
-      const runtime = await import('@rankcli/agent-runtime');
-      vi.mocked(runtime.runDirectAnalysis).mockResolvedValueOnce({ issues: [], score: 100 } as never);
+      const pipeline = await import('../lib/site-audit.js');
+      vi.mocked(pipeline.runSiteAudit).mockResolvedValueOnce({ ...siteAudit, issues: [], score: 100 } as never);
 
       const result = await fix({ url: 'https://example.com', auto: true, output: 'json' });
 
@@ -181,14 +193,34 @@ describe('rankcli fix command', () => {
     });
 
     it('prints JSON when there is nothing to fix', async () => {
-      const runtime = await import('@rankcli/agent-runtime');
-      vi.mocked(runtime.runDirectAnalysis).mockResolvedValueOnce({ issues: [], score: 100 } as never);
+      const pipeline = await import('../lib/site-audit.js');
+      vi.mocked(pipeline.runSiteAudit).mockResolvedValueOnce({ ...siteAudit, issues: [], score: 100 } as never);
 
       const result = await fix({ url: 'https://example.com', auto: true, output: 'json' });
 
       const parsed = JSON.parse(result.json!);
       expect(parsed.success).toBe(true);
       expect(parsed.appliedCount).toBe(0);
+    });
+  });
+
+  describe('the same audit as rankcli audit', () => {
+    it('audits the URL alone with the shared pipeline', async () => {
+      const pipeline = await import('../lib/site-audit.js');
+      await fix({ url: 'https://example.com', dryRun: true });
+      expect(pipeline.runSiteAudit).toHaveBeenCalledWith({ url: 'https://example.com', maxPages: 1 });
+    });
+
+    it('fails, instead of fixing an error page, when the URL could not be audited', async () => {
+      const pipeline = await import('../lib/site-audit.js');
+      vi.mocked(pipeline.runSiteAudit).mockResolvedValueOnce({
+        ...siteAudit,
+        score: 0,
+        pageFailure: { code: 'HTTP_ERROR_STATUS', severity: 'error', category: 'indexability', title: 'Page returns HTTP 404', description: 'The audited URL answered with HTTP 404.', impact: '', howToFix: '', affectedUrls: [] },
+      } as never);
+      const result = await fix({ url: 'https://example.com/missing', auto: true, output: 'json' });
+      expect(result.success).toBe(false);
+      expect(JSON.parse(result.json!).error).toMatch(/HTTP 404/);
     });
   });
 

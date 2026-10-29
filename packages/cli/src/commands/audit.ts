@@ -1,13 +1,13 @@
-import { runFullAudit, discoverPagesFromLinks, frameworks, type AuditReport, type AuditIssue } from '@rankcli/agent-runtime';
+import type { AuditReport, AuditIssue } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { execSync } from 'node:child_process';
 
-const { detectFramework, getFrameworkDisplayName } = frameworks;
-import { isLoggedIn, getUserInfo, getDecryptPassphrase, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
-import { showUpsell, TIER_LIMITS, tierFromPlanId, type TierId } from '../lib/upsell.js';
-import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
+import { isLoggedIn, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
+import { showUpsell } from '../lib/upsell.js';
+import { runSiteAudit } from '../lib/site-audit.js';
+import { configuredUrl, PROJECT_CONFIG_FILE } from '../lib/project-config.js';
 import { resolveAIProvider, runAIAnalysis, AI_PROVIDERS, AI_PROVIDER_IDS, AI_ENV_KEYS, type AIAnalysis } from '../lib/ai.js';
 
 export interface AuditOptions {
@@ -97,60 +97,6 @@ export function parseGateOptions(options: Pick<AuditOptions, 'failOn' | 'minScor
     minScore = n;
   }
   return { failOn, minScore };
-}
-
-/**
- * Fetch HTML content from a URL
- */
-async function fetchHtml(url: string, timeout = 10000): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'RankCLI-Bot/1.0 (+https://rankcli.dev/bot)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.text();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Merge issues from multiple pages, aggregating affected URLs. When pages
- * report the same code at different severities (noindex is an error on the
- * audited root, a warning elsewhere) the most severe wins.
- */
-function mergeIssues(issueArrays: AuditIssue[][]): AuditIssue[] {
-  const issueMap = new Map<string, AuditIssue>();
-
-  for (const issues of issueArrays) {
-    for (const issue of issues) {
-      const existing = issueMap.get(issue.code);
-      if (existing) {
-        const urls = new Set([...(existing.affectedUrls || []), ...(issue.affectedUrls || [])]);
-        existing.affectedUrls = Array.from(urls);
-        if ((SEVERITY_RANK[issue.severity] ?? 0) > (SEVERITY_RANK[existing.severity] ?? 0)) {
-          existing.severity = issue.severity;
-        }
-      } else {
-        issueMap.set(issue.code, { ...issue });
-      }
-    }
-  }
-
-  return Array.from(issueMap.values());
 }
 
 // Sync results to database for logged in users
@@ -318,6 +264,7 @@ async function offerRepoLink(projectId: string): Promise<void> {
 function printUsage(loggedIn: boolean): void {
   console.error('\n⚠️  Please provide a URL to audit:');
   console.error('   rankcli audit --url https://your-site.com');
+  console.error(`\n   Or run \`rankcli init\` once: the url in ${PROJECT_CONFIG_FILE} is used when --url is omitted.`);
   console.error('\nRun "rankcli audit --help" for every option, exit codes, and AI providers.');
   if (!loggedIn) {
     console.error(chalk.dim('\nTip: Log in to sync results to the web dashboard:'));
@@ -332,7 +279,9 @@ function printUsage(loggedIn: boolean): void {
  * so stdout is always flushed and the function stays testable.
  */
 export async function audit(options: AuditOptions): Promise<number> {
-  const url = options.url;
+  // --url, else the url in the project's rankcli.config.json (written by `rankcli init`).
+  const fromConfig = !options.url ? configuredUrl() : null;
+  const url = options.url || fromConfig || undefined;
   const json = options.output === 'json';
   // In JSON mode stdout carries exactly one JSON document - including on
   // failure, so `rankcli audit -o json > report.json` never leaves a CI
@@ -368,6 +317,7 @@ export async function audit(options: AuditOptions): Promise<number> {
   }
 
   const maxPages = Math.max(1, parseInt(options.maxPages || '5', 10) || 5);
+  if (fromConfig) console.error(chalk.dim(`Auditing ${url} (from ${PROJECT_CONFIG_FILE})`));
 
   try {
     // Check login status
@@ -384,128 +334,16 @@ export async function audit(options: AuditOptions): Promise<number> {
       console.error(chalk.dim(`(could not verify your RankCLI plan: ${keyPlan.error})`));
     }
 
-    // Real entitlement: planId comes from validate-api-key (or the session's
-    // subscription row) - not anything a user chose. An unrecognized plan
-    // falls back to the registered/anonymous free tiers, never to paid.
-    const { planId } = getUserInfo();
-    const tierId: TierId = tierFromPlanId(planId) ?? (loggedIn ? 'free' : 'free_anon');
-    const checksLimit: number = TIER_LIMITS[tierId].checks;
-
-    // Every plan runs the premium checks (they're part of the 280), if this
-    // build actually has a decrypt passphrase embedded (local/dev builds may
-    // not). A decrypt failure falls back to running without them rather than
-    // failing the whole audit.
-    let premiumChecks: PremiumChecks | undefined;
-    {
-      const passphrase = getDecryptPassphrase();
-      if (passphrase) {
-        try {
-          await initEngine(passphrase);
-          premiumChecks = await getPremiumChecks();
-        } catch (error) {
-          console.error(chalk.dim(`(premium checks unavailable: ${error instanceof Error ? error.message : error})`));
-        }
-      }
-    }
-
     const startTime = Date.now();
 
-    // ===== PHASE 1: Discover pages =====
-    const discoverySpinner = ora('Discovering pages...').start();
-    let pagesToAudit: string[] = [url];
-
-    const homepageHtml = await fetchHtml(url, 10000);
-    let detectedFramework = detectFramework({});
-
-    if (homepageHtml) {
-      // Detect framework from HTML
-      detectedFramework = detectFramework({ html: homepageHtml });
-
-      const discovered = discoverPagesFromLinks(url, homepageHtml, maxPages - 1);
-      const additionalPages = discovered.map(p => p.url).filter(u => u !== url);
-      pagesToAudit = [url, ...additionalPages];
-
-      const frameworkLabel = detectedFramework.framework !== 'unknown'
-        ? ` (${getFrameworkDisplayName(detectedFramework.framework)})`
-        : '';
-      discoverySpinner.succeed(`Discovered ${pagesToAudit.length} pages to audit${frameworkLabel}`);
-    } else {
-      discoverySpinner.warn('Could not fetch homepage, auditing URL only');
-    }
-
-    // ===== PHASE 2: Audit pages in parallel =====
-    const auditSpinner = ora(`Auditing ${pagesToAudit.length} pages in parallel...`).start();
-
-    const auditPage = async (pageUrl: string, index: number): Promise<{
-      report: AuditReport | null;
-      url: string;
-    }> => {
-      try {
-        const report = await runFullAudit({
-          url: pageUrl,
-          auditRootUrl: url,
-          maxPages: 1,
-          checkBrokenLinks: options.checkLinks || false,
-          // Bundled with --check-links: both mean "verify actual link
-          // targets, which costs real requests" - hreflang reciprocity and
-          // broken-target checks were previously unreachable from any real
-          // caller since nothing ever set this true.
-          checkHreflangUrls: options.checkLinks || false,
-          checksLimit,
-          premiumChecks,
-        });
-        auditSpinner.text = `Auditing pages... (${index + 1}/${pagesToAudit.length} complete)`;
-        return { report, url: pageUrl };
-      } catch (error) {
-        return { report: null, url: pageUrl };
-      }
-    };
-
-    const parallelStart = Date.now();
-    const auditResults = await Promise.allSettled(
-      pagesToAudit.map((pageUrl, index) => auditPage(pageUrl, index))
-    );
-    const parallelTime = Date.now() - parallelStart;
-
-    // Collect results
-    const allIssues: AuditIssue[][] = [];
-    let primaryReport: AuditReport | null = null;
-    let successCount = 0;
-
-    for (let i = 0; i < auditResults.length; i++) {
-      const result = auditResults[i];
-      if (result.status === 'fulfilled' && result.value.report) {
-        allIssues.push(result.value.report.issues);
-        if (i === 0) {
-          primaryReport = result.value.report;
-        }
-        successCount++;
-      }
-    }
-
-    if (!primaryReport) {
-      auditSpinner.fail('Audit failed - could not analyze any pages');
+    // ===== PHASES 1-2: discover pages and audit them (shared with fix and apply) =====
+    const site = await runSiteAudit({ url, maxPages, checkLinks: options.checkLinks || false });
+    if (!site) {
       return fail(EXIT_CODES.AUDIT_FAILED, `Audit failed - could not analyze ${url}`);
     }
-
-    // The engine reports an unreachable page (FETCH_ERROR) or an error
-    // status (HTTP_ERROR_STATUS) as an issue and zeroes the score. That's
-    // a result worth printing, but not a completed audit: exit 3 so no CI
-    // job goes green on a site that is down - with or without gate flags.
-    const pageFailure = primaryReport.issues.find(i => i.code === 'FETCH_ERROR' || i.code === 'HTTP_ERROR_STATUS');
-
-    if (pageFailure) {
-      auditSpinner.fail(`Could not audit ${url}: ${pageFailure.title}`);
-    } else {
-      auditSpinner.succeed(`Audited ${successCount}/${pagesToAudit.length} pages in ${parallelTime}ms`);
-    }
-
-    // Merge issues from all pages. Framework-specific issues (React/Next.js/
-    // WordPress/etc recipes) come from runFullAudit itself now - engine.ts
-    // runs the same getFrameworkIssues() this used to call separately here,
-    // so server-side audits (free-audit, run-audit) get them too.
-    const mergedIssues = mergeIssues(allIssues);
-    const score = primaryReport.healthScore?.overall || 0;
+    // Exit 3 on an unreachable page or an error status, with or without gate flags, so no CI
+    // job goes green on a site that is down.
+    const { primaryReport, issues: mergedIssues, score, pagesAudited: successCount, pageFailure, framework: frameworkName, checksRun: actualChecksRun } = site;
 
     // ===== PHASE 3: AI Analysis (optional, never affects the exit code) =====
     let aiAnalysis: AIAnalysis | null = null;
@@ -547,21 +385,11 @@ export async function audit(options: AuditOptions): Promise<number> {
     // ===== PHASE 5: Output results =====
     const totalTime = Date.now() - startTime;
 
-    // Determine framework info for output
-    const frameworkName = detectedFramework.framework !== 'unknown'
-      ? getFrameworkDisplayName(detectedFramework.framework)
-      : null;
-
-    // Calculate actual checks run from report summary (used for both output modes)
-    const actualChecksRun = (primaryReport.summary?.passed || 0) +
-                            (primaryReport.summary?.errors || 0) +
-                            (primaryReport.summary?.warnings || 0) || 200;
-
     if (json) {
       // Sync to cloud for JSON output too (silent, no spinner)
       let syncResult: { projectId: string; auditId: string; githubLinked: boolean } | null = null;
       if (loggedIn) {
-        syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName);
+        syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName ?? undefined);
       }
 
       const jsonOutput = {
@@ -635,17 +463,25 @@ export async function audit(options: AuditOptions): Promise<number> {
       console.log(`    ${chalk.yellow('●')} Warnings: ${warnings.length}`);
       console.log(`    ${chalk.blue('●')} Notices:  ${notices.length}`);
 
-      // Top issues
-      console.log('\n' + chalk.bold('  Top Issues:'));
-      const topIssues = [...errors, ...warnings, ...notices].slice(0, 10);
-      topIssues.forEach((issue, i) => {
-        const icon = issue.severity === 'error' || issue.severity === 'critical' ? chalk.red('✗') :
-                     issue.severity === 'warning' ? chalk.yellow('!') : chalk.blue('i');
-        console.log(`    ${i + 1}. ${icon} ${issue.title}`);
-        if (issue.affectedUrls && issue.affectedUrls.length > 1) {
-          console.log(chalk.dim(`       Affects ${issue.affectedUrls.length} pages`));
+      // Every issue, grouped by severity, each with its code. A "Top 10" used to hide the
+      // other 40 to 80 findings with no flag to show them; the only way to see what was
+      // counted was -o json.
+      const printGroup = (label: string, items: AuditIssue[], icon: string) => {
+        if (items.length === 0) return;
+        console.log('\n' + chalk.bold(`  ${label} (${items.length}):`));
+        for (const issue of items) {
+          console.log(`    ${icon} ${issue.title}  ${chalk.dim(issue.code)}`);
+          if (issue.affectedUrls && issue.affectedUrls.length > 1) {
+            console.log(chalk.dim(`      affects ${issue.affectedUrls.length} pages`));
+          }
         }
-      });
+      };
+      printGroup('Errors', errors, chalk.red('✗'));
+      printGroup('Warnings', warnings, chalk.yellow('!'));
+      printGroup('Notices', notices, chalk.blue('i'));
+      if (mergedIssues.length > 0) {
+        console.log(chalk.dim(`\n  Description, impact and fix for each issue: rankcli audit -u ${url} -o json`));
+      }
 
       // AI Analysis
       if (aiAnalysis) {
@@ -680,7 +516,7 @@ export async function audit(options: AuditOptions): Promise<number> {
       // Sync to cloud if logged in
       if (loggedIn) {
         const syncSpinner = ora('Syncing to cloud...').start();
-        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName);
+        const syncResult = await syncToCloud(url, primaryReport, mergedIssues, successCount, aiAnalysis, totalTime, actualChecksRun, frameworkName ?? undefined);
 
         if (syncResult) {
           syncSpinner.succeed('Results synced to cloud');

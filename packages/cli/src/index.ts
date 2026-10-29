@@ -58,7 +58,7 @@ program
 program
   .command('audit')
   .description('Run an SEO + GEO audit (280+ checks)')
-  .option('-u, --url <url>', 'URL to audit')
+  .option('-u, --url <url>', 'URL to audit (defaults to the url in rankcli.config.json)')
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
   .option('--max-pages <n>', 'Max pages to crawl (default: 5)')
@@ -77,7 +77,7 @@ program
 program
   .command('apply')
   .description('Analyze a live URL and apply SEO fixes to your codebase')
-  .option('-u, --url <url>', 'URL to analyze')
+  .option('-u, --url <url>', 'URL to analyze (defaults to the url in rankcli.config.json)')
   .option('--auto', 'Auto-apply fixes without confirmation')
   .option('--dry-run', 'Preview changes without applying')
   .action(apply);
@@ -85,7 +85,7 @@ program
 program
   .command('fix')
   .description('Agentic SEO fixer - detect, fix, commit, and push')
-  .option('-u, --url <url>', 'URL to analyze')
+  .option('-u, --url <url>', 'URL to analyze (defaults to the url in rankcli.config.json)')
   .option('--auto', 'Auto-apply fixes without confirmation')
   .option('--commit', 'Commit changes with conventional commit message')
   .option('--push', 'Push changes after committing (requires --commit)')
@@ -112,7 +112,7 @@ program
 program
   .command('geo')
   .description('GEO analysis - Check AI search visibility (ChatGPT, Perplexity, Claude)')
-  .option('-u, --url <url>', 'URL to analyze')
+  .option('-u, --url <url>', 'URL to analyze (defaults to the url in rankcli.config.json)')
   .option('-o, --output <format>', 'Output format (json, console)', 'console')
   .action(geo);
 
@@ -157,7 +157,7 @@ program
 program
   .command('content')
   .description('Analyze content for readability, keyword density, and featured snippets')
-  .option('-u, --url <url>', 'URL to analyze')
+  .option('-u, --url <url>', 'URL to analyze (defaults to the url in rankcli.config.json)')
   .option('-k, --keyword <keyword>', 'Target keyword for analysis')
   .option('--headline <headline>', 'Analyze a headline')
   .option('--mode <mode>', 'Analysis mode (full, readability, headline, snippet, density)', 'full')
@@ -168,14 +168,6 @@ program
   .description('Classify search intent for a keyword')
   .argument('<keyword>', 'Keyword to analyze')
   .action(analyzeIntent);
-
-program
-  .command('competitors')
-  .description('Analyze competitor SEO strategies')
-  .option('-d, --domain <domain>', 'Competitor domain to analyze')
-  .action(() => {
-    console.log('Competitor analysis coming soon...');
-  });
 
 // Track command group
 const trackCmd = program
@@ -251,21 +243,6 @@ trackCmd
       format: options.format,
       days: parseInt(options.days, 10),
     });
-  });
-
-program
-  .command('report')
-  .description('Generate SEO performance report')
-  .option('-f, --format <format>', 'Report format (pdf, html, json)', 'html')
-  .action(() => {
-    console.log('Report generation coming soon...');
-  });
-
-program
-  .command('watch')
-  .description('Continuous monitoring mode')
-  .action(() => {
-    console.log('Watch mode coming soon...');
   });
 
 program

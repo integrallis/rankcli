@@ -10,9 +10,9 @@ Developer-first SEO. CLI-native. Optimizes for Google *and* ChatGPT, Perplexity,
 |---------|---------|-------------|
 | **GEO (AI Search)** | ✅ Check if GPTBot/ClaudeBot can crawl | ❌ |
 | **MCP Server** | ✅ AI assistants can run audits | ❌ |
-| **Framework Fixes** | ✅ 25+ frameworks | ❌ |
+| **Framework Fixes** | ✅ 32 frameworks detected, 11 with fix recipes | ❌ |
 | **CLI/CI Native** | ✅ Built for developers | ❌ |
-| **Price** | **From $9/mo** | $99-500/mo |
+| **Price** | **CLI, MCP server and GitHub Action free; cloud plans from $9/mo** | $99-500/mo |
 
 ## Installation
 
@@ -42,15 +42,21 @@ rankcli --version
 ## Quick Start
 
 ```bash
-# Run an SEO audit
+# Run the full 280+ check audit, free, no account
 rankcli audit --url https://yoursite.com
 
-# Login to unlock all features
-rankcli login
+# Crawl more pages (default 5)
+rankcli audit --url https://yoursite.com --max-pages 10
 
-# Full 280+ check audit
-rankcli audit --url https://yoursite.com --max-pages 5
+# Optional: set the URL once, then omit --url
+rankcli init
+rankcli audit
+
+# Optional: log in to keep the history in the dashboard and get weekly audits
+rankcli login
 ```
+
+The console report lists every issue found, grouped by severity, with its code. `-o json` adds the description, impact and fix for each.
 
 ## Core Features
 
@@ -87,29 +93,22 @@ Let Claude, Cursor, or any MCP-compatible AI run SEO audits for you. **Free, loc
 Nothing is sent to RankCLI's servers — see [`@rankcli/mcp-server`](https://www.npmjs.com/package/@rankcli/mcp-server).
 A hosted endpoint (with your [API key](https://rankcli.dev/dashboard)) is also available for teams that want dashboard sync.
 
-**Available tools:**
-- `seo_audit` — Full 280+ check audit on any URL
-- `seo_geo_check` — AI search visibility analysis
-- `seo_robots_check` — AI crawler permissions in robots.txt
-- `seo_compare` — Compare SEO metrics between two URLs
+**Available tools** (15, all local): `seo_analyze`, `seo_geo_check`, `seo_core_web_vitals`, `seo_structured_data`, `seo_security_headers`, `seo_images`, `seo_internal_links`, `seo_mobile`, `seo_ai_crawlers`, `seo_robots_ai`, the generators `seo_generate_robots`, `seo_generate_schema` and `seo_generate_security_headers`, and `rankcli_connect` / `rankcli_disconnect` for dashboard sync. The full list, with each tool's inputs, is in the [`@rankcli/mcp-server` README](https://www.npmjs.com/package/@rankcli/mcp-server).
 
 Now just ask Claude: *"Run an SEO audit on example.com"* ✨
 
 ### 🔧 Framework-Specific Fixes
 
-Auto-generate fixes for 25+ frameworks:
+Run the audit against the live site and write the fixes into the project you are standing in:
 
 ```bash
-rankcli apply --url https://mysite.com
+rankcli fix --url https://mysite.com --dry-run   # preview
+rankcli fix --url https://mysite.com --auto      # apply
 ```
 
-**Supported frameworks:**
-- **JS/TS**: React, Next.js (App/Pages), Vue, Nuxt, Angular, Svelte, SvelteKit, Astro, Remix, Gatsby, Solid.js, Qwik
-- **Backend**: Rails, Django, Laravel, Spring Boot, ASP.NET Core, Phoenix, Go (Gin/Echo/Fiber)
-- **SSG**: Hugo, Jekyll, Eleventy, Pelican
-- **Hypermedia**: HTMX, Hotwire/Turbo
+`fix` and `apply` run the same audit as `rankcli audit`, so all three report the same score for a URL. RankCLI detects 32 frameworks and has fix recipes for 11 of them (React, Next.js, Vue, Nuxt, Angular, SvelteKit, Astro, Django, Rails, Laravel, WordPress); on the others the fixes are shown for you to apply by hand.
 
-### 📊 7 Deep Analyzers
+### 📊 Deep Analyzers
 
 | Analyzer | What It Does |
 |----------|--------------|
@@ -271,6 +270,10 @@ jobs:
 |----------|-------------|
 | `RANKCLI_API_KEY` | API key for authentication (plan resolved automatically) |
 | `RANKCLI_CONFIG_DIR` | Store login/config here instead of the per-user config dir |
+
+## Project config
+
+`rankcli init` writes `rankcli.config.json` in the project (name, framework, `url`, GitHub repo). `audit`, `fix` and `apply` use its `url` when `--url` is omitted.
 | `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`, `TOGETHER_API_KEY`, `FIREWORKS_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | AI analysis keys (see "AI analysis") |
 | `OLLAMA_HOST` | Where a local Ollama listens (default `localhost:11434`) |
 
@@ -283,7 +286,7 @@ The npm package needs **Node 20.19+ or 22.12+** (any 23+ works). The CLI is a Co
 | Feature | Free | Solo+ (from $9/mo) |
 |---------|------|--------------|
 | SEO + GEO checks | All 280+ | All 280+ |
-| Local fixes (`rankcli fix`, 25+ frameworks) | ✅ | ✅ |
+| Local fixes (`rankcli fix`) | ✅ | ✅ |
 | Auto-fix PRs (GitHub App) | 3 a month | ✅ |
 | Hosted sites | 1, audited weekly | 3+, weekly or daily |
 | Slack & Discord alerts | - | ✅ |

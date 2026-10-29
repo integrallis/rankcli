@@ -1,7 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import {
-  runDirectAnalysis,
   generateFixes,
   applyFixes,
   detectFramework,
@@ -13,6 +12,9 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { isLoggedIn, getUserInfo, ensureApiKeyPlan, WEB_APP_URL } from '../lib/config.js';
 import { showUpsell, hasFeature, tierFromPlanId, type TierId } from '../lib/upsell.js';
+import { runSiteAudit } from '../lib/site-audit.js';
+import { toFixerIssues } from '../lib/fixer-issues.js';
+import { configuredUrl, PROJECT_CONFIG_FILE } from '../lib/project-config.js';
 
 const execAsync = promisify(exec);
 
@@ -195,11 +197,12 @@ export async function fix(options: FixOptions): Promise<FixResult> {
 async function runFix(options: FixOptions): Promise<FixResult> {
   const startTime = Date.now();
   const cwd = options.cwd || process.cwd();
-  const url = options.url;
+  // --url, else the url in the project's rankcli.config.json (written by `rankcli init`).
+  const url = options.url || configuredUrl(cwd) || undefined;
 
   // Validate URL
   if (!url) {
-    const error = 'Please provide a URL to fix:\n   rankcli fix --url https://your-site.com';
+    const error = `Please provide a URL to fix:\n   rankcli fix --url https://your-site.com\n   (or set url in ${PROJECT_CONFIG_FILE})`;
     if (options.output !== 'json') {
       console.log(`\n⚠️  ${error}\n`);
     }
@@ -243,28 +246,33 @@ async function runFix(options: FixOptions): Promise<FixResult> {
   
   frameworkSpinner?.succeed(`Framework: ${framework.name}`);
 
-  // Analyze URL
-  const analyzeSpinner = options.output !== 'json' ? ora(`Analyzing ${url}...`).start() : null;
-
+  // The same audit as `rankcli audit`, on this URL alone. It used to run a small fixable-issues
+  // scan that scored the same site 100 right after `audit` scored it 85 and reported 13 warnings.
   let issues: SEOAnalysisResult['issues'];
   let score: number;
-
+  let site: Awaited<ReturnType<typeof runSiteAudit>>;
   try {
-    const analysis = await runDirectAnalysis(url);
-    issues = analysis.issues;
-    score = analysis.score;
+    site = await runSiteAudit({ url, maxPages: 1 });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    analyzeSpinner?.fail(`Analysis failed: ${errorMsg}`);
+    if (options.output !== 'json') console.log(`\n❌ Analysis failed: ${errorMsg}\n`);
     return { success: false, error: `Analysis failed: ${errorMsg}` };
   }
+  if (!site) {
+    return { success: false, error: `Analysis failed: could not audit ${url}` };
+  }
+  if (site.pageFailure) {
+    const error = `${site.pageFailure.title}: ${site.pageFailure.description}`;
+    if (options.output !== 'json') console.log(`\n❌ ${error}\n`);
+    return { success: false, url, error };
+  }
+  issues = toFixerIssues(site.issues);
+  score = site.score;
 
-  // runDirectAnalysis is a small fixable-issues scan, not the 280-check audit. Printing a
-  // bare "Score: 98/100" here put a second, higher number against the same URL that
-  // `rankcli audit` scored 67 - same product, same site, no way to tell which was real.
-  analyzeSpinner?.succeed(
-    `${issues.length} fixable issue(s) found (quick scan: ${score}/100 - \`rankcli audit\` runs the full check set)`
-  );
+  if (options.output !== 'json') {
+    console.log(`\n   Score: ${chalk.bold(`${score}/100`)} (the same audit as \`rankcli audit\`)`);
+    console.log(`   Issues found: ${issues.length}`);
+  }
 
   // Filter issues if --only flag is used
   if (options.only && options.only.length > 0) {
@@ -354,7 +362,7 @@ async function runFix(options: FixOptions): Promise<FixResult> {
   // Apply fixes
   if (actionableFixes.length === 0) {
     if (options.output !== 'json') {
-      console.log('\n⚠️  No automatic fixes available. Please address issues manually.\n');
+      console.log(`\n⚠️  None of the ${issues.length} issue(s) has an automatic fix yet. \`rankcli audit -u ${url} -o json\` lists each with how to fix it.\n`);
     }
     return {
       success: true,
