@@ -55,12 +55,46 @@ describe('runFullAudit scoring truth', () => {
       '/waf': { status: 403, body: '<html><body>Just a moment...</body></html>' },
       '/meta-noindex': { status: 200, body: GOOD_PAGE.replace('<head>', '<head><meta name="robots" content="noindex, follow">') },
       '/header-noindex': { status: 200, body: GOOD_PAGE, headers: { 'X-Robots-Tag': 'noindex' } },
+      // docs.astro.build serves its root exactly like this.
+      '/stub': { status: 200, body: '<!DOCTYPE html><meta http-equiv="refresh" content="0;url=/en/start/">' },
+      '/en/start/': { status: 200, body: GOOD_PAGE },
+      '/loop-a': { status: 200, body: '<meta http-equiv="refresh" content="0;url=/loop-b">' },
+      '/loop-b': { status: 200, body: '<meta http-equiv="refresh" content="0;url=/loop-a">' },
     });
   });
 
   afterAll(async () => {
     await stopSite(site.server);
     vi.restoreAllMocks();
+  });
+
+  it('follows an instant meta refresh and audits the page it lands on', async () => {
+    const report = await audit(`${site.base}/stub`);
+    const codes = report.issues.map((i) => i.code);
+    expect(codes).toContain('META_REFRESH_REDIRECT');
+    expect(codes).not.toContain('TITLE_MISSING');
+    expect(codes).not.toContain('H1_MISSING');
+    expect(codes).not.toContain('VIEWPORT_MISSING');
+    expect(report.pages[0].url).toBe(`${site.base}/en/start/`);
+    expect(report.pages[0].title).toContain('perfectly reasonable');
+    const redirect = report.issues.find((i) => i.code === 'META_REFRESH_REDIRECT');
+    expect(redirect?.affectedUrls).toEqual([`${site.base}/stub`]);
+    expect(redirect?.details).toMatchObject({ from: `${site.base}/stub`, to: `${site.base}/en/start/` });
+  });
+
+  it('gives up on a meta refresh loop after three hops instead of hanging', async () => {
+    const report = await audit(`${site.base}/loop-a`);
+    const redirect = report.issues.find((i) => i.code === 'META_REFRESH_REDIRECT');
+    expect(redirect?.details?.hops).toHaveLength(3);
+  });
+
+  it('reports a page once: a missing viewport is one finding, not three', async () => {
+    const report = await audit(`${site.base}/`);
+    const codes = report.issues.map((i) => i.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const code of codes) {
+      expect(['HTML_NO_VIEWPORT', 'RESPONSIVE_NO_VIEWPORT', 'SCHEMA_ORG_MISSING', 'AI_NO_LLMS_TXT']).not.toContain(code);
+    }
   });
 
   it('records the real status code for a healthy page', async () => {

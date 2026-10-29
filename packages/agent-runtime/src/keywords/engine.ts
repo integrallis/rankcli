@@ -330,16 +330,14 @@ export async function extractSeedKeywords(url: string): Promise<string[]> {
     const $ = cheerio.load(response.data);
 
     const seeds: Set<string> = new Set();
+    // Words, not fragments: "Ship code, get ranked." used to yield "code," and "ranked.".
+    const words = (text: string) => text.toLowerCase().split(/[\s\-|:]+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter((w) => w.length > 3);
 
     // From title
-    const title = $('title').text().toLowerCase();
-    const titleWords = title.split(/[\s\-|:]+/).filter((w) => w.length > 3);
-    titleWords.forEach((w) => seeds.add(w));
+    words($('title').text()).forEach((w) => seeds.add(w));
 
     // From H1
-    const h1 = $('h1').first().text().toLowerCase();
-    const h1Words = h1.split(/[\s\-|:]+/).filter((w) => w.length > 3);
-    h1Words.forEach((w) => seeds.add(w));
+    words($('h1').first().text()).forEach((w) => seeds.add(w));
 
     // From meta keywords (if present)
     const metaKeywords = $('meta[name="keywords"]').attr('content');
@@ -349,7 +347,7 @@ export async function extractSeedKeywords(url: string): Promise<string[]> {
 
     // From description
     const desc = $('meta[name="description"]').attr('content')?.toLowerCase() || '';
-    const descWords = desc.split(/\s+/).filter((w) => w.length > 5);
+    const descWords = words(desc).filter((w) => w.length > 5);
     descWords.slice(0, 5).forEach((w) => seeds.add(w));
 
     return Array.from(seeds).slice(0, 10);

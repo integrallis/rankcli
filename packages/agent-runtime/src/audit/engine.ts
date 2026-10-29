@@ -59,6 +59,8 @@ import { analyzeResponsiveCss } from './checks/responsive-css.js';
 import { analyzeDirectoryListing } from './checks/directory-listing.js';
 import { analyzeUrlSafety } from './checks/url-safety.js';
 import { analyzeTrackingVerification } from './checks/tracking-verification.js';
+import { metaRefreshTarget } from './meta-refresh.js';
+import { dedupeIssues } from './dedupe.js';
 
 export interface AuditOptions {
   url: string;
@@ -110,7 +112,9 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
-  const { url, checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks } = options;
+  const { checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks } = options;
+  // Reassigned once if the page turns out to be a meta-refresh redirect (below).
+  let url = options.url;
   const auditRoot = isSiteRoot(url) || sameUrl(url, options.auditRootUrl ?? url);
   const allIssues: AuditIssue[] = [];
   const pages: PageAudit[] = [];
@@ -121,8 +125,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   const runPremiumChecks = tier === 'paid' && !!premiumChecks;
   const runExtendedChecks = tier !== 'free'; // registered + paid
 
-  const parsedUrl = new URL(url);
-  const domain = parsedUrl.hostname;
+  let domain = new URL(url).hostname;
 
   // Progress messages go to stderr, not stdout: stdout is reserved for the
   // audit's actual JSON output (`rankcli audit --output json > file.json`),
@@ -158,7 +161,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
       timeout: 30000,
       validateStatus: () => true,
     }).catch(err => {
-      console.error('Main page fetch failed:', err instanceof Error ? { message: err.message, cause: (err as NodeJS.ErrnoException).cause } : err);
+      // One line, not a dumped error object with a stack: the FETCH_ERROR issue below carries the detail.
+      const cause = err instanceof Error ? (err as NodeJS.ErrnoException).cause : undefined;
+      const causeText = cause instanceof Error ? ` (${(cause as NodeJS.ErrnoException).code || cause.message})` : '';
+      console.error(`Main page fetch failed: ${err instanceof Error ? err.message : String(err)}${causeText}`);
       return { error: err, data: '', headers: {} as Record<string, string> };
     }),
   ]);
@@ -190,7 +196,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // response can still be inspected - which means a 404 or 500 used to be
   // audited as if it were the real page: an error page with a title and an
   // H1 scored 70 with no mention of the status at all.
-  const statusCode = fetchResult.status;
+  let statusCode = fetchResult.status;
   if (statusCode >= 400) {
     // 401/403/429 are usually a WAF or bot protection refusing an automated
     // client rather than a broken page - say so, since the fix differs.
@@ -214,12 +220,51 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // wrapper tags (keeping their inner markup in place) so the fallback
   // content is credited like any other real HTML on the page.
   // httpGet parses application/json bodies - keep the string form either way.
-  const body = typeof fetchResult.data === 'string' ? fetchResult.data : JSON.stringify(fetchResult.data ?? '');
+  const asText = (data: unknown) => (typeof data === 'string' ? data : JSON.stringify(data ?? ''));
+  let body = asText(fetchResult.data);
+  let headers = fetchResult.headers;
+
+  // A page whose whole content is <meta http-equiv="refresh" content="0;url=..."> is a
+  // redirect to search engines, not a page: Google follows an instant meta refresh and indexes
+  // the target. docs.astro.build serves its root that way, and auditing the 80-byte stub scored
+  // the site 57 with seven errors the real page does not have. Follow it (up to three hops)
+  // and audit where it lands, reporting the redirect itself as a finding.
+  const requestedUrl = url;
+  const refreshHops: string[] = [];
+  for (let hop = 0; hop < 3; hop++) {
+    const target = metaRefreshTarget(body, url);
+    if (!target) break;
+    try {
+      const next = await httpGet<string>(target, { timeout: 30000, validateStatus: () => true });
+      if (next.status >= 400) break;
+      refreshHops.push(target);
+      url = target;
+      body = asText(next.data);
+      headers = next.headers;
+      statusCode = next.status;
+    } catch {
+      break;
+    }
+  }
+  if (refreshHops.length > 0) {
+    domain = new URL(url).hostname;
+    allIssues.push({
+      code: 'META_REFRESH_REDIRECT',
+      severity: 'notice',
+      category: 'crawlability',
+      title: 'Page redirects with a meta refresh',
+      description: `${requestedUrl} answers HTTP 200 with a <meta http-equiv="refresh"> to ${url}, so that page was audited. Search engines follow an instant meta refresh, but a server redirect is the documented way to move a URL and the only one every crawler and tool honours.`,
+      impact: 'Some crawlers and link-checking tools stop at the stub; link signals to the original URL may not all pass to the target.',
+      howToFix: 'Return a 301 (or 308) redirect from the server or CDN for this URL instead of a meta refresh.',
+      affectedUrls: [requestedUrl],
+      details: { from: requestedUrl, to: url, hops: refreshHops },
+    });
+  }
+
   const html = body.replace(/<\/?noscript[^>]*>/gi, '');
-  const headers = fetchResult.headers;
 
   // ========== PHASE 2: SYNCHRONOUS HTML CHECKS (PARALLEL) ==========
-  console.error(`📝 Phase 2: Running synchronous HTML checks (tier: ${tier}, limit: ${checksLimit})...`);
+  console.error('📝 Phase 2: Running HTML checks...');
 
   // ===== CORE CHECKS (all tiers) =====
   const onPageResult = analyzeOnPage(html, url, headers, { auditRoot });
@@ -481,6 +526,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     allIssues.push(...issues);
   }
 
+  // One condition, one finding: several checks report the same missing thing under their own
+  // codes (see dedupe.ts). The score and the counts are computed from the deduplicated list.
+  const issues = dedupeIssues(allIssues);
+
   // ========== CREATE PAGE AUDIT ==========
   pages.push({
     url,
@@ -491,12 +540,12 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     h1: onPageResult.data.h1s,
     wordCount: onPageResult.data.wordCount,
     loadTime: perfData.loadTime,
-    issues: allIssues.map(i => i.code),
+    issues: issues.map(i => i.code),
   });
 
   console.error('\n✅ Audit complete!\n');
 
-  return createReport(url, domain, allIssues, pages);
+  return createReport(url, domain, issues, pages);
 }
 
 function createReport(

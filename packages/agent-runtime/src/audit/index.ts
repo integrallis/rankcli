@@ -5,6 +5,8 @@ export * from './types.js';
 
 // Main engine
 export { runFullAudit, formatReport } from './engine.js';
+export { metaRefreshTarget } from './meta-refresh.js';
+export { dedupeIssues, REDUNDANT_WHEN_PRESENT } from './dedupe.js';
 export type { AuditOptions } from './engine.js';
 
 // Individual check modules (for granular use)

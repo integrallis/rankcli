@@ -368,15 +368,17 @@ export async function analyzeSiteMaturity(
   // Get strategy recommendations
   const { strategy, recommendations } = determineStrategy(maturityLevel, authorityIndicators, contentMetrics);
 
-  // Generate issues based on maturity
-  if (maturityLevel === 'new') {
+  // Generate issues based on maturity. Only the Wayback Machine dates a site; a certificate's
+  // age is its last renewal (Let's Encrypt renews every 60 to 90 days), so rankcli.dev was
+  // reported as 35 days old on evidence of nothing. With no snapshot, age is unknown, not new.
+  if (maturityLevel === 'new' && ageSource === 'wayback' && estimatedAgeDays !== null) {
     issues.push({
       code: 'NEW_SITE_STRATEGY',
       severity: 'notice',
       category: 'content',
       title: 'New website detected - Authority-first strategy recommended',
       description:
-        'Your site appears to be new (<90 days). Standard SEO advice won\'t work well for new sites.',
+        `The Wayback Machine first saw this site ${estimatedAgeDays} days ago. Standard SEO advice won't work well for a site under 90 days old.`,
       impact:
         'Creating lots of content without authority is wasted effort. Content from new sites rarely ranks.',
       howToFix:
@@ -390,26 +392,11 @@ export async function analyzeSiteMaturity(
     });
   }
 
-  if (contentToAuthorityRatio === 'content-heavy') {
-    issues.push({
-      code: 'CONTENT_AUTHORITY_IMBALANCE',
-      severity: 'warning',
-      category: 'content',
-      title: 'Content-to-authority imbalance',
-      description: `Site has ~${indexedPages} pages but limited backlink signals. Content is unlikely to rank.`,
-      impact: 'Most of your content may be invisible to search engines due to low domain authority.',
-      howToFix:
-        'Stop publishing new content. Focus 100% on link building until you see ranking improvements.',
-      affectedUrls: [url],
-      details: {
-        indexedPages,
-        contentToAuthorityRatio,
-        maturityLevel,
-      },
-    });
-  }
+  // CONTENT_AUTHORITY_IMBALANCE used to be reported here ("~1,608 pages but limited backlink
+  // signals") on no backlink data at all: the proxy was Wayback snapshot count. The ratio stays
+  // in the data for callers that want the heuristic; it is not a finding.
 
-  if (maturityLevel === 'growing' && !htmlSignals.hasBlog) {
+  if (maturityLevel === 'growing' && ageSource === 'wayback' && !htmlSignals.hasBlog) {
     issues.push({
       code: 'GROWING_SITE_NO_BLOG',
       severity: 'notice',

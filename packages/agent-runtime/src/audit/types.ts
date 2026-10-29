@@ -580,7 +580,7 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     severity: 'warning',
     category: 'performance',
     title: 'HTML document too large',
-    description: 'HTML size exceeds 100KB.',
+    description: 'HTML size exceeds 300KB.',
     impact: 'Increases load time and memory usage.',
     howToFix: 'Reduce inline CSS/JS, remove unnecessary HTML.',
   },

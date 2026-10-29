@@ -185,7 +185,8 @@ export async function analyzeTrackingVerification(
   if (!hasGa4 && !hasGtm && otherAnalytics.length === 0) {
     issues.push({
       code: 'GA4_MISSING',
-      severity: 'warning',
+      // A notice: which analytics a site runs is a choice, not an SEO defect.
+      severity: 'notice',
       category: 'on-page',
       title: 'Google Analytics 4 not detected',
       description:
@@ -204,7 +205,8 @@ export async function analyzeTrackingVerification(
     const dnsChecked = verification.dnsChecked;
     issues.push({
       code: 'GSC_VERIFICATION_MISSING',
-      severity: 'warning',
+      // A notice: a site verified by DNS, Google Analytics or Tag Manager leaves no trace here.
+      severity: 'notice',
       category: 'on-page',
       title: dnsChecked
         ? 'Google Search Console verification not found'

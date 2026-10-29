@@ -9,6 +9,7 @@ import * as cheerio from 'cheerio';
 import { httpGet } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { lookupSiteVerification } from './site-verification.js';
+import { detectAddresses } from './local-seo.js';
 
 export interface BingOptimizationData {
   hasBingSiteAuth: boolean;
@@ -118,7 +119,9 @@ export async function analyzeBingOptimization(
     detectedIssues.push('No Bing site verification');
     issues.push({
       code: 'BING_NOT_VERIFIED',
-      severity: 'warning',
+      // A notice: verification done through Search Console import or a DNS record this run
+      // could not see leaves no trace in the HTML, so this cannot be a warning.
+      severity: 'notice',
       category: 'ai-readiness',
       title: verification.dnsChecked
         ? 'Site not verified with Bing Webmaster Tools'
@@ -179,9 +182,9 @@ export async function analyzeBingOptimization(
 
   // Local business without Bing Places
   const hasLocalBusinessSchema = bingPlacesDetected;
-  const hasAddressOnPage = $('address').length > 0 ||
-    html.toLowerCase().includes('street') ||
-    /\d{5}(-\d{4})?/.test(html); // ZIP code pattern
+  // The same address detection as the local SEO check, so this cannot fire on a page that the
+  // same report says has no address (it did: "street" and any five-digit number counted).
+  const hasAddressOnPage = $('address').text().trim().length > 0 || detectAddresses(html).length > 0;
 
   if (hasAddressOnPage && !hasLocalBusinessSchema) {
     detectedIssues.push('Local business may not be on Bing Places');

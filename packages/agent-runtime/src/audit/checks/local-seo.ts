@@ -124,7 +124,7 @@ function formatAddress(address: unknown): string | undefined {
 /**
  * Detect phone numbers in page content
  */
-function detectPhones(html: string): string[] {
+export function detectPhones(html: string): string[] {
   const $ = cheerio.load(html);
   const text = $('body').text();
   const phones = new Set<string>();
@@ -155,7 +155,7 @@ function detectPhones(html: string): string[] {
 /**
  * Detect addresses in page content
  */
-function detectAddresses(html: string): string[] {
+export function detectAddresses(html: string): string[] {
   const $ = cheerio.load(html);
   const text = $('body').text();
   const addresses = new Set<string>();
@@ -235,8 +235,9 @@ export function analyzeLocalSEO(html: string, url: string): { issues: AuditIssue
   // Detect social profiles
   const socialProfiles = detectSocialProfiles(html);
 
-  // Generate issues
-  if (!hasLocalBusiness) {
+  // Generate issues. LocalBusiness schema is for a business with a place: only a page that
+  // shows a phone number or a street address is missing it (it used to fire on every site).
+  if (!hasLocalBusiness && (detectedPhones.length > 0 || detectedAddresses.length > 0)) {
     issues.push({
       ...ISSUE_DEFINITIONS.LOCAL_BUSINESS_SCHEMA_MISSING,
       affectedUrls: [url],

@@ -67,7 +67,7 @@ describe('analyzeTrackingVerification', () => {
 
       const ga4Issue = issues.find((i) => i.code === 'GA4_MISSING');
       expect(ga4Issue).toBeDefined();
-      expect(ga4Issue?.severity).toBe('warning');
+      expect(ga4Issue?.severity).toBe('notice');
       expect(ga4Issue?.affectedUrls).toContain(testUrl);
     });
 
@@ -183,7 +183,7 @@ describe('analyzeTrackingVerification', () => {
 
       const gscIssue = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
       expect(gscIssue).toBeDefined();
-      expect(gscIssue?.severity).toBe('warning');
+      expect(gscIssue?.severity).toBe('notice');
     });
 
     it('rejects short verification codes as invalid', async () => {

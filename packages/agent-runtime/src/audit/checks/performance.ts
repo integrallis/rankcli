@@ -61,7 +61,7 @@ export async function analyzePerformance(url: string): Promise<{ issues: AuditIs
     }
 
     // Check HTML size
-    if (htmlSize > 100 * 1024) { // > 100KB
+    if (htmlSize > 300 * 1024) { // > 300KB: 100 flagged most modern homepages
       issues.push({
         ...ISSUE_DEFINITIONS.HTML_TOO_LARGE,
         affectedUrls: [url],

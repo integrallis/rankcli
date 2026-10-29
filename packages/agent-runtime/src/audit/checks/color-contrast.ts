@@ -243,24 +243,9 @@ export function analyzeColorContrast(
     }
   }
 
-  // Note about limitations
-  if (cannotDetermine > elementsAnalyzed * 0.8) {
-    issues.push({
-      code: 'A11Y_CONTRAST_UNDETERMINED',
-      severity: 'notice',
-      category: 'accessibility',
-      title: 'Color contrast could not be fully analyzed',
-      description: 'Most text colors are set via CSS stylesheets rather than inline styles. Full contrast checking requires browser rendering.',
-      impact: 'Potential contrast issues may exist that were not detected.',
-      howToFix: 'Use browser DevTools (Lighthouse accessibility audit) or dedicated tools like axe-core for comprehensive contrast checking.',
-      affectedUrls: [url],
-      details: {
-        elementsAnalyzed,
-        cannotDetermine,
-        recommendation: 'Run Lighthouse accessibility audit for complete contrast analysis.',
-      },
-    });
-  }
+  // "Could not be fully analyzed" is a statement about this check, not about the site: it is
+  // reported in the data (elementsAnalyzed, cannotDetermine), not as an issue. Every site whose
+  // colours come from a stylesheet, which is every site, used to get it as a finding.
 
   return {
     issues,

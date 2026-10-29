@@ -29,7 +29,14 @@ export interface ReadabilityResult {
  */
 export function analyzeReadability(text: string): ReadabilityResult {
   // Clean and normalize text
-  const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  // Paragraph breaks survive the cleanup: collapsing every run of whitespace to one space
+  // made each page one paragraph, however long.
+  const cleanText = text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[ \t\r\f\v]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   // Count elements
   const words = getWords(cleanText);
@@ -122,7 +129,8 @@ function getSentences(text: string): string[] {
 }
 
 function getParagraphs(text: string): string[] {
-  return text.split(/\n\n+/).filter(p => p.trim().length > 0);
+  // A paragraph has at least three words: a nav label or a table cell is a block, not prose.
+  return text.split(/\n\n+/).filter(p => p.trim().split(/\s+/).length >= 3);
 }
 
 function countSyllables(word: string): number {

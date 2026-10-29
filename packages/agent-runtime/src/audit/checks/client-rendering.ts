@@ -205,12 +205,14 @@ export function analyzeRendering(html: string): RenderingAnalysis {
   // Check if key content is in HTML
   const title = $('title').text().trim();
   const h1Text = $('h1').first().text().trim();
-  const firstParagraph = $('p').first().text().trim();
+  // Any paragraph of real length, not only the first <p>: sive.rs opens with a one-line
+  // paragraph and was reported as having no key content in 1,287 words of static HTML.
+  const hasSubstantialParagraph = $('p').toArray().some((p) => $(p).text().trim().length > 50);
 
   const keyContentInHTML =
-    title.length > 10 &&
-    h1Text.length > 5 &&
-    firstParagraph.length > 50;
+    title.length > 0 &&
+    h1Text.length > 0 &&
+    hasSubstantialParagraph;
 
   // Calculate HTML content ratio
   // Compare actual content to expected minimum for a meaningful page
@@ -531,9 +533,9 @@ export function analyzeClientRendering(
       howToFix: 'Ensure the initial HTML contains: meaningful <title>, descriptive <h1>, and a substantial first paragraph with your key message.',
       affectedUrls: [url],
       details: {
-        hasTitle: $('title').text().trim().length > 10,
-        hasH1: $('h1').text().trim().length > 5,
-        hasFirstParagraph: $('p').first().text().trim().length > 50,
+        hasTitle: $('title').text().trim().length > 0,
+        hasH1: $('h1').text().trim().length > 0,
+        hasSubstantialParagraph: $('p').toArray().some((p) => $(p).text().trim().length > 50),
       },
     });
   }

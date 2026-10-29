@@ -264,20 +264,9 @@ export function checkAMP(html: string, url: string): { issues: AuditIssue[]; dat
     };
   }
 
-  // Only flag AMP missing for content-heavy pages (articles, news)
-  const isArticle =
-    $('article').length > 0 ||
-    $('meta[property="og:type"][content="article"]').length > 0 ||
-    html.toLowerCase().includes('blog') ||
-    html.toLowerCase().includes('news');
-
-  if (isArticle) {
-    issues.push({
-      ...ISSUE_DEFINITIONS.AMP_MISSING,
-      affectedUrls: [url],
-    });
-  }
-
+  // No AMP_MISSING finding: Google dropped the AMP requirement for Top Stories in 2021 and
+  // gives AMP no ranking benefit, so a page without an AMP version lacks nothing. The check
+  // still reports what it found (an amphtml link, or that this page is AMP) as data.
   return {
     issues,
     data: {

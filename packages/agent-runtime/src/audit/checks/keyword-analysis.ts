@@ -167,8 +167,24 @@ export function analyzeKeywords(html: string, url: string): { issues: AuditIssue
       .map(([phrase, count]) => ({ phrase, count, wordCount: n }));
   };
 
-  // Check for keyword stuffing (density > 3%)
-  const potentialStuffing = topKeywords.filter((k) => k.density > 3).map((k) => k.word);
+  // Keyword stuffing: a word above 4% of a page of at least 200 words. The brand is exempt:
+  // nextjs.org was flagged for "next" at 4.2%, and a site is allowed to say its own name.
+  // Brand words are the hostname's labels (minus the TLD) and the og:site_name /
+  // application-name tokens; a word counts as brand when a label contains it.
+  const brandLabels = new Set<string>();
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    for (const label of host.split('.').slice(0, -1)) brandLabels.add(label);
+  } catch {
+    // keep going without a hostname
+  }
+  for (const name of [$('meta[property="og:site_name"]').attr('content'), $('meta[name="application-name"]').attr('content')]) {
+    for (const token of tokenize(name || '')) brandLabels.add(token);
+  }
+  const isBrandWord = (word: string) => [...brandLabels].some((label) => label.includes(word) || word.includes(label));
+  const potentialStuffing = totalWords >= 200
+    ? topKeywords.filter((k) => k.density > 4 && !isBrandWord(k.word)).map((k) => k.word)
+    : [];
 
   // Generate issues
   if (potentialStuffing.length > 0) {
