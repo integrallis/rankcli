@@ -1,6 +1,7 @@
 import { httpGet } from '../utils/http.js';
 import type { AuditIssue, AuditReport, HealthScore, PageAudit } from './types.js';
 import { ISSUE_DEFINITIONS } from './types.js';
+import { premiumChecks as builtInPremiumChecks } from './premium-checks.js';
 import type { PremiumChecks } from './premium-checks.types.js';
 import { detectFramework } from '../frameworks/detector.js';
 import { getFrameworkIssues } from '../frameworks/suggestion-engine.js';
@@ -112,7 +113,7 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
-  const { checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks } = options;
+  const { checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks = builtInPremiumChecks } = options;
   // Reassigned once if the page turns out to be a meta-refresh redirect (below).
   let url = options.url;
   const auditRoot = isSiteRoot(url) || sameUrl(url, options.auditRootUrl ?? url);

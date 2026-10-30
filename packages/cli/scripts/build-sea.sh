@@ -8,7 +8,7 @@
 #   output-path: where to write the finished binary
 #
 # Requires: the CLI already built (dist/index.js must exist, via
-# `pnpm build:wasm && pnpm build:js`), Node >=20 on PATH (SEA support),
+# `pnpm build:js`), Node >=20 on PATH (SEA support),
 # and esbuild/postject available via `pnpm exec` (workspace devDependencies).
 set -euo pipefail
 
@@ -64,29 +64,14 @@ pnpm --dir "$CLI_DIR" exec esbuild "$CLI_DIR/src/index.ts" \
   --define:process.env.RANKCLI_SUPABASE_URL="\"${RANKCLI_SUPABASE_URL:-}\"" \
   --define:process.env.RANKCLI_SUPABASE_ANON_KEY="\"${RANKCLI_SUPABASE_ANON_KEY:-}\"" \
   --define:process.env.RANKCLI_WEB_URL="\"${RANKCLI_WEB_URL:-https://rankcli.dev}\"" \
-  --define:process.env.RANKCLI_BUILD_KEY="\"${RANKCLI_BUILD_KEY:-}\"" \
   --outfile="$WORK/bundle.cjs"
 
 echo "==> [$LABEL] Generating SEA blob"
-# Embed the WASM glue JS + binary as SEA assets. wasm-engine.ts's
-# loadWasm() extracts them to a real temp file on first use (SEA builds
-# have no sibling files on disk for the normal require()-relative-path
-# lookup to find) - see its module doc comment.
-WASM_JS="$CLI_DIR/wasm/rankcli_audit_engine.js"
-WASM_BIN="$CLI_DIR/wasm/rankcli_audit_engine_bg.wasm"
-if [[ ! -f "$WASM_JS" || ! -f "$WASM_BIN" ]]; then
-  echo "ERROR: WASM module not found at $WASM_JS / $WASM_BIN - run \`pnpm build:wasm\` first" >&2
-  exit 1
-fi
 cat > "$WORK/sea-config.json" <<EOF
 {
   "main": "$(to_native_path "$WORK/bundle.cjs")",
   "output": "$(to_native_path "$WORK/sea-prep.blob")",
-  "disableExperimentalSEAWarning": true,
-  "assets": {
-    "rankcli_audit_engine.js": "$(to_native_path "$WASM_JS")",
-    "rankcli_audit_engine_bg.wasm": "$(to_native_path "$WASM_BIN")"
-  }
+  "disableExperimentalSEAWarning": true
 }
 EOF
 node --experimental-sea-config "$WORK/sea-config.json"

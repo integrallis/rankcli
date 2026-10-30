@@ -54,20 +54,7 @@ export { analyzeTrackerBloat } from './checks/tracker-bloat.js';
 export { analyzeClientRendering } from './checks/client-rendering.js';
 export { analyzeRedirectChain } from './checks/redirect-chain.js';
 export { analyzeResponsiveImages } from './checks/responsive-images.js';
-// Paid-tier checks - re-exported from the private premium package (never
-// published; only usable here because this bundle runs first-party,
-// server-side in a Supabase edge function, not distributed to end users).
-export {
-  analyzeConversionElements,
-  analyzeKeywordPlacement,
-  analyzeTopicalClusters,
-  analyzePlatformPresence,
-  analyzeInteractiveTools,
-  analyzeFunnelIntent,
-  analyzeNavBoostSignals,
-  analyzeEntitySEO,
-  analyzeFreshnessSignals,
-} from '@rankcli/agent-runtime-premium';
+export * from './premium-checks.js';
 
 // Model-free SEO fixes: robots.txt, sitemap.xml, llms.txt and a JSON-LD block, all derived
 // from the site's URL and name. What an account with no AI key gets.

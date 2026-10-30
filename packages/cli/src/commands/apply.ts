@@ -102,7 +102,7 @@ export async function apply(options: ApplyOptions): Promise<void> {
   console.log(`   Framework: ${framework.name}`);
 
   // The same audit as `rankcli audit`, on this URL alone. It used to run the engine without
-  // the premium checks, which scored the same site 93 where `audit` said 85.
+  // 21 of the checks, which scored the same site 93 where `audit` said 85.
   console.log(`\n\u{1F50D} Analyzing ${url}...`);
   await ensureApiKeyPlan();
 

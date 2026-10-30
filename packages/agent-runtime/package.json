@@ -7,8 +7,7 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "!dist/wasm"
+    "dist"
   ],
   "exports": {
     ".": {
@@ -24,7 +23,6 @@
     "build": "pnpm generate:recipes && tsup src/index.ts --format cjs,esm --dts && pnpm build:deno",
     "build:deno": "tsx scripts/build-deno.ts",
     "generate:recipes": "tsx scripts/generate-embedded-recipes.ts",
-    "build:wasm": "tsup --config tsup.wasm.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -39,7 +37,6 @@
     "yaml": "^2.3.0"
   },
   "devDependencies": {
-    "@rankcli/agent-runtime-premium": "workspace:*",
     "@types/node": "^20.0.0",
     "esbuild": "^0.20.0",
     "tsup": "^8.0.0",

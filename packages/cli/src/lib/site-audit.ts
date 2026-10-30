@@ -16,9 +16,8 @@ import {
 } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
-import { getUserInfo, isLoggedIn, getDecryptPassphrase } from './config.js';
+import { getUserInfo, isLoggedIn } from './config.js';
 import { TIER_LIMITS, tierFromPlanId, type TierId } from './upsell.js';
-import { initEngine, getPremiumChecks, type PremiumChecks } from '../wasm-engine.js';
 
 const { detectFramework, getFrameworkDisplayName } = frameworks;
 
@@ -105,8 +104,8 @@ export function mergeIssues(issueArrays: AuditIssue[][]): AuditIssue[] {
 }
 
 /**
- * Audit a site: discover pages from the URL, audit them in parallel with the caller's tier
- * and the premium checks, and merge the result. Returns null when no page could be analyzed.
+ * Audit a site: discover pages from the URL, audit them in parallel with the caller's tier,
+ * and merge the result. Returns null when no page could be analyzed.
  * Progress goes to stderr through spinners; nothing is written to stdout.
  */
 export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAuditResult | null> {
@@ -119,20 +118,6 @@ export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAudit
   const { planId } = getUserInfo();
   const tierId: TierId = tierFromPlanId(planId) ?? (isLoggedIn() ? 'free' : 'free_anon');
   const checksLimit: number = TIER_LIMITS[tierId].checks;
-
-  // Every plan runs the premium checks (they're part of the 280), if this build actually has a
-  // decrypt passphrase embedded (local/dev builds may not). A decrypt failure falls back to
-  // running without them rather than failing the whole audit.
-  let premiumChecks: PremiumChecks | undefined;
-  const passphrase = getDecryptPassphrase();
-  if (passphrase) {
-    try {
-      await initEngine(passphrase);
-      premiumChecks = await getPremiumChecks();
-    } catch (error) {
-      console.error(chalk.dim(`(premium checks unavailable: ${error instanceof Error ? error.message : error})`));
-    }
-  }
 
   // ===== Discover pages =====
   const discoverySpinner = ora('Discovering pages...').start();
@@ -167,7 +152,6 @@ export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAudit
         // requests".
         checkHreflangUrls: options.checkLinks || false,
         checksLimit,
-        premiumChecks,
       });
       auditSpinner.text = `Auditing pages... (${index + 1}/${pagesToAudit.length} complete)`;
       return report;

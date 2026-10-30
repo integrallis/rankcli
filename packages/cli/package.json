@@ -14,34 +14,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
-    },
-    "./engine": {
-      "types": "./dist/wasm-engine.d.ts",
-      "import": "./dist/wasm-engine.mjs",
-      "require": "./dist/wasm-engine.js"
     }
   },
   "files": [
     "bin",
-    "dist",
-    "wasm/*.wasm",
-    "wasm/*.js",
-    "wasm/*.d.ts"
+    "dist"
   ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npm run build:checks && npm run build:wasm && npm run build:js",
-    "build:js": "npm run update-version && tsup src/index.ts src/wasm-engine.ts --format cjs,esm --dts",
-    "build:checks": "test -d ../agent-runtime && (cd ../agent-runtime && pnpm build:wasm) || echo 'agent-runtime not present as a monorepo sibling - build.rs will fall back to the node_modules-installed bundle'",
-    "build:wasm": "cd native && wasm-pack build --target nodejs --release && cd .. && node scripts/finish-wasm.js",
-    "build:wasm:dev": "cd native && wasm-pack build --target nodejs --dev && cd .. && node scripts/finish-wasm.js --no-verify",
-    "prebuild:wasm": "mkdir -p wasm",
+    "build": "npm run build:js",
+    "build:js": "npm run update-version && tsup src/index.ts --format cjs,esm --dts",
     "inject-config": "node scripts/inject-config.js",
     "build:sea": "bash scripts/build-sea.sh",
     "prepublishOnly": "npm run build && npm run inject-config",
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
-    "test:wasm": "node test-wasm.js",
     "update-version": "node scripts/update-version.js",
     "typecheck": "tsc --noEmit"
   },

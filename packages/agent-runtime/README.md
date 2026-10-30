@@ -60,7 +60,7 @@ const fix = generateFrameworkFix({
 
 ## Architecture
 
-Isomorphic engine - works in Node.js, Deno, and WASM:
+Isomorphic engine - works in Node.js and Deno:
 
 ```
 src/

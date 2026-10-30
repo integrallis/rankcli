@@ -1,14 +1,11 @@
 import type { AuditIssue } from './types.js';
 
-/** Shape every paid-tier check function shares: (html, url) -> issues + check-specific data. */
+/** Shape these checks share: (html, url) -> issues + check-specific data. */
 export type PremiumCheckFn = (html: string, url: string) => { issues: AuditIssue[]; data: unknown };
 
 /**
- * Injected by the caller when premium checks are actually available -
- * audit-worker (first-party server, imports @rankcli/agent-runtime-premium
- * directly) or the CLI (after a valid license decrypts the WASM-embedded
- * bundle). This package never imports an implementation, only this type -
- * see docs/GEO_COVERAGE.md or packaging.test.ts for why.
+ * The checks `runFullAudit` runs through its `premiumChecks` option. The default is the
+ * built-in set in premium-checks.ts; a caller can pass its own to replace or stub them.
  */
 export interface PremiumChecks {
   analyzeFeaturedSnippet: PremiumCheckFn;

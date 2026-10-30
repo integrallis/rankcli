@@ -82,7 +82,6 @@ vi.mock('../lib/config.js', () => ({
   isApiKeyAuth: () => mockIsApiKeyAuth(),
   getApiKey: () => mockGetApiKey(),
   getSession: () => mockGetSession(),
-  getDecryptPassphrase: () => undefined,
   getApiUrl: () => 'http://localhost:3005',
   ensureApiKeyPlan: () => mockEnsureApiKeyPlan(),
 }));

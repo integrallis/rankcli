@@ -47,11 +47,10 @@ export { analyzeClientRendering } from './checks/client-rendering.js';
 export { analyzeRedirectChain } from './checks/redirect-chain.js';
 export { analyzeResponsiveImages } from './checks/responsive-images.js';
 
-// Paid-tier checks (analyzeConversionElements, analyzeKeywordPlacement,
-// analyzeTopicalClusters, analyzePlatformPresence, analyzeInteractiveTools,
-// analyzeFunnelIntent, analyzeNavBoostSignals, analyzeEntitySEO,
-// analyzeFreshnessSignals, and others) live in @rankcli/agent-runtime-premium
-// now, and are deliberately not re-exported here - see premium-checks.types.ts.
+// The checks that used to be encrypted into the CLI (every plan runs them; see
+// premium-checks.ts).
+export * from './premium-checks.js';
+export type { PremiumChecks, PremiumCheckFn } from './premium-checks.types.js';
 
 // URL Safety (local hash database - Google Safe Browsing style)
 export { analyzeUrlSafety, urlSafetyDatabase } from './checks/url-safety.js';
