@@ -1,11 +1,10 @@
 // GitHub Action Workflow Generator
-// Creates a scheduled RankCLI SEO audit + auto-fix-PR workflow, built only
-// from commands that actually exist in @rankcli/cli today (`audit`, `fix`) -
-// earlier versions of this generator referenced a package that was never
-// published (@seo-autopilot/cli) and CLI subcommands that don't exist
-// (`seo report --combine`, `seo sync`), so every workflow it ever wrote was
-// broken from the first run. See CLI's src/index.ts for the real command
-// surface if this ever needs extending.
+// Creates a scheduled RankCLI SEO audit + auto-fix-PR workflow. The audit step uses the
+// published Action (integrallis/rankcli-action), which runs the same engine as `rankcli audit`
+// and writes the JSON report the later steps read; only the auto-fix step installs the CLI,
+// because `rankcli fix` is a CLI command. Earlier versions of this generator referenced a
+// package that was never published and subcommands that don't exist, so every workflow it
+// wrote was broken from the first run. See CLI's src/index.ts for the real command surface.
 
 export interface WorkflowConfig {
   schedule: 'daily' | 'weekly' | 'monthly' | 'manual';
@@ -72,31 +71,28 @@ ${permissions}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-
-      - name: Install RankCLI
-        run: npm install -g @rankcli/cli
 ${sync ? `
-      # Fails fast if the secret is missing or the key was revoked, instead
-      # of silently auditing on the Free tier.
+      # Fails fast if the secret is missing, instead of silently auditing on the Free tier.
       - name: Verify RankCLI API key${keyEnv}
         run: |
           if [ -z "$RANKCLI_API_KEY" ]; then
             echo "::error::The RANKCLI_API_KEY secret is not set - see .github/SEO_SETUP.md"
             exit 1
           fi
-          rankcli login
 ` : ''}
-      # Exit codes: 0 ok, 1 a gate tripped, 2 bad invocation, 3 site
-      # unreachable or the URL answered 4xx/5xx. To fail this job on SEO
-      # regressions, add gates, e.g.: --fail-on error --min-score 80
+      # The same audit as \`rankcli audit\`, run by the published Action. To fail this job on
+      # SEO regressions, add gate rules, e.g.
+      #   fail-on: error,score<80
+      #   baseline: .rankcli/baseline.json   (only findings not in the baseline count)
+      # Audit a build instead of the live site: \`dir: dist\` with \`url\` naming the site.
       - name: Run SEO audit
-        id: audit${keyEnv}
-        run: rankcli audit --url "$SITE_URL" --output json > "$RUNNER_TEMP/audit-report.json"
+        id: audit
+        uses: integrallis/rankcli-action@v1
+        with:
+          url: \${{ env.SITE_URL }}
+          report-file: \${{ runner.temp }}/audit-report.json
+          comment-on-pr: regressions${sync ? `
+          api-key: \${{ secrets.RANKCLI_API_KEY }}` : ''}
 ${config.features.createIssues ? `
       - name: Create/update SEO report issue
         if: \${{ !cancelled() && steps.audit.outcome != 'skipped' }}
@@ -166,13 +162,20 @@ ${config.features.createIssues ? `
               });
             }
 ` : ''}${autoFixPRs ? `
-      # Auto-fix needs a Solo+ plan (resolved from RANKCLI_API_KEY). It
-      # always writes JSON - appliedCount is 0 when there was nothing to fix
-      # or the plan doesn't include auto-fix.
+      # \`rankcli fix\` is a CLI command, so the CLI is installed for this step only. It always
+      # writes JSON - appliedCount is 0 when there was nothing to fix.
+      - name: Setup Node.js
+        if: \${{ !cancelled() && steps.audit.outcome != 'skipped' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
       - name: Auto-fix issues
         id: autofix
         if: \${{ !cancelled() && steps.audit.outcome != 'skipped' }}${keyEnv}
-        run: rankcli fix --url "$SITE_URL" --auto --output json > "$RUNNER_TEMP/fixes.json"
+        run: |
+          npm install -g @rankcli/cli
+          rankcli fix --url "$SITE_URL" --auto --output json > "$RUNNER_TEMP/fixes.json"
 
       - name: Check if any fixes were applied
         id: fixes

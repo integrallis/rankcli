@@ -32,21 +32,34 @@ describe('generateWorkflow', () => {
     expect(wf.env?.RANKCLI_API_KEY).toBeUndefined();
     expect(job.env?.RANKCLI_API_KEY).toBeUndefined();
     for (const step of steps) {
+      // Only a step that uses the key (a rankcli command, or the check that it is set) gets it.
       if (step.env?.RANKCLI_API_KEY) {
-        expect(step.run).toMatch(/rankcli /);
+        expect(step.run).toMatch(/rankcli |\$RANKCLI_API_KEY/);
       }
       // Third-party actions never see the key.
       if (step.uses) expect(step.env?.RANKCLI_API_KEY).toBeUndefined();
     }
     const verify = steps.find(s => s.name === 'Verify RankCLI API key')!;
     expect(verify.run).toContain('-z "$RANKCLI_API_KEY"');
-    expect(verify.run).toContain('rankcli login');
-    expect(steps.find(s => s.id === 'audit')!.env?.RANKCLI_API_KEY).toBe('${{ secrets.RANKCLI_API_KEY }}');
+    // The audit step is the published Action; it takes the key as an input, not from env.
+    const audit = steps.find(s => s.id === 'audit')!;
+    expect(audit.uses).toMatch(/^integrallis\/rankcli-action@v\d+/);
+    expect(audit.with!['api-key']).toBe('${{ secrets.RANKCLI_API_KEY }}');
+    expect(audit.with!.url).toBe('${{ env.SITE_URL }}');
+    expect(audit.with!['comment-on-pr']).toBe('regressions');
+  });
+
+  it('runs the audit with the published Action, and installs the CLI only for the fix step', () => {
+    const { steps } = load(base);
+    expect(steps.filter(s => (s.run || '').includes('npm install -g @rankcli/cli'))).toHaveLength(1);
+    expect(steps.find(s => s.id === 'autofix')!.run).toContain('npm install -g @rankcli/cli');
+    const noSync: WorkflowConfig = { ...base, syncToDashboard: false, features: { ...base.features, autoFix: false, createPRs: false } };
+    expect(generateWorkflow(noSync)).not.toContain('npm install');
   });
 
   it('keeps report files out of the checkout so the fix PR never commits them', () => {
     const { steps } = load(base);
-    expect(steps.find(s => s.id === 'audit')!.run).toContain('> "$RUNNER_TEMP/audit-report.json"');
+    expect(steps.find(s => s.id === 'audit')!.with!['report-file']).toBe('${{ runner.temp }}/audit-report.json');
     expect(steps.find(s => s.id === 'autofix')!.run).toContain('> "$RUNNER_TEMP/fixes.json"');
     expect(steps.find(s => s.uses?.startsWith('actions/upload-artifact'))!.with!.path).toContain('${{ runner.temp }}/audit-report.json');
   });
