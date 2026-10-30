@@ -1,5 +1,5 @@
 name: 'RankCLI SEO Audit'
-description: 'Ship code, get ranked. Run the RankCLI SEO/GEO audit on a URL in CI and fail the build on SEO regressions.'
+description: 'Ship code, get ranked. The SEO and AI-search audit as a CI gate: audit a URL or your build directory, fail on regressions, annotate the run and keep one PR comment up to date.'
 author: 'RankCLI'
 branding:
   icon: 'search'
@@ -7,8 +7,38 @@ branding:
 
 inputs:
   url:
-    description: 'URL to audit (e.g. https://example.com or a preview deployment URL)'
-    required: true
+    description: 'URL to audit: the live site or a preview deployment. With `dir`, the site the build is for (canonical and sitemap checks compare against it).'
+    required: false
+
+  dir:
+    description: 'A build directory (dist, out, build) to audit instead of a live URL. It is served inside the runner, so check out and build the site first. Host checks (TLS, security and caching headers, redirects) are skipped.'
+    required: false
+
+  fail-on:
+    description: 'Gate rules, comma-separated: error | warning | notice (fail on any issue at or above), score<80 (overall score), score:aiReadiness<70 (a category score). Empty: findings never fail the step.'
+    required: false
+    default: ''
+
+  baseline:
+    description: 'A saved JSON report in the repository (rankcli audit -o json > .rankcli/baseline.json). The severity rule then counts only findings that are not in it, so an existing site can adopt the gate without first fixing every old finding.'
+    required: false
+
+  config:
+    description: 'Path to rankcli.config.json (default: the one in the workspace root, if any). It can set url, maxPages, failOn, minScore, budgets, baseline, ignore, headers and dir; inputs win over the file.'
+    required: false
+
+  max-pages:
+    description: 'Pages to audit, counting the URL itself; the sitemap seeds the list and homepage links fill the rest.'
+    required: false
+    default: '5'
+
+  headers:
+    description: 'Headers sent with every request to the site, one "Name: value" per line (for protected previews). Sent only to the audited site.'
+    required: false
+
+  report-file:
+    description: 'Write the full JSON report to this path (the same document as `rankcli audit -o json`), for a later step or an artifact.'
+    required: false
 
   api-key:
     description: 'RankCLI API key (optional). Identifies your account; the audit itself runs in this runner. Falls back to the RANKCLI_API_KEY env var.'
@@ -20,22 +50,27 @@ inputs:
     default: ${{ github.token }}
 
   comment-on-pr:
-    description: 'Post the audit results as a PR comment on pull_request runs (true/false). A comment that cannot be posted is a warning, never a failure.'
+    description: 'When to comment on a pull_request run: regressions (only when the gate fails or there are new findings against the baseline), always, never. One comment, updated in place on later runs. true/false mean always/never. A comment that cannot be posted is a warning, never a failure.'
+    required: false
+    default: 'regressions'
+
+  annotations:
+    description: 'Annotate the run with the findings (the new ones with a baseline, otherwise the errors), with file locations when `dir` is used (true/false).'
     required: false
     default: 'true'
 
   fail-on-error:
-    description: 'Fail the step if the audit finds any error-severity issue (true/false)'
+    description: 'The same as fail-on: error (kept for existing workflows).'
     required: false
     default: 'false'
 
   fail-on-errors:
-    description: 'Alias of fail-on-error (the spelling used in the RankCLI docs)'
+    description: 'Alias of fail-on-error (the spelling used in the RankCLI docs).'
     required: false
     default: 'false'
 
   score-threshold:
-    description: 'Minimum overall score (0-100) to pass. 0 disables the check.'
+    description: 'The same as fail-on: score<N (kept for existing workflows). 0 disables it.'
     required: false
     default: '0'
 
@@ -80,13 +115,19 @@ outputs:
   passed:
     description: 'Whether the audit passed the configured gate (true/false)'
   issues-count:
-    description: 'Total number of issues found'
+    description: 'Total number of issues found (after ignore rules)'
   errors-count:
     description: 'Number of error-severity issues'
   warnings-count:
     description: 'Number of warnings'
+  new-issues-count:
+    description: 'Issues not in the baseline (every issue when there is no baseline)'
+  fixed-issues-count:
+    description: 'Baseline issues that are gone (0 without a baseline)'
   report-json:
-    description: 'Full audit report as JSON'
+    description: 'Full audit report as JSON (the same document as `rankcli audit -o json`)'
+  report-file:
+    description: 'Where the report was written, when report-file is set'
   rate-limit-remaining:
     description: 'Remaining RankCLI API requests today (when api-key is set)'
   rate-limit-resets-at:

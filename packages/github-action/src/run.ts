@@ -3,13 +3,28 @@
  * tested. index.ts wires in @actions/core, @actions/github and the runtime.
  *
  * Order matters: the gate is decided right after the audit, and nothing
- * after that (job summary, PR comment, alerts) can change it. The PR
- * comment used to run first and throw on a read-only token (every fork
- * PR), so the action failed with "Resource not accessible by integration"
- * instead of reporting - or passing - the actual audit.
+ * after that (job summary, annotations, PR comment, alerts) can change it.
+ * The PR comment used to run first and throw on a read-only token (every
+ * fork PR), so the action failed with "Resource not accessible by
+ * integration" instead of reporting - or passing - the actual audit.
  */
-import type { AuditReport, AuditIssue } from '@rankcli/agent-runtime';
-import { parseInputs, evaluateGate, formatPRComment, type AuditSummary, type GateResult } from './action.js';
+import { existsSync, statSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
+import {
+  resolveAuditSettings,
+  loadBaselineFile,
+  applyIgnores,
+  diffIssues,
+  issueKeys,
+  evaluateGate,
+  isGated,
+  type AuditIssue,
+  type AuditSettings,
+  type BaselineReport,
+  type GateResult,
+  type SiteAuditResult,
+} from '@rankcli/agent-runtime';
+import { parseInputs, summarize, shouldComment, formatPRComment, type AuditSummary } from './action.js';
 
 export interface ApiValidationResult {
   valid: boolean;
@@ -30,6 +45,8 @@ export interface AlertPayload {
   failures: string[];
 }
 
+export type AnnotationLevel = 'error' | 'warning' | 'notice';
+
 export interface ActionDeps {
   getInput(name: string): string;
   info(message: string): void;
@@ -37,48 +54,21 @@ export interface ActionDeps {
   setOutput(name: string, value: string | number | boolean): void;
   setFailed(message: string): void;
   validateApiKey(apiKey: string): Promise<ApiValidationResult>;
-  runAudit(url: string): Promise<AuditReport>;
+  /** The engine's site audit with these settings (`dir` already absolute). */
+  runAudit(settings: AuditSettings & { url: string }): Promise<SiteAuditResult | null>;
   writeJobSummary(summary: AuditSummary, gate: GateResult): Promise<void>;
-  /** Undefined when the run isn't for a pull request. */
-  postPRComment?: (body: string, token: string) => Promise<void>;
+  /** One annotation on the run; `file` when the finding maps to a file in the checkout. */
+  annotate?: (level: AnnotationLevel, message: string, properties: { title: string; file?: string }) => void;
+  /** Create the PR comment, or update the one that carries COMMENT_MARKER. Undefined outside pull requests. */
+  upsertPRComment?: (body: string, token: string) => Promise<'created' | 'updated'>;
+  /** Write the JSON report where `report-file` says. */
+  writeFile?: (path: string, content: string) => void;
   sendAlert(channel: 'slack' | 'discord', webhookUrl: string, payload: AlertPayload): Promise<void>;
+  /** The workspace (default: process.cwd()). */
+  cwd?: string;
 }
 
-const PAGE_FAILURE_CODES = new Set(['FETCH_ERROR', 'HTTP_ERROR_STATUS']);
-
-export function summarize(url: string, report: AuditReport): AuditSummary {
-  const issues: AuditIssue[] = report.issues;
-  const summary: AuditSummary = {
-    url,
-    score: report.healthScore.overall,
-    issuesCount: issues.length,
-    errorsCount: issues.filter(i => i.severity === 'error' || i.severity === 'critical').length,
-    warningsCount: issues.filter(i => i.severity === 'warning').length,
-    categories: {},
-  };
-  const pageFailure = issues.find(i => PAGE_FAILURE_CODES.has(i.code));
-  if (pageFailure) summary.pageFailure = pageFailure.title;
-
-  for (const issue of issues) {
-    summary.categories[issue.category] ??= { score: 0, issues: 0 };
-    summary.categories[issue.category].issues++;
-  }
-  const categoryScoreMap: Record<string, keyof AuditReport['healthScore']> = {
-    'on-page': 'onPage',
-    crawlability: 'crawlability',
-    indexability: 'indexability',
-    performance: 'performance',
-    security: 'security',
-    content: 'content',
-    links: 'links',
-  };
-  for (const [category, key] of Object.entries(categoryScoreMap)) {
-    if (summary.categories[category]) summary.categories[category].score = report.healthScore[key];
-  }
-  return summary;
-}
-
-async function bestEffort(deps: ActionDeps, what: string, fn: () => Promise<void>): Promise<void> {
+async function bestEffort(deps: ActionDeps, what: string, fn: () => Promise<void> | void): Promise<void> {
   try {
     await fn();
   } catch (error) {
@@ -86,17 +76,58 @@ async function bestEffort(deps: ActionDeps, what: string, fn: () => Promise<void
   }
 }
 
+const MAX_ANNOTATIONS_PER_LEVEL = 10;
+
 export async function runAction(deps: ActionDeps): Promise<void> {
+  const cwd = deps.cwd ?? process.cwd();
   try {
     const inputs = parseInputs((name) => deps.getInput(name));
     for (const warning of inputs.warnings) deps.warning(warning);
 
+    const resolved = resolveAuditSettings({
+      url: inputs.url,
+      dir: inputs.dir,
+      maxPages: inputs.maxPages,
+      failOn: inputs.failOn,
+      baseline: inputs.baseline,
+      header: inputs.headers,
+      config: inputs.config,
+    }, cwd);
+    if (resolved.error || !resolved.settings) {
+      deps.setFailed(resolved.error ?? 'Invalid settings');
+      return;
+    }
+    const settings = resolved.settings;
+    if (settings.dir) {
+      const dir = isAbsolute(settings.dir) ? settings.dir : join(cwd, settings.dir);
+      if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+        deps.setFailed(`dir "${settings.dir}" is not a directory in the workspace (check out the repository and build it first)`);
+        return;
+      }
+      settings.dir = dir;
+      settings.url ||= 'http://localhost';
+    }
+    const url = settings.url;
+    if (!url) {
+      deps.setFailed('Set `url` (the site or preview to audit) or `dir` (a build directory)');
+      return;
+    }
     try {
-      const parsed = new URL(inputs.url);
+      const parsed = new URL(url);
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('not http(s)');
     } catch {
-      deps.setFailed(`Invalid url input "${inputs.url}" - use a full http(s) URL`);
+      deps.setFailed(`Invalid url input "${url}" - use a full http(s) URL`);
       return;
+    }
+
+    let baseline: (BaselineReport & { file: string }) | undefined;
+    if (settings.baselineFile) {
+      const read = loadBaselineFile(settings.baselineFile, cwd);
+      if (read.error) {
+        deps.setFailed(read.error);
+        return;
+      }
+      baseline = read.baseline;
     }
 
     // The audit runs entirely in this runner; the key only identifies the
@@ -125,31 +156,98 @@ export async function runAction(deps: ActionDeps): Promise<void> {
       }
     }
 
-    deps.info(`Running SEO audit on: ${inputs.url}`);
-    const report = await deps.runAudit(inputs.url);
-    const summary = summarize(inputs.url, report);
-    const gate = evaluateGate(inputs, summary);
+    deps.info(settings.dir ? `Running SEO audit on ${settings.dir} as ${url}` : `Running SEO audit on: ${url}`);
+    if (settings.configPath) deps.info(`Using ${settings.configPath}`);
+    const startedAt = new Date();
+    const result = await deps.runAudit({ ...settings, url });
+    if (!result) {
+      deps.setFailed(`${url} could not be audited: no page could be analyzed`);
+      return;
+    }
 
-    deps.info(`Audit complete. Score: ${summary.score}/100, Issues: ${summary.issuesCount}, Errors: ${summary.errorsCount}`);
+    const { issues, ignored } = applyIgnores(result.issues, settings.ignore);
+    const diff = baseline ? diffIssues(baseline.issues, issues) : undefined;
+    const baselineKeys = baseline ? new Set(baseline.issues.flatMap(issueKeys)) : undefined;
+    const isNew = (issue: AuditIssue) => !baselineKeys || issueKeys(issue).some(k => !baselineKeys.has(k));
+    const scores = { ...(result.primaryReport.healthScore ?? {}), overall: result.score };
+    const gate = evaluateGate(settings.spec, diff ? diff.added : issues, scores, { newOnly: !!diff });
+    // A page that couldn't be audited always fails - it scores 0 and a green check would say
+    // the site is fine.
+    if (result.pageFailure) {
+      gate.passed = false;
+      gate.failures.unshift(`${url} could not be audited: ${result.pageFailure.title}`);
+    }
+    const summary = summarize(url, result, issues, {
+      baseline: baseline && diff ? { file: baseline.file, added: diff.added, fixed: diff.fixed, unchanged: diff.unchanged, scoreBefore: baseline.score } : undefined,
+      ignoredCount: ignored.length,
+      dir: inputs.dir ?? settings.config?.dir,
+    });
+
+    deps.info(`Audit complete. Score: ${summary.score}/100, Issues: ${summary.issuesCount}, Errors: ${summary.errorsCount}${diff ? `, New since baseline: ${diff.added.length}` : ''}`);
 
     deps.setOutput('score', summary.score);
     deps.setOutput('issues-count', summary.issuesCount);
     deps.setOutput('errors-count', summary.errorsCount);
     deps.setOutput('warnings-count', summary.warningsCount);
+    deps.setOutput('new-issues-count', diff ? diff.added.length : summary.issuesCount);
+    deps.setOutput('fixed-issues-count', diff ? diff.fixed.length : 0);
     deps.setOutput('passed', gate.passed);
+    const report = {
+      url,
+      timestamp: startedAt.toISOString(),
+      score: summary.score,
+      pagesAudited: result.pagesAudited,
+      pages: result.pages,
+      discovery: result.discovery,
+      checksRun: result.checksRun,
+      checksPassed: result.primaryReport.summary?.passed ?? 0,
+      framework: result.framework,
+      ...(summary.dir && { dir: summary.dir }),
+      ...(settings.configPath && { config: settings.configPath }),
+      issues,
+      ...(ignored.length > 0 && { ignored }),
+      ...(summary.baseline && { baseline: summary.baseline }),
+      healthScores: result.primaryReport.healthScore,
+      ...(result.pageFailure && { error: result.pageFailure.title }),
+      ...(isGated(settings.spec) && { gate }),
+      exitCode: result.pageFailure ? 3 : gate.passed ? 0 : 1,
+    };
     deps.setOutput('report-json', JSON.stringify(report));
+    if (inputs.reportFile && deps.writeFile) {
+      const path = isAbsolute(inputs.reportFile) ? inputs.reportFile : join(cwd, inputs.reportFile);
+      await bestEffort(deps, `Writing ${inputs.reportFile}`, () => deps.writeFile!(path, JSON.stringify(report, null, 2)));
+      deps.setOutput('report-file', path);
+    }
 
     // Everything below is reporting. None of it may change the outcome.
     await bestEffort(deps, 'Writing the job summary', () => deps.writeJobSummary(summary, gate));
 
-    if (inputs.commentOnPr && deps.postPRComment) {
+    if (inputs.annotations && deps.annotate) {
+      // With a baseline, the new findings; otherwise the errors, and the warnings when the
+      // gate counts them. Ten per level: GitHub shows no more than that per step anyway.
+      const candidates = diff ? diff.added : issues.filter(i => i.severity === 'error' || i.severity === 'critical' || (settings.spec.failOn && settings.spec.failOn !== 'error' && i.severity === 'warning'));
+      const counts: Record<AnnotationLevel, number> = { error: 0, warning: 0, notice: 0 };
+      await bestEffort(deps, 'Annotating the run', () => {
+        for (const issue of candidates) {
+          const level: AnnotationLevel = issue.severity === 'error' || issue.severity === 'critical' ? 'error' : issue.severity === 'warning' ? 'warning' : 'notice';
+          if (counts[level] >= MAX_ANNOTATIONS_PER_LEVEL) continue;
+          counts[level]++;
+          const page = issue.affectedUrls?.[0];
+          const file = page ? result.files?.[page] : undefined;
+          const where = page && !file ? ` (${page})` : '';
+          deps.annotate!(level, `${issue.title}${where}: ${issue.howToFix || issue.description}`, { title: `${issue.code}${isNew(issue) && diff ? ' (new)' : ''}`, file });
+        }
+      });
+    }
+
+    if (deps.upsertPRComment && shouldComment(inputs.commentOnPr, summary, gate)) {
       const token = inputs.githubToken || process.env.GITHUB_TOKEN || '';
       await bestEffort(
         deps,
         'Posting the PR comment (fork PRs get a read-only token; the workflow needs `permissions: pull-requests: write`)',
         async () => {
-          await deps.postPRComment!(formatPRComment(summary, gate), token);
-          deps.info('Posted audit results as PR comment');
+          const what = await deps.upsertPRComment!(formatPRComment(summary, gate), token);
+          deps.info(what === 'updated' ? 'Updated the audit comment on the pull request' : 'Posted audit results as a PR comment');
         },
       );
     }
@@ -158,7 +256,7 @@ export async function runAction(deps: ActionDeps): Promise<void> {
       || (inputs.alertOn.includes('failure') && !gate.passed);
     if (shouldAlert) {
       const payload: AlertPayload = {
-        url: inputs.url,
+        url,
         score: summary.score,
         issuesFound: summary.issuesCount,
         errorCount: summary.errorsCount,

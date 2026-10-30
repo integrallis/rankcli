@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { AuditIssue, SiteAuditResult } from '@rankcli/agent-runtime';
 import {
   parseInputs,
   formatPRComment,
-  shouldFail,
-  evaluateGate,
+  summarize,
+  shouldComment,
+  issueLine,
   REMOVED_INPUTS,
+  COMMENT_MARKER,
   AuditSummary,
 } from './action.js';
 
@@ -18,8 +21,15 @@ const summaryWith = (overrides: Partial<AuditSummary> = {}): AuditSummary => ({
   issuesCount: 5,
   errorsCount: 2,
   warningsCount: 3,
+  noticesCount: 0,
+  pagesAudited: 1,
   categories: {},
+  ignoredCount: 0,
   ...overrides,
+});
+
+const issue = (code: string, severity: AuditIssue['severity'], urls = ['https://example.com/']): AuditIssue => ({
+  code, severity, category: 'on-page', title: `Title ${code}`, description: '', impact: '', howToFix: `Fix ${code}`, affectedUrls: urls,
 });
 
 describe('github-action', () => {
@@ -32,19 +42,25 @@ describe('github-action', () => {
       expect(parseInputs(inputsFrom({ url: 'https://example.com' })).url).toBe('https://example.com');
     });
 
-    it('parses boolean inputs correctly', () => {
-      const inputs = parseInputs(inputsFrom({ url: 'https://example.com', 'comment-on-pr': 'false', 'fail-on-error': 'true' }));
-      expect(inputs.commentOnPr).toBe(false);
-      expect(inputs.failOnError).toBe(true);
+    it('folds the legacy inputs into fail-on rules', () => {
+      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'fail-on-error': 'true', 'score-threshold': '70' })).failOn).toEqual(['error', 'score<70']);
+      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'fail-on-errors': 'true' })).failOn).toEqual(['error']);
+      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'fail-on': 'warning, score:aiReadiness<70' })).failOn).toEqual(['warning', 'score:aiReadiness<70']);
     });
 
-    it('accepts fail-on-errors, the spelling the docs use', () => {
-      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'fail-on-errors': 'true' })).failOnError).toBe(true);
-      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'fail-on-error': 'false', 'fail-on-errors': 'true' })).failOnError).toBe(true);
+    it('parses the comment mode, accepting the old booleans', () => {
+      expect(parseInputs(inputsFrom({ url: 'x' })).commentOnPr).toBe('regressions');
+      expect(parseInputs(inputsFrom({ url: 'x', 'comment-on-pr': 'true' })).commentOnPr).toBe('always');
+      expect(parseInputs(inputsFrom({ url: 'x', 'comment-on-pr': 'false' })).commentOnPr).toBe('never');
+      expect(parseInputs(inputsFrom({ url: 'x', 'comment-on-pr': 'always' })).commentOnPr).toBe('always');
+      const odd = parseInputs(inputsFrom({ url: 'x', 'comment-on-pr': 'sometimes' }));
+      expect(odd.commentOnPr).toBe('regressions');
+      expect(odd.warnings.join(' ')).toContain('sometimes');
     });
 
-    it('parses score threshold as number', () => {
-      expect(parseInputs(inputsFrom({ url: 'https://example.com', 'score-threshold': '70' })).scoreThreshold).toBe(70);
+    it('reads dir, baseline, config, max-pages, headers and report-file', () => {
+      const inputs = parseInputs(inputsFrom({ dir: 'dist', url: 'https://example.com', baseline: '.rankcli/baseline.json', config: 'ci.json', 'max-pages': '3', headers: 'X-A: 1\n\nCookie: s=1\n', 'report-file': 'out/report.json', annotations: 'false' }));
+      expect(inputs).toMatchObject({ dir: 'dist', baseline: '.rankcli/baseline.json', config: 'ci.json', maxPages: '3', headers: ['X-A: 1', 'Cookie: s=1'], reportFile: 'out/report.json', annotations: false });
     });
 
     it('keeps supported alert-on values and warns about the rest', () => {
@@ -55,9 +71,9 @@ describe('github-action', () => {
 
     it('uses default values when inputs not provided', () => {
       const inputs = parseInputs(inputsFrom({ url: 'https://example.com' }));
-      expect(inputs.commentOnPr).toBe(true);
-      expect(inputs.failOnError).toBe(false);
-      expect(inputs.scoreThreshold).toBe(0);
+      expect(inputs.commentOnPr).toBe('regressions');
+      expect(inputs.failOn).toEqual([]);
+      expect(inputs.annotations).toBe(true);
       expect(inputs.alertOn).toEqual(['error']);
       expect(inputs.warnings).toEqual([]);
     });
@@ -94,16 +110,48 @@ describe('github-action', () => {
       }
     });
 
+    it('declares the outputs run.ts sets', () => {
+      for (const name of ['score', 'passed', 'issues-count', 'errors-count', 'warnings-count', 'new-issues-count', 'fixed-issues-count', 'report-json', 'report-file']) {
+        expect(yml).toMatch(new RegExp(`^  ${name}:`, 'm'));
+      }
+    });
+
     it('runs on node24 from dist/index.js', () => {
       expect(yml).toContain("using: 'node24'");
       expect(yml).toContain("main: 'dist/index.js'");
     });
   });
 
+  describe('summarize', () => {
+    it('counts by severity and category from the issues it is given', () => {
+      const result = {
+        score: 72, pagesAudited: 2, pageFailure: undefined,
+        primaryReport: { healthScore: { overall: 72, onPage: 50, aiReadiness: 61 } },
+      } as unknown as SiteAuditResult;
+      const summary = summarize('https://example.com', result, [issue('A', 'error'), issue('B', 'warning'), { ...issue('C', 'notice'), category: 'ai-readiness' }], { ignoredCount: 1 });
+      expect(summary).toMatchObject({ score: 72, pagesAudited: 2, issuesCount: 3, errorsCount: 1, warningsCount: 1, noticesCount: 1, ignoredCount: 1 });
+      expect(summary.categories).toEqual({ 'on-page': { score: 50, issues: 2 }, 'ai-readiness': { score: 61, issues: 1 } });
+    });
+  });
+
+  describe('shouldComment', () => {
+    const ok = { passed: true, failures: [], budgets: [] };
+    const failed = { passed: false, failures: ['x'], budgets: [] };
+    it('comments on regressions only by default', () => {
+      expect(shouldComment('regressions', summaryWith(), ok)).toBe(false);
+      expect(shouldComment('regressions', summaryWith(), failed)).toBe(true);
+      expect(shouldComment('regressions', summaryWith({ baseline: { file: 'b.json', added: [issue('N', 'notice')], fixed: [], unchanged: 3 } }), ok)).toBe(true);
+      expect(shouldComment('regressions', summaryWith({ baseline: { file: 'b.json', added: [], fixed: [issue('F', 'error')], unchanged: 3 } }), ok)).toBe(false);
+      expect(shouldComment('always', summaryWith(), ok)).toBe(true);
+      expect(shouldComment('never', summaryWith(), failed)).toBe(false);
+    });
+  });
+
   describe('formatPRComment', () => {
-    it('formats comment with score and issues', () => {
+    it('starts with the marker and formats score and issues', () => {
       const comment = formatPRComment(summaryWith({ score: 72 }));
-      expect(comment).toContain('SEO Audit Report');
+      expect(comment.startsWith(COMMENT_MARKER)).toBe(true);
+      expect(comment).toContain('SEO check passed');
       expect(comment).toContain('72');
       expect(comment).toContain('5 issues');
       expect(comment).toContain('2 errors');
@@ -134,34 +182,24 @@ describe('github-action', () => {
     });
 
     it('states a failed gate at the top', () => {
-      const comment = formatPRComment(summaryWith(), { passed: false, failures: ['SEO score 65 is below threshold 80'] });
+      const comment = formatPRComment(summaryWith(), { passed: false, failures: ['score 65 is below the minimum 80'], budgets: [] });
       expect(comment).toContain('SEO check failed');
-      expect(comment).toContain('below threshold 80');
-    });
-  });
-
-  describe('evaluateGate / shouldFail', () => {
-    it('fails when failOnError is set and errors exist', () => {
-      expect(shouldFail({ failOnError: true, scoreThreshold: 0 }, summaryWith())).toBe(true);
+      expect(comment).toContain('below the minimum 80');
     });
 
-    it('passes when failOnError is set but there are no errors', () => {
-      expect(shouldFail({ failOnError: true, scoreThreshold: 0 }, summaryWith({ errorsCount: 0, score: 85 }))).toBe(false);
-    });
-
-    it('fails when the score is below the threshold, passes at it', () => {
-      expect(shouldFail({ failOnError: false, scoreThreshold: 70 }, summaryWith({ errorsCount: 0 }))).toBe(true);
-      expect(shouldFail({ failOnError: false, scoreThreshold: 65 }, summaryWith({ errorsCount: 0 }))).toBe(false);
-    });
-
-    it('passes with no failure conditions set', () => {
-      expect(shouldFail({ failOnError: false, scoreThreshold: 0 }, summaryWith({ score: 45 }))).toBe(false);
-    });
-
-    it('always fails when the page could not be audited', () => {
-      const gate = evaluateGate({ failOnError: false, scoreThreshold: 0 }, summaryWith({ score: 0, pageFailure: 'Page returns HTTP 503' }));
-      expect(gate.passed).toBe(false);
-      expect(gate.failures[0]).toContain('HTTP 503');
+    it('lists what is new and what was fixed against the baseline, and the ignored count', () => {
+      const comment = formatPRComment(summaryWith({
+        ignoredCount: 2,
+        dir: 'dist',
+        baseline: { file: '.rankcli/baseline.json', scoreBefore: 70, added: [issue('NEW_ONE', 'error', ['https://example.com/a', 'https://example.com/b'])], fixed: [issue('GONE', 'warning')], unchanged: 4 },
+      }), { passed: true, failures: [], budgets: [] });
+      expect(comment).toContain('SEO check: new findings');
+      expect(comment).toContain('**Since `.rankcli/baseline.json`:** 1 new, 1 fixed, 4 unchanged. Score 70 → 65.');
+      expect(comment).toContain('- `NEW_ONE` Title NEW_ONE (2 pages)');
+      expect(comment).toContain('- `GONE` Title GONE (https://example.com/)');
+      expect(comment).toContain('(2 ignored by rankcli.config.json)');
+      expect(comment).toContain('(built in `dist`)');
+      expect(issueLine({ ...issue('X', 'error'), title: 'a `b` *c*' })).toBe('- `X` a b c (https://example.com/)');
     });
   });
 });
