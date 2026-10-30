@@ -9,10 +9,15 @@
  */
 
 import { build, context } from 'esbuild';
-import { writeFileSync, readFileSync, mkdirSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync, copyFileSync } from 'fs';
 import { join } from 'path';
 
-const OUTPUT_DIR = join(__dirname, '../../saas/supabase/functions/_shared/audit');
+// The bundle ships in the npm package (dist/deno/). The hosted product's edge functions
+// (packages/saas, in the private rankcli.dev repo) consume it from there; while that package
+// is a sibling in the same checkout the bundle is also copied into it, so the tracked copy
+// stays current.
+const OUTPUT_DIR = join(__dirname, '../dist/deno');
+const SAAS_DIR = join(__dirname, '../../saas/supabase/functions/_shared/audit');
 const WATCH_MODE = process.argv.includes('--watch');
 
 const buildOptions = {
@@ -66,6 +71,10 @@ function writeWrapper() {
 export * from './engine.bundle.js';
 `;
   writeFileSync(join(OUTPUT_DIR, 'index.ts'), wrapper);
+  if (existsSync(join(SAAS_DIR, '..'))) {
+    mkdirSync(SAAS_DIR, { recursive: true });
+    for (const name of ['engine.bundle.js', 'index.ts']) copyFileSync(join(OUTPUT_DIR, name), join(SAAS_DIR, name));
+  }
 }
 
 async function buildDenoBundle() {
@@ -122,8 +131,7 @@ async function buildDenoBundle() {
       writeWrapper();
       console.log(`✓ Wrapper created at ${OUTPUT_DIR}/index.ts`);
 
-      console.log('\nDeno bundle ready for use in edge functions!');
-      console.log('Import with: import { runFullAudit } from "../_shared/audit/index.ts"');
+      if (existsSync(SAAS_DIR)) console.log(`✓ Copied into ${SAAS_DIR}`);
     }
   } catch (error) {
     console.error('Build failed:', error);
