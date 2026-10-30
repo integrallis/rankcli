@@ -70,7 +70,7 @@
     "developer-tools"
   ],
   "author": "Brian Sam-Bodden",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   }

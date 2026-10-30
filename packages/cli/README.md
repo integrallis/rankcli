@@ -296,9 +296,9 @@ See [rankcli.dev/pricing](https://rankcli.dev/pricing).
 ## Links
 
 - **Docs**: [rankcli.dev/docs](https://rankcli.dev/docs)
-- **Source**: [github.com/integrallis/rankcli](https://github.com/integrallis/rankcli) (MIT; binaries on the releases page)
+- **Source**: [github.com/integrallis/rankcli](https://github.com/integrallis/rankcli) (FSL-1.1-MIT; binaries on the releases page)
 - **Support**: support@rankcli.dev
 
 ## License
 
-MIT
+[FSL-1.1-MIT](https://github.com/integrallis/rankcli/blob/main/LICENSE): free to use, read, change and redistribute, including inside your own tools and pipelines; not to build a competing product or service. Each version becomes MIT two years after its release.

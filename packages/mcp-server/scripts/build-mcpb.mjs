@@ -72,7 +72,7 @@ const manifest = {
   support: 'https://github.com/integrallis/rankcli-mcp-server/issues',
   icon: 'icon.png',
   keywords: ['seo', 'geo', 'ai-search', 'audit', 'web'],
-  license: 'MIT',
+  license: 'FSL-1.1-MIT',
   server: {
     type: 'node',
     entry_point: 'server/index.js',

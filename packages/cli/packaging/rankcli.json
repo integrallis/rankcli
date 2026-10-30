@@ -2,7 +2,7 @@
   "version": "${VERSION}",
   "description": "Ship code, get ranked - SEO/GEO audits for CI/CD",
   "homepage": "https://rankcli.dev",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "architecture": {
     "64bit": {
       "url": "${BASE}/rankcli-windows-x86_64.exe",

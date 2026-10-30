@@ -134,4 +134,4 @@ pnpm build      # Build Node.js + Deno
 
 ## License
 
-MIT
+[FSL-1.1-MIT](https://github.com/integrallis/rankcli/blob/main/LICENSE): free to use, read, change and redistribute, including inside your own tools and pipelines; not to build a competing product or service. Each version becomes MIT two years after its release.

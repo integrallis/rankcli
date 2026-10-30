@@ -20,7 +20,8 @@ No account. Nothing leaves your machine except the requests to your own site.
 | [`packages/github-action`](packages/github-action) | The GitHub Action that fails the build on SEO regressions and comments on the PR | `uses: integrallis/rankcli-action@v1` |
 | [`packages/astro-plugin`](packages/astro-plugin), [`next-plugin`](packages/next-plugin), [`vite-plugin`](packages/vite-plugin) | Build-time SEO lint for Astro, Next.js and Vite | `astro-rankcli`, `next-rankcli`, `vite-plugin-rankcli` |
 
-Everything here is MIT. The hosted product at [rankcli.dev](https://rankcli.dev) (scheduled
+The source is published under the Functional Source License (FSL-1.1-MIT; the plugins are MIT),
+see [License](#license). The hosted product at [rankcli.dev](https://rankcli.dev) (scheduled
 audits, history, auto-fix pull requests, team reports) is optional and lives elsewhere; the CLI,
 the engine, the MCP server and the Action are complete without it.
 
@@ -71,4 +72,9 @@ The changelog is at [rankcli.dev/changelog](https://rankcli.dev/changelog).
 
 ## License
 
-MIT, Copyright (c) 2026 Integrallis Software, LLC.
+The engine, the CLI, the MCP server and the GitHub Action are under the
+[Functional Source License, Version 1.1, MIT Future License](LICENSE) (FSL-1.1-MIT): read it,
+run it, change it, redistribute it, embed it in your own tools and pipelines, all free; the
+one thing it does not permit is using it to build a product or service that competes with
+RankCLI. Each version becomes MIT two years after its release. The three framework plugins
+are MIT. Copyright (c) 2026 Integrallis Software, LLC.

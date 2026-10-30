@@ -114,10 +114,10 @@ The step does **not** fail when:
 
 **Fork pull requests.** Use the `pull_request` event. The action never needs your repository's code, so don't combine it with `pull_request_target` plus a checkout of the PR's code. On `deployment_status` runs (preview deployments), which have your repository's secrets, don't check out or run code from the PR either.
 
-**What's in this repo.** `src/` is the action's source, and `dist/` is built from it with [ncc](https://github.com/vercel/ncc). The bundle includes [`@rankcli/agent-runtime`](https://www.npmjs.com/package/@rankcli/agent-runtime) (MIT, published on npm) and GitHub's `@actions/*` toolkit; their licenses are in `dist/licenses.txt`.
+**What's in this repo.** `src/` is the action's source, and `dist/` is built from it with [ncc](https://github.com/vercel/ncc). The bundle includes [`@rankcli/agent-runtime`](https://www.npmjs.com/package/@rankcli/agent-runtime) (FSL-1.1-MIT, published on npm) and GitHub's `@actions/*` toolkit; their licenses are in `dist/licenses.txt`.
 
 **Reporting a vulnerability.** Use "Report a vulnerability" on this repository's Security tab, or email support@rankcli.dev. Please don't open a public issue.
 
 ## License
 
-MIT
+[FSL-1.1-MIT](https://github.com/integrallis/rankcli/blob/main/LICENSE): free to use, read, change and redistribute, including in your own workflows; not to build a competing product or service. Each version becomes MIT two years after its release.

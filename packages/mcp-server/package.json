@@ -40,7 +40,7 @@
     "rankcli"
   ],
   "author": "Integrallis",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "homepage": "https://rankcli.dev",
   "repository": {
     "type": "git",

@@ -2,7 +2,7 @@ class Rankcli < Formula
   desc "Ship code, get ranked - SEO/GEO audits for CI/CD"
   homepage "https://rankcli.dev"
   version "${VERSION}"
-  license "MIT"
+  license "FSL-1.1-MIT"
 
   on_macos do
     on_arm do

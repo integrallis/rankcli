@@ -59,7 +59,7 @@
     "ai"
   ],
   "author": "Brian Sam-Bodden",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "engines": {
     "node": ">=18.0.0"
   }

@@ -27,7 +27,7 @@
     "rankcli"
   ],
   "author": "RankCLI",
-  "license": "MIT",
+  "license": "FSL-1.1-MIT",
   "dependencies": {
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",

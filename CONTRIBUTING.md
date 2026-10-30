@@ -52,3 +52,9 @@ at `^0.0.N`, and on 0.0.x that means exactly 0.0.N), push to `main`, then create
 release `vX.Y.Z`. `release.yml` publishes to npm and the MCP registry, `native-release.yml`
 builds the binaries and updates Homebrew and Scoop, and `publish-plugins.yml` is run by hand
 when a plugin changes.
+
+## License of contributions
+
+By contributing, you agree that your contribution is licensed under the license of the package
+it lands in: FSL-1.1-MIT for the engine, the CLI, the MCP server and the Action, MIT for the
+three framework plugins. Both are in each package's `LICENSE` file.
