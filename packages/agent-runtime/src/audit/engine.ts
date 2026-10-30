@@ -91,6 +91,13 @@ export interface AuditOptions {
    * `url` itself.
    */
   auditRootUrl?: string;
+  /**
+   * The page comes from a build directory served locally (`rankcli audit --dir dist`). The
+   * checks that grade the host rather than the pages (TLS certificate, security and caching
+   * headers, redirects, crawler access, canonical domain, directory listing) are skipped:
+   * a local file server has no certificate, no CDN headers and no WAF.
+   */
+  staticBuild?: boolean;
 }
 
 /**
@@ -100,6 +107,12 @@ export interface AuditOptions {
  * checks that did run found.
  */
 type PageFailure = { kind: 'unreachable' } | { kind: 'http-error'; statusCode: number };
+
+/**
+ * Findings about the response, not the page: a build directory served locally has no CDN,
+ * so these would grade the local server. Dropped under `staticBuild`.
+ */
+const HOST_ONLY_CODES = new Set(['HSTS_MISSING', 'UNCOMPRESSED', 'NO_CACHE', 'SLOW_TTFB', 'SLOW_PAGE']);
 
 function sameUrl(a: string, b: string): boolean {
   try {
@@ -113,7 +126,7 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 export async function runFullAudit(options: AuditOptions): Promise<AuditReport> {
-  const { checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks = builtInPremiumChecks } = options;
+  const { checkBrokenLinks = false, checkHreflangUrls = false, checkCanonicalChain = false, cruxApiKey, checksLimit = 280, premiumChecks = builtInPremiumChecks, staticBuild = false } = options;
   // Reassigned once if the page turns out to be a meta-refresh redirect (below).
   let url = options.url;
   const auditRoot = isSiteRoot(url) || sameUrl(url, options.auditRootUrl ?? url);
@@ -434,8 +447,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   asyncChecks.push(safeAsync('Images', () => analyzeImages(html, url, checkBrokenLinks)));
   asyncChecks.push(performancePromise);
   asyncChecks.push(safeAsync('Security', () => analyzeSecurity(html, url, headers)));
-  asyncChecks.push(safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues));
-  asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
+  if (!staticBuild) {
+    asyncChecks.push(safeAsyncIssues('Certificate', async () => (await checkCertificate(url)).issues));
+    asyncChecks.push(safeAsync('Redirects', () => analyzeRedirects(url)));
+  }
   asyncChecks.push(safeAsync('Robots Validation', () => validateRobotsTxt(url)));
   // Tracking and verification (GA4, GSC, Bing, Schema.org). GSC and Bing accept a DNS TXT
   // record in place of a meta tag, so this one does a lookup and runs with the async checks.
@@ -443,8 +458,10 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   // robots.txt is necessary and not sufficient: a CDN or WAF can refuse a crawler before
   // robots.txt is ever consulted, which is exactly what Cloudflare's 2026-09-15 default does to
   // Googlebot on ad-supported pages. This asks as each crawler and compares with a browser.
-  asyncChecks.push(safeAsyncIssues('Crawler Access', async () => (await analyzeCrawlerAccess(url)).issues));
-  asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
+  if (!staticBuild) {
+    asyncChecks.push(safeAsyncIssues('Crawler Access', async () => (await analyzeCrawlerAccess(url)).issues));
+    asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
+  }
   // Framework-specific checks (React/Next.js/WordPress/etc recipes) - this
   // was previously CLI-only (packages/cli/src/commands/audit.ts ran it as
   // its own separate "Phase 2.5" on top of runFullAudit's results); every
@@ -464,13 +481,15 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
   if (runExtendedChecks) {
     asyncChecks.push(safeAsync('Hreflang', () => analyzeHreflang(html, url, { validateUrls: checkHreflangUrls })));
     asyncChecks.push(safeAsync('Canonical Advanced', () => analyzeCanonicalAdvanced(html, url, { checkChain: checkCanonicalChain })));
-    asyncChecks.push(safeAsync('Security Headers', () => analyzeSecurityHeaders(url)));
-    asyncChecks.push(safeAsync('Caching Headers', () => analyzeCachingHeaders(url, headers)));
+    if (!staticBuild) {
+      asyncChecks.push(safeAsync('Security Headers', () => analyzeSecurityHeaders(url)));
+      asyncChecks.push(safeAsync('Caching Headers', () => analyzeCachingHeaders(url, headers)));
+      asyncChecks.push(safeAsync('Redirect Chain', () => analyzeRedirectChain(url)));
+      asyncChecks.push(safeAsync('Directory Listing', () => analyzeDirectoryListing(url)));
+    }
     asyncChecks.push(safeAsync('HTML Compliance', () => analyzeHtmlCompliance(html, url, headers)));
-    asyncChecks.push(safeAsync('Redirect Chain', () => analyzeRedirectChain(url)));
     asyncChecks.push(safeAsync('Asset Minification', () => analyzeAssetMinification(html, url)));
     asyncChecks.push(safeAsync('Responsive CSS', () => analyzeResponsiveCss(html, url)));
-    asyncChecks.push(safeAsync('Directory Listing', () => analyzeDirectoryListing(url)));
   }
 
   // ===== PREMIUM ASYNC CHECKS (paid tier only) =====
@@ -529,7 +548,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
 
   // One condition, one finding: several checks report the same missing thing under their own
   // codes (see dedupe.ts). The score and the counts are computed from the deduplicated list.
-  const issues = dedupeIssues(allIssues);
+  const issues = dedupeIssues(staticBuild ? allIssues.filter(i => !HOST_ONLY_CODES.has(i.code)) : allIssues);
 
   // ========== CREATE PAGE AUDIT ==========
   pages.push({
