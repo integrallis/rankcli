@@ -55,8 +55,23 @@ export type { PremiumChecks, PremiumCheckFn } from './premium-checks.types.js';
 // URL Safety (local hash database - Google Safe Browsing style)
 export { analyzeUrlSafety, urlSafetyDatabase } from './checks/url-safety.js';
 
+// The site audit (page discovery + parallel page audits + merged findings), shared by the
+// CLI, the GitHub Action and the MCP server.
+export { auditSite, fetchHtml, mergeIssues } from './site-audit.js';
+export type { SiteAuditOptions, SiteAuditResult, SiteAuditProgress, PageSummary, DiscoverySource } from './site-audit.js';
+
+// CI plumbing: gate rules, baselines, ignore rules, SARIF/JUnit, request defaults.
+export * from './ci/index.js';
+// rankcli.config.json, the settings an audit runs with, and the local server for a build
+// directory (Node only: not in the Deno entry).
+export * from './project-config.js';
+export { serveDirectory, resolveFile } from './static-site.js';
+export type { StaticSite } from './static-site.js';
+
 // Page discovery (multi-page crawling)
 export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';
+export { discoverPagesFromSitemap } from './discovery/sitemap.js';
+export type { SitemapDiscovery } from './discovery/sitemap.js';
 export { discoverRoutesFromRepo, detectFramework, routesToUrls } from './discovery/repo-routes.js';
 export type { DiscoveredPage } from './discovery/link-crawler.js';
 export type { RouteInfo } from './discovery/repo-routes.js';
