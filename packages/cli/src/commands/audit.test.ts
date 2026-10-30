@@ -52,21 +52,37 @@ vi.mock('ora', () => ({
   }),
 }));
 
-// Mock agent-runtime
+// The engine's site audit is mocked at the page level: `mockRunFullAudit` plays the engine
+// for the one page, and `auditSite` wraps its report the way the real pipeline does. The
+// rest of the runtime (gate rules, baselines, SARIF, JUnit) is real.
 const mockRunFullAudit = vi.fn();
-const mockDiscoverPagesFromLinks = vi.fn();
 
-vi.mock('@rankcli/agent-runtime', () => ({
-  runFullAudit: (...args: unknown[]) => mockRunFullAudit(...args),
-  formatReport: vi.fn().mockReturnValue('Formatted report'),
-  discoverPagesFromLinks: (...args: unknown[]) => mockDiscoverPagesFromLinks(...args),
-  metaRefreshTarget: () => null,
-  frameworks: {
-    detectFramework: vi.fn().mockReturnValue({ framework: 'unknown', confidence: 0 }),
-    getFrameworkDisplayName: vi.fn().mockReturnValue('Unknown'),
-    getFrameworkIssues: vi.fn().mockReturnValue([]),
-  },
-}));
+vi.mock('@rankcli/agent-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@rankcli/agent-runtime')>();
+  return {
+    ...actual,
+    auditSite: async (options: { url: string; checksLimit?: number; dir?: string; headers?: Record<string, string> }) => {
+      const report = await mockRunFullAudit({ url: options.url, auditRootUrl: options.url, maxPages: 1, checksLimit: options.checksLimit, staticBuild: !!options.dir, headers: options.headers });
+      if (!report) return null;
+      const issues = (report.issues ?? []).map((i: Record<string, unknown>) => ({ affectedUrls: [options.url], ...i }));
+      const pageFailure = issues.find((i: { code: string }) => i.code === 'FETCH_ERROR' || i.code === 'HTTP_ERROR_STATUS');
+      const score = report.healthScore?.overall ?? 0;
+      return {
+        primaryReport: report,
+        issues,
+        pages: [{ url: options.url, score, errors: 0, warnings: 0, notices: 0 }],
+        score,
+        pagesAudited: 1,
+        pagesDiscovered: 1,
+        discovery: { source: 'none' },
+        framework: null,
+        pageFailure,
+        checksRun: 280,
+        auditMs: 1,
+      };
+    },
+  };
+});
 
 // Mock config
 const mockIsLoggedIn = vi.fn();
@@ -93,7 +109,17 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 // Import after mocks
-import { audit, evaluateGate, parseGateOptions, EXIT_CODES } from './audit.js';
+import { audit, parseGateOptions, parseHeaderOptions, EXIT_CODES } from './audit.js';
+import { evaluateGate } from '@rankcli/agent-runtime';
+
+const baseReport = {
+  url: 'https://example.com',
+  issues: [],
+  healthScore: { overall: 85, crawlability: 90, onPage: 85, content: 80, performance: 88, security: 82, aiReadiness: 70 },
+  pages: [],
+  summary: { errors: 0, warnings: 0, notices: 0, passed: 280 },
+  timestamp: Date.now(),
+};
 
 describe('Audit Command', () => {
   let consoleLogSpy: MockInstance<any[], any>;
@@ -111,7 +137,7 @@ describe('Audit Command', () => {
     mockGetApiKey.mockReturnValue(null);
     mockGetSession.mockResolvedValue(null);
     mockEnsureApiKeyPlan.mockResolvedValue(null);
-    mockDiscoverPagesFromLinks.mockReturnValue([]); // Returns DiscoveredPage[]
+    mockRunFullAudit.mockResolvedValue(baseReport);
     mockFetch.mockResolvedValue({
       ok: true,
       text: () => Promise.resolve('<html><body>Test</body></html>'),
@@ -181,7 +207,6 @@ describe('Audit Command', () => {
 
     it('runs audit for valid URL', async () => {
       mockRunFullAudit.mockResolvedValue(mockReport);
-      mockDiscoverPagesFromLinks.mockReturnValue([]);
 
       await audit({ url: 'https://example.com' });
 
@@ -190,19 +215,6 @@ describe('Audit Command', () => {
           url: 'https://example.com',
         })
       );
-    });
-
-    it('discovers additional pages before auditing', async () => {
-      mockRunFullAudit.mockResolvedValue(mockReport);
-      mockDiscoverPagesFromLinks.mockReturnValue([
-        { url: 'https://example.com/about', source: 'internal-link', priority: 8 },
-        { url: 'https://example.com/pricing', source: 'internal-link', priority: 9 },
-      ]);
-
-      await audit({ url: 'https://example.com', maxPages: '3' });
-
-      // Should have called discoverPagesFromLinks
-      expect(mockDiscoverPagesFromLinks).toHaveBeenCalled();
     });
 
     it('exits 3 (not 0) when no page could be audited', async () => {
@@ -316,10 +328,78 @@ describe('Audit Command', () => {
 
     it('evaluateGate and parseGateOptions agree on thresholds', () => {
       const issues = [{ code: 'A', severity: 'notice' }] as never[];
-      expect(evaluateGate(issues, 100, 'notice').passed).toBe(false);
-      expect(evaluateGate(issues, 100, 'warning').passed).toBe(true);
+      expect(evaluateGate(parseGateOptions({ failOn: 'notice' }).spec, issues, { overall: 100 }).passed).toBe(false);
+      expect(evaluateGate(parseGateOptions({ failOn: 'warning' }).spec, issues, { overall: 100 }).passed).toBe(true);
       expect(parseGateOptions({ failOn: 'ERROR' }).failOn).toBe('error');
       expect(parseGateOptions({ minScore: '0' }).minScore).toBe(0);
+      expect(parseGateOptions({ failOn: ['error', 'score:aiReadiness<70'], minScore: '80' }).spec.budgets).toEqual([
+        { category: 'aiReadiness', min: 70 }, { category: 'overall', min: 80 },
+      ]);
+    });
+
+    it('--fail-on score:<category> gates on that category', async () => {
+      mockRunFullAudit.mockResolvedValue({ ...reportWith(90, []), healthScore: { overall: 90, aiReadiness: 61 } });
+      await expect(audit({ url: 'https://example.com', failOn: ['score:aiReadiness<70'] })).resolves.toBe(EXIT_CODES.GATE_FAILED);
+      await expect(audit({ url: 'https://example.com', failOn: ['score:aiReadiness<60'] })).resolves.toBe(EXIT_CODES.OK);
+    });
+
+    it('--baseline makes --fail-on count only new issues, and the JSON says what changed', async () => {
+      const { writeFileSync, mkdtempSync } = await import('node:fs');
+      const { tmpdir } = await import('node:os');
+      const { join } = await import('node:path');
+      const dir = mkdtempSync(join(tmpdir(), 'rankcli-baseline-'));
+      const file = join(dir, 'baseline.json');
+      writeFileSync(file, JSON.stringify({ score: 70, issues: [{ code: 'OLD', severity: 'error', category: 'on-page', title: 'Old', affectedUrls: ['https://example.com'] }] }));
+
+      mockRunFullAudit.mockResolvedValue({ ...reportWith(90, []), issues: [{ code: 'OLD', severity: 'error', category: 'on-page', title: 'Old' }] });
+      await expect(audit({ url: 'https://example.com', failOn: 'error', baseline: file })).resolves.toBe(EXIT_CODES.OK);
+
+      mockRunFullAudit.mockResolvedValue({ ...reportWith(90, []), issues: [{ code: 'OLD', severity: 'error', category: 'on-page', title: 'Old' }, { code: 'NEW', severity: 'error', category: 'on-page', title: 'New' }] });
+      const code = await audit({ url: 'https://example.com', output: 'json', failOn: 'error', baseline: file });
+      expect(code).toBe(EXIT_CODES.GATE_FAILED);
+      const parsed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(parsed.baseline.added.map((i: { code: string }) => i.code)).toEqual(['NEW']);
+      expect(parsed.baseline.unchanged).toBe(1);
+      expect(parsed.gate.failures[0]).toMatch(/1 new issue/);
+
+      await expect(audit({ url: 'https://example.com', baseline: join(dir, 'missing.json') })).resolves.toBe(EXIT_CODES.USAGE);
+    });
+
+    it('rejects an unknown output format and a malformed header with exit 2', async () => {
+      await expect(audit({ url: 'https://example.com', output: 'yaml' })).resolves.toBe(EXIT_CODES.USAGE);
+      await expect(audit({ url: 'https://example.com', header: ['nocolon'] })).resolves.toBe(EXIT_CODES.USAGE);
+      expect(mockRunFullAudit).not.toHaveBeenCalled();
+      expect(parseHeaderOptions(['Authorization: Bearer x'], ['a=1', 'b=2']).headers).toEqual({ Authorization: 'Bearer x', Cookie: 'a=1; b=2' });
+      expect(parseHeaderOptions([], ['nope']).error).toMatch(/cookie/);
+    });
+
+    it('passes --header and --cookie to the site audit', async () => {
+      await audit({ url: 'https://example.com', header: ['X-Token: abc'], cookie: ['s=1'] });
+      expect(mockRunFullAudit).toHaveBeenCalledWith(expect.objectContaining({ headers: { 'X-Token': 'abc', Cookie: 's=1' } }));
+    });
+  });
+
+  describe('machine formats', () => {
+    it('writes a SARIF document with one result per issue, on failure too', async () => {
+      mockRunFullAudit.mockResolvedValue({ ...baseReport, issues: [{ code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: '', impact: '', howToFix: 'Add one' }] });
+      await expect(audit({ url: 'https://example.com', output: 'sarif', failOn: 'error' })).resolves.toBe(EXIT_CODES.GATE_FAILED);
+      const sarif = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(sarif.version).toBe('2.1.0');
+      expect(sarif.runs[0].results).toHaveLength(1);
+      expect(sarif.runs[0].results[0].ruleId).toBe('TITLE_MISSING');
+      expect(sarif.runs[0].invocations[0].exitCode).toBe(1);
+
+      await expect(audit({ url: 'ftp://x', output: 'sarif' })).resolves.toBe(EXIT_CODES.USAGE);
+      const failed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(failed.runs[0].invocations[0].executionSuccessful).toBe(false);
+    });
+
+    it('writes a JUnit document', async () => {
+      mockRunFullAudit.mockResolvedValue({ ...baseReport, issues: [{ code: 'TITLE_MISSING', severity: 'error', category: 'on-page', title: 'Missing title', description: '', impact: '', howToFix: 'Add one' }] });
+      await expect(audit({ url: 'https://example.com', output: 'junit' })).resolves.toBe(EXIT_CODES.OK);
+      const xml = consoleLogSpy.mock.calls.at(-1)![0] as string;
+      expect(xml).toContain('<testsuites name="rankcli"');
+      expect(xml).toContain('<failure message="Missing title" type="error">');
     });
   });
 
@@ -379,7 +459,7 @@ describe('Cloud Sync Integration', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    mockDiscoverPagesFromLinks.mockReturnValue([]);
+    mockRunFullAudit.mockResolvedValue(baseReport);
     mockIsApiKeyAuth.mockReturnValue(false);
     mockGetApiKey.mockReturnValue(null);
     mockGetSession.mockResolvedValue(null);

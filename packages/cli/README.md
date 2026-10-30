@@ -130,12 +130,17 @@ Run comprehensive SEO audit (280+ checks).
 rankcli audit [options]
 
 Options:
-  -u, --url <url>           URL to audit
-  -o, --output <format>     Output: json, console (default: console)
-  --max-pages <n>           Max pages to crawl (default: 5)
+  -u, --url <url>           URL to audit (or the url in rankcli.config.json)
+  --dir <path>              Audit a build directory (dist, out, build) served locally; --url names the site it is built for
+  -o, --output <format>     Output: console (default), json, sarif, junit
+  --max-pages <n>           Pages to audit, the sitemap first (default: 5)
   --check-links             Check broken links
-  --fail-on <level>         CI gate: exit 1 on any issue at/above error | warning | notice
-  --min-score <n>           CI gate: exit 1 if the overall score is below n (0-100)
+  --fail-on <rules>         CI gate: error | warning | notice, score<80, score:aiReadiness<70 (comma-separated or repeated)
+  --min-score <n>           CI gate: the same as --fail-on score<n
+  --baseline <file>         A saved JSON report; --fail-on then counts only issues that are not in it
+  --header <header>         "Name: value" sent with every request to the site (repeatable)
+  --cookie <cookie>         "name=value" sent with every request to the site (repeatable)
+  --config <file>           Config file (default: rankcli.config.json in the current directory)
   --ai                      AI-powered analysis (your own key, or a local model)
   --ai-provider <p>         See "AI analysis" below (auto-detected if omitted)
   --ai-key <key>            Provider API key (or the provider's env var)
@@ -147,12 +152,62 @@ Options:
 
 | Code | Meaning |
 |------|---------|
-| `0` | Audit completed; no `--fail-on` / `--min-score` gate tripped |
-| `1` | A `--fail-on` or `--min-score` gate tripped |
-| `2` | Bad invocation: missing/invalid `--url`, invalid flag value |
+| `0` | Audit completed; no gate tripped |
+| `1` | A gate tripped (`--fail-on`, `--min-score`, a budget in `rankcli.config.json`) |
+| `2` | Bad invocation: missing/invalid `--url` or `--dir`, invalid flag value, invalid config or baseline file |
 | `3` | No real audit: the site was unreachable, the URL answered 4xx/5xx, no page could be analyzed, or an internal error |
 
-The gates are opt-in: without them, a completed audit exits `0` however many issues it finds. An unreachable site or an error status always exits `3` - it scores 0, not a passing grade. With `-o json`, stdout is always one JSON document (on failure too) carrying `exitCode` and, when gates are set, a `gate` object with the reasons. It also carries `timestamp`, `cliVersion`, `checksRun`, `checksPassed` and `pages`, one entry per audited page with its url, score and error, warning and notice counts.
+The gates are opt-in: without them, a completed audit exits `0` however many issues it finds. An unreachable site or an error status always exits `3` - it scores 0, not a passing grade. Every machine format (`json`, `sarif`, `junit`) is one document on stdout, on failure too.
+
+#### CI gates
+
+One rule syntax, in `--fail-on`, in `rankcli.config.json` and in the GitHub Action:
+
+| Rule | Fails the build when |
+|------|----------------------|
+| `error` | any error-severity issue is found (`warning` and `notice` include everything at or above them) |
+| `score<80` | the overall score is below 80 (`--min-score 80` is the same rule) |
+| `score:aiReadiness<70` | a category score is below 70: `overall`, `crawlability`, `indexability`, `onPage`, `content`, `links`, `performance`, `security`, `aiReadiness`, `social`, `localSeo`, `accessibility` |
+
+Rules combine: `--fail-on error,score<80` or the flag repeated.
+
+**Adopt the gate on an existing site with a baseline.** Save a report once, commit it, and the severity rule counts only findings that are not in it; old findings stay listed but do not fail the build until you choose to fix them. Score rules stay absolute.
+
+```bash
+rankcli audit -o json > .rankcli/baseline.json      # once; commit the file
+rankcli audit --fail-on error --baseline .rankcli/baseline.json
+```
+
+A finding is identified by its code and the page's path, so save the baseline with the same `--max-pages` the gate runs with. The console and the JSON report list what is new since the baseline, what was fixed and what stayed; `rankcli diff` compares any two saved reports.
+
+#### Output formats
+
+| `-o` | What you get |
+|------|--------------|
+| `console` | The report, every finding grouped by severity with its code |
+| `json` | One document: `url`, `timestamp`, `cliVersion`, `score`, `healthScores`, `pages` (one entry per audited page with its score and counts), `discovery` (where the pages came from), `checksRun`, `checksPassed`, `issues` (code, severity, category, title, description, impact, howToFix, affectedUrls), `ignored`, `baseline` (new, fixed, unchanged), `gate` and `exitCode` |
+| `sarif` | SARIF 2.1.0 for GitHub Code Scanning (`github/codeql-action/upload-sarif`) and other SARIF readers: one rule per code, one result per page, `baselineState` when a baseline is given, file locations with `--dir` |
+| `junit` | JUnit XML for test reporters: findings at or above the gate's severity are failures, the rest pass with the finding in their output |
+
+#### Protected previews
+
+Preview deployments behind a password, a bypass header or a cookie:
+
+```bash
+rankcli audit --url https://preview.example.com --header "x-vercel-protection-bypass: $BYPASS"
+rankcli audit --url https://staging.example.com --cookie "session=abc" --header "Authorization: Bearer $TOKEN"
+```
+
+Headers go only to the audited site (and its `www.` twin), never to any other host the audit touches.
+
+#### Audit the build before deploying
+
+```bash
+npm run build
+rankcli audit --dir dist --url https://example.com --fail-on error
+```
+
+The directory is served locally for the length of the audit, the way a static host serves it (`about/index.html`, `pricing.html`, `robots.txt`, `sitemap.xml`), and audited as the site named by `--url`, so canonical and sitemap checks compare against your real origin. Checks of the host (TLS certificate, security and caching headers, redirects, crawler access, canonical domain) are skipped: a local file server has none of that. With `-o sarif`, findings point at the files in the directory.
 
 #### AI analysis (`--ai`)
 
@@ -199,6 +254,19 @@ rankcli audit --url https://yoursite.com --ai --ai-base-url http://gpu-box:8080/
 
 Local and small models often ignore "JSON only" instructions, so the reply is parsed defensively (code fences, `<think>` blocks and surrounding prose are stripped). `response_format: json_object` is only sent to providers known to support it. An AI failure is reported but never changes the exit code.
 
+### `rankcli diff`
+
+Compare two saved JSON reports: new findings, fixed findings, score moves per category.
+
+```bash
+rankcli audit -o json > before.json
+# ...deploy...
+rankcli audit -o json > after.json
+rankcli diff before.json after.json                   # exit 0
+rankcli diff before.json after.json --fail-on error   # exit 1 on new error-severity findings
+rankcli diff before.json after.json -o json
+```
+
 ### `rankcli apply`
 
 Generate and apply framework-specific fixes.
@@ -243,26 +311,82 @@ rankcli login   # optional: validates it and shows the plan
 
 ### GitHub Actions
 
+The [RankCLI Action](https://github.com/integrallis/rankcli-action) runs the same audit, fails the job on the gate, annotates the run and keeps one PR comment up to date (posted only on regressions):
+
 ```yaml
-name: SEO Audit
-on: [push, pull_request]
+name: SEO
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write   # the PR comment
 
 jobs:
-  audit:
+  seo:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: integrallis/rankcli-action@v1
         with:
-          node-version: '22'
-      - run: npm install -g @rankcli/cli
-      # Fails the job on any error-severity issue or a score under 80.
-      - run: rankcli audit --url "$SITE_URL" --fail-on error --min-score 80 -o json > "$RUNNER_TEMP/audit.json"
-        env:
-          SITE_URL: ${{ vars.SITE_URL }}
-          RANKCLI_API_KEY: ${{ secrets.RANKCLI_API_KEY }}   # optional: dashboard sync + your plan's limits
+          url: https://your-site.com          # or a preview URL from your deploy step
+          fail-on: error,score<80
+          baseline: .rankcli/baseline.json    # optional: only new findings fail the build
 ```
 
-`rankcli setup --github-action --url https://yoursite.com [--sync]` writes a scheduled workflow that files the report as an issue (and, with `--sync` and a RankCLI API key, opens auto-fix PRs - 3 a month on Free).
+Audit the build output before it is deployed, and send the findings to Code Scanning:
+
+```yaml
+      - run: npm ci && npm run build
+      - uses: integrallis/rankcli-action@v1
+        with:
+          dir: dist
+          url: https://your-site.com
+          fail-on: error
+      - run: npx @rankcli/cli audit --dir dist --url https://your-site.com -o sarif > rankcli.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: rankcli.sarif
+```
+
+The CLI alone works in any CI:
+
+```bash
+npm install -g @rankcli/cli
+rankcli audit --url "$SITE_URL" --fail-on error,score<80 --baseline .rankcli/baseline.json -o json > "$RUNNER_TEMP/audit.json"
+```
+
+`rankcli setup --github-action --url https://yoursite.com [--sync]` writes a scheduled workflow that uses the Action and files the report as an issue (and, with `--sync` and a RankCLI API key, opens auto-fix PRs - 3 a month on Free).
+
+## Project config
+
+`rankcli init` writes `rankcli.config.json` with the project's `url`; `audit`, `fix` and `apply` use it when `--url` is omitted. The same file holds the CI settings, which `audit` and the GitHub Action read the same way. Flags win over the file. Every field is optional.
+
+```json
+{
+  "url": "https://example.com",
+  "maxPages": 5,
+  "checkLinks": false,
+  "failOn": ["error", "score:aiReadiness<70"],
+  "minScore": 80,
+  "budgets": { "crawlability": 90 },
+  "baseline": ".rankcli/baseline.json",
+  "ignore": [
+    "LLMS_TXT_MISSING",
+    { "code": "IMG_ALT_MISSING", "url": "/blog/*", "reason": "legacy posts" },
+    { "url": "/drafts/**" }
+  ],
+  "headers": { "x-vercel-protection-bypass": "${VERCEL_BYPASS}" },
+  "dir": "dist"
+}
+```
+
+- `failOn`, `minScore` and `budgets` are gate rules (see "CI gates"); `budgets` sets minimum category scores.
+- `ignore` drops findings by code, by page, or both. Patterns are globs: `*` matches within one path segment, `**` across segments; a pattern starting with `http` matches the whole URL. Ignored findings are counted and listed in the JSON report, never silently dropped.
+- `headers` values may use `${ENV_VAR}`, so tokens stay out of the file.
+- An invalid file is an error (exit 2), never ignored: a gate that is not applied is a green build on a broken site. `--config <file>` names another file.
 
 ## Environment Variables
 
@@ -271,9 +395,6 @@ jobs:
 | `RANKCLI_API_KEY` | API key for authentication (plan resolved automatically) |
 | `RANKCLI_CONFIG_DIR` | Store login/config here instead of the per-user config dir |
 
-## Project config
-
-`rankcli init` writes `rankcli.config.json` in the project (name, framework, `url`, GitHub repo). `audit`, `fix` and `apply` use its `url` when `--url` is omitted.
 | `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`, `TOGETHER_API_KEY`, `FIREWORKS_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | AI analysis keys (see "AI analysis") |
 | `OLLAMA_HOST` | Where a local Ollama listens (default `localhost:11434`) |
 

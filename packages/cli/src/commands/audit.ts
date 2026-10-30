@@ -1,18 +1,42 @@
-import type { AuditReport, AuditIssue } from '@rankcli/agent-runtime';
+import {
+  parseFailOn,
+  parseBudgets,
+  mergeGateSpecs,
+  evaluateGate,
+  isGated,
+  readBaseline,
+  diffIssues,
+  issueKeys,
+  applyIgnores,
+  toSarif,
+  toJUnit,
+  type AuditReport,
+  type AuditIssue,
+  type GateSpec,
+  type GateResult,
+  type FailOnLevel,
+  type BaselineReport,
+  type IssueDiff,
+  type IgnoredFinding,
+} from '@rankcli/agent-runtime';
+export { parseHeaderOptions } from '@rankcli/agent-runtime';
 import ora from 'ora';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { execSync } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 import { isLoggedIn, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
 import { showUpsell } from '../lib/upsell.js';
 import { VERSION } from '../version.js';
 import { runSiteAudit } from '../lib/site-audit.js';
-import { configuredUrl, PROJECT_CONFIG_FILE } from '../lib/project-config.js';
+import { resolveAuditSettings, loadBaselineFile, PROJECT_CONFIG_FILE, type AuditSettings } from '../lib/project-config.js';
 import { resolveAIProvider, runAIAnalysis, AI_PROVIDERS, AI_PROVIDER_IDS, AI_ENV_KEYS, type AIAnalysis } from '../lib/ai.js';
 
 export interface AuditOptions {
   url?: string;
+  /** console (default), json, sarif or junit. */
   output?: string;
   checkLinks?: boolean;
   maxPages?: string;
@@ -22,10 +46,20 @@ export interface AuditOptions {
   aiModel?: string;
   aiBaseUrl?: string;
   geo?: boolean;
-  /** CI gate: exit 1 if any issue is at or above this severity. */
-  failOn?: string;
-  /** CI gate: exit 1 if the overall score is below this. */
+  /** CI gate rules: error | warning | notice, score<80, score:aiReadiness<70 (repeatable, comma-separated). */
+  failOn?: string | string[];
+  /** CI gate: exit 1 if the overall score is below this (the same as --fail-on score<n). */
   minScore?: string;
+  /** A saved JSON report: the severity gate then counts only findings that are not in it. */
+  baseline?: string;
+  /** "Name: value" headers sent with every request to the site. */
+  header?: string[];
+  /** "name=value" cookies sent with every request to the site. */
+  cookie?: string[];
+  /** A build directory to audit, served locally, instead of the live site. */
+  dir?: string;
+  /** The config file (default: rankcli.config.json in the current directory). */
+  config?: string;
 }
 
 /**
@@ -33,71 +67,52 @@ export interface AuditOptions {
  * CLI README - CI scripts branch on these, so never renumber them.
  */
 export const EXIT_CODES = {
-  /** Audit completed and no --fail-on / --min-score gate tripped. */
+  /** Audit completed and no gate tripped. */
   OK: 0,
-  /** A --fail-on or --min-score gate tripped. */
+  /** A gate (--fail-on, --min-score, a budget) tripped. */
   GATE_FAILED: 1,
-  /** Bad invocation: missing/invalid --url or an invalid flag value. */
+  /** Bad invocation: missing/invalid --url or --dir, an invalid flag value, an invalid config or baseline file. */
   USAGE: 2,
   /** No real audit: the site was unreachable, the URL answered 4xx/5xx, no page could be analyzed, or an internal error. */
   AUDIT_FAILED: 3,
 } as const;
 
-export const FAIL_ON_LEVELS = ['error', 'warning', 'notice'] as const;
-export type FailOnLevel = (typeof FAIL_ON_LEVELS)[number];
+export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'junit'] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
-// 'critical' and 'info' exist in the runtime's severity type as well.
-const SEVERITY_RANK: Record<string, number> = { critical: 4, error: 3, warning: 2, notice: 1, info: 1 };
+export type { GateResult, FailOnLevel };
 
-export interface GateResult {
-  failOn?: FailOnLevel;
-  minScore?: number;
-  passed: boolean;
-  failures: string[];
-}
-
-/** Evaluate the CI gates against the audit's merged issues and overall score. */
-export function evaluateGate(issues: AuditIssue[], score: number, failOn?: FailOnLevel, minScore?: number): GateResult {
-  const failures: string[] = [];
-  if (failOn) {
-    const threshold = SEVERITY_RANK[failOn];
-    const hits = issues.filter(i => (SEVERITY_RANK[i.severity] ?? 0) >= threshold);
-    if (hits.length > 0) {
-      const counts = new Map<string, number>();
-      for (const i of hits) counts.set(i.severity, (counts.get(i.severity) || 0) + 1);
-      const breakdown = [...counts.entries()]
-        .sort((a, b) => (SEVERITY_RANK[b[0]] ?? 0) - (SEVERITY_RANK[a[0]] ?? 0))
-        .map(([severity, n]) => `${n} ${severity}`)
-        .join(', ');
-      failures.push(`${hits.length} issue${hits.length === 1 ? '' : 's'} at or above --fail-on ${failOn} (${breakdown})`);
-    }
-  }
-  if (minScore !== undefined && score < minScore) {
-    failures.push(`score ${score} is below --min-score ${minScore}`);
-  }
-  return { failOn, minScore, passed: failures.length === 0, failures };
-}
-
-/** Parse --fail-on / --min-score. Returns an error message for invalid values. */
-export function parseGateOptions(options: Pick<AuditOptions, 'failOn' | 'minScore'>): { failOn?: FailOnLevel; minScore?: number; error?: string } {
-  let failOn: FailOnLevel | undefined;
+/** Parse --fail-on / --min-score into a gate spec. Returns an error message for invalid values. */
+export function parseGateOptions(options: Pick<AuditOptions, 'failOn' | 'minScore'>): { spec: GateSpec; failOn?: FailOnLevel; minScore?: number; error?: string } {
+  const rules = parseFailOn(options.failOn);
+  if (rules.error) return { spec: rules.spec, error: `Invalid --fail-on: ${rules.error}` };
   let minScore: number | undefined;
-  if (options.failOn !== undefined) {
-    const level = String(options.failOn).trim().toLowerCase();
-    if (!(FAIL_ON_LEVELS as readonly string[]).includes(level)) {
-      return { error: `Invalid --fail-on "${options.failOn}" (use ${FAIL_ON_LEVELS.join(', ')})` };
-    }
-    failOn = level as FailOnLevel;
-  }
   if (options.minScore !== undefined) {
     const raw = String(options.minScore).trim();
     const n = Number(raw);
     if (raw === '' || !Number.isFinite(n) || n < 0 || n > 100) {
-      return { error: `Invalid --min-score "${options.minScore}" (use a number from 0 to 100)` };
+      return { spec: rules.spec, error: `Invalid --min-score "${options.minScore}" (use a number from 0 to 100)` };
     }
     minScore = n;
   }
-  return { failOn, minScore };
+  const spec = mergeGateSpecs(rules.spec, minScore === undefined ? { budgets: [] } : { budgets: [{ category: 'overall', min: minScore }] });
+  return { spec, failOn: spec.failOn, minScore: spec.budgets.find(b => b.category === 'overall')?.min };
+}
+
+/** The flags and the config file reconciled (flags win); see the engine's resolveAuditSettings. */
+export function resolveSettings(options: AuditOptions, cwd: string = process.cwd()): { settings?: AuditSettings; error?: string } {
+  return resolveAuditSettings({
+    url: options.url,
+    dir: options.dir,
+    maxPages: options.maxPages,
+    checkLinks: options.checkLinks,
+    failOn: options.failOn,
+    minScore: options.minScore,
+    baseline: options.baseline,
+    header: options.header,
+    cookie: options.cookie,
+    config: options.config,
+  }, cwd);
 }
 
 // Sync results to database for logged in users
@@ -265,6 +280,7 @@ async function offerRepoLink(projectId: string): Promise<void> {
 function printUsage(loggedIn: boolean): void {
   console.error('\n⚠️  Please provide a URL to audit:');
   console.error('   rankcli audit --url https://your-site.com');
+  console.error('   rankcli audit --dir dist --url https://your-site.com   (a build directory, before deploying)');
   console.error(`\n   Or run \`rankcli init\` once: the url in ${PROJECT_CONFIG_FILE} is used when --url is omitted.`);
   console.error('\nRun "rankcli audit --help" for every option, exit codes, and AI providers.');
   if (!loggedIn) {
@@ -280,16 +296,21 @@ function printUsage(loggedIn: boolean): void {
  * so stdout is always flushed and the function stays testable.
  */
 export async function audit(options: AuditOptions): Promise<number> {
-  // --url, else the url in the project's rankcli.config.json (written by `rankcli init`).
-  const fromConfig = !options.url ? configuredUrl() : null;
-  const url = options.url || fromConfig || undefined;
-  const json = options.output === 'json';
-  // In JSON mode stdout carries exactly one JSON document - including on
-  // failure, so `rankcli audit -o json > report.json` never leaves a CI
-  // step parsing an empty file.
+  const cwd = process.cwd();
+  const format = String(options.output ?? 'console').trim().toLowerCase() as OutputFormat;
+  const json = format === 'json';
+  const machine = format !== 'console';
+
+  // In machine formats stdout carries exactly one document - including on failure, so
+  // `rankcli audit -o json > report.json` never leaves a CI step parsing an empty file.
+  let url: string | undefined;
   const fail = (code: number, message: string, extra: Record<string, unknown> = {}): number => {
-    if (json) {
+    if (format === 'json') {
       console.log(JSON.stringify({ url: url ?? null, error: message, exitCode: code, ...extra }, null, 2));
+    } else if (format === 'sarif') {
+      console.log(JSON.stringify(toSarif({ url: url ?? '', issues: [], toolVersion: VERSION, exitCode: code, error: message }), null, 2));
+    } else if (format === 'junit') {
+      console.log(toJUnit({ url: url ?? '', issues: [], error: message }));
     } else {
       console.error(`\n❌ ${message}\n`);
     }
@@ -297,11 +318,26 @@ export async function audit(options: AuditOptions): Promise<number> {
   };
 
   // ===== Validate the invocation before doing any work =====
-  const gate = parseGateOptions(options);
-  if (gate.error) return fail(EXIT_CODES.USAGE, gate.error);
+  if (!(OUTPUT_FORMATS as readonly string[]).includes(format)) {
+    console.error(`\n❌ Invalid --output "${options.output}" (use ${OUTPUT_FORMATS.join(', ')})\n`);
+    return EXIT_CODES.USAGE;
+  }
+
+  const resolved = resolveSettings(options, cwd);
+  if (resolved.error || !resolved.settings) return fail(EXIT_CODES.USAGE, resolved.error ?? 'Invalid settings');
+  const settings = resolved.settings;
+  const { spec, maxPages } = settings;
+  url = settings.url;
+  const fromConfig = !options.url && !!settings.config?.url && url === settings.config.url.trim();
+
+  if (settings.dir) {
+    const dir = isAbsolute(settings.dir) ? settings.dir : join(cwd, settings.dir);
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return fail(EXIT_CODES.USAGE, `--dir ${settings.dir} is not a directory`);
+    if (!url) url = 'http://localhost';
+  }
 
   if (!url) {
-    if (json) return fail(EXIT_CODES.USAGE, 'No URL given - use --url https://your-site.com');
+    if (machine) return fail(EXIT_CODES.USAGE, 'No URL given - use --url https://your-site.com');
     printUsage(isLoggedIn());
     return EXIT_CODES.USAGE;
   }
@@ -317,8 +353,17 @@ export async function audit(options: AuditOptions): Promise<number> {
     return fail(EXIT_CODES.USAGE, `Unknown --ai-provider "${options.aiProvider}" (use ${AI_PROVIDER_IDS.join(', ')})`);
   }
 
-  const maxPages = Math.max(1, parseInt(options.maxPages || '5', 10) || 5);
+  let baseline: (BaselineReport & { file: string }) | undefined;
+  if (settings.baselineFile) {
+    const read = loadBaselineFile(settings.baselineFile, cwd);
+    if (read.error) return fail(EXIT_CODES.USAGE, read.error);
+    baseline = read.baseline;
+  }
+
   if (fromConfig) console.error(chalk.dim(`Auditing ${url} (from ${PROJECT_CONFIG_FILE})`));
+  if (settings.dir && !options.url && !settings.config?.url) {
+    console.error(chalk.dim(`Auditing ${settings.dir} as ${url}. Pass --url https://your-site.com so canonical and sitemap checks compare against your real origin.`));
+  }
 
   try {
     // Check login status
@@ -338,13 +383,27 @@ export async function audit(options: AuditOptions): Promise<number> {
     const startTime = Date.now();
 
     // ===== PHASES 1-2: discover pages and audit them (shared with fix and apply) =====
-    const site = await runSiteAudit({ url, maxPages, checkLinks: options.checkLinks || false });
-    if (!site) {
+    const siteResult = await runSiteAudit({
+      url,
+      maxPages,
+      checkLinks: settings.checkLinks,
+      dir: settings.dir ? (isAbsolute(settings.dir) ? settings.dir : join(cwd, settings.dir)) : undefined,
+      headers: settings.headers,
+    });
+    if (!siteResult) {
       return fail(EXIT_CODES.AUDIT_FAILED, `Audit failed - could not analyze ${url}`);
     }
     // Exit 3 on an unreachable page or an error status, with or without gate flags, so no CI
     // job goes green on a site that is down.
-    const { primaryReport, issues: mergedIssues, score, pagesAudited: successCount, pageFailure, framework: frameworkName, checksRun: actualChecksRun } = site;
+    const { primaryReport, score, pagesAudited: successCount, pageFailure, framework: frameworkName, checksRun: actualChecksRun } = siteResult;
+
+    // ===== Ignore rules, then the baseline =====
+    const ignoreResult = applyIgnores(siteResult.issues, settings.ignore);
+    const mergedIssues: AuditIssue[] = ignoreResult.issues;
+    const ignored: IgnoredFinding[] = ignoreResult.ignored;
+    const diff: IssueDiff | undefined = baseline ? diffIssues(baseline.issues, mergedIssues) : undefined;
+    const baselineKeys = baseline ? new Set(baseline.issues.flatMap(issueKeys)) : undefined;
+    const isNew = (issue: AuditIssue): boolean => !baselineKeys || issueKeys(issue).some(k => !baselineKeys.has(k));
 
     // ===== PHASE 3: AI Analysis (optional, never affects the exit code) =====
     let aiAnalysis: AIAnalysis | null = null;
@@ -377,14 +436,52 @@ export async function audit(options: AuditOptions): Promise<number> {
     }
 
     // ===== PHASE 4: Gate =====
-    const gateResult = evaluateGate(mergedIssues, score, gate.failOn, gate.minScore);
-    const gated = gate.failOn !== undefined || gate.minScore !== undefined;
+    const healthScores = primaryReport.healthScore ?? { overall: score };
+    const gateResult = evaluateGate(spec, diff ? diff.added : mergedIssues, { ...healthScores, overall: score }, { newOnly: !!diff });
+    const gated = isGated(spec);
     const exitCode = pageFailure
       ? EXIT_CODES.AUDIT_FAILED
       : gateResult.passed ? EXIT_CODES.OK : EXIT_CODES.GATE_FAILED;
 
     // ===== PHASE 5: Output results =====
     const totalTime = Date.now() - startTime;
+    const baselineSummary = baseline && diff
+      ? { file: baseline.file, scoreBefore: baseline.score, added: diff.added, fixed: diff.fixed, unchanged: diff.unchanged }
+      : undefined;
+
+    if (format === 'sarif') {
+      const files = siteResult.files ?? {};
+      console.log(JSON.stringify(toSarif({
+        url,
+        issues: mergedIssues,
+        toolVersion: VERSION,
+        score,
+        healthScores,
+        fileFor: pageUrl => files[pageUrl],
+        exitCode,
+        error: pageFailure?.title,
+        baselineKeys,
+      }), null, 2));
+      for (const failure of gateResult.failures) console.error(`Gate failed: ${failure}`);
+      return exitCode;
+    }
+
+    if (format === 'junit') {
+      console.log(toJUnit({
+        url,
+        issues: mergedIssues,
+        failOn: spec.failOn,
+        isNew: diff ? isNew : undefined,
+        checksPassed: primaryReport.summary?.passed ?? 0,
+        score,
+        durationMs: totalTime,
+        timestamp: new Date(startTime).toISOString(),
+        gateFailures: gateResult.failures,
+        error: pageFailure?.title,
+      }));
+      for (const failure of gateResult.failures) console.error(`Gate failed: ${failure}`);
+      return exitCode;
+    }
 
     if (json) {
       // Sync to cloud for JSON output too (silent, no spinner)
@@ -399,12 +496,17 @@ export async function audit(options: AuditOptions): Promise<number> {
         cliVersion: VERSION,
         score,
         pagesAudited: successCount,
-        pages: site.pages,
+        pages: siteResult.pages,
+        discovery: siteResult.discovery,
         checksRun: actualChecksRun,
         checksPassed: primaryReport.summary?.passed ?? 0,
         totalTime,
         framework: frameworkName,
+        ...(settings.dir && { dir: settings.dir }),
+        ...(settings.configPath && { config: settings.configPath }),
         issues: mergedIssues,
+        ...(ignored.length > 0 && { ignored }),
+        ...(baselineSummary && { baseline: baselineSummary }),
         healthScores: primaryReport.healthScore,
         aiAnalysis,
         ...(aiError && { aiError }),
@@ -430,14 +532,18 @@ export async function audit(options: AuditOptions): Promise<number> {
 
       // Score
       const scoreColor = score >= 80 ? chalk.green : score >= 60 ? chalk.yellow : chalk.red;
-      console.log(`\n  ${chalk.bold('Score:')} ${scoreColor.bold(score + '/100')}`);
+      const delta = baseline?.score !== undefined ? ` ${chalk.dim(`(baseline ${baseline.score}, ${score - baseline.score >= 0 ? '+' : ''}${score - baseline.score})`)}` : '';
+      console.log(`\n  ${chalk.bold('Score:')} ${scoreColor.bold(score + '/100')}${delta}`);
 
       // Stats
-      console.log(`  ${chalk.bold('Pages audited:')} ${successCount}`);
-      console.log(`  ${chalk.bold('Issues found:')} ${mergedIssues.length}`);
+      console.log(`  ${chalk.bold('Pages audited:')} ${successCount}${siteResult.discovery.source === 'sitemap' ? chalk.dim(' (from the sitemap)') : ''}`);
+      console.log(`  ${chalk.bold('Issues found:')} ${mergedIssues.length}${ignored.length ? chalk.dim(` (${ignored.length} ignored by ${PROJECT_CONFIG_FILE})`) : ''}`);
       console.log(`  ${chalk.bold('Time:')} ${totalTime}ms`);
       if (frameworkName) {
         console.log(`  ${chalk.bold('Framework:')} ${chalk.cyan(frameworkName)}`);
+      }
+      if (settings.dir) {
+        console.log(`  ${chalk.bold('Source:')} ${settings.dir} ${chalk.dim('(build directory; host checks skipped)')}`);
       }
 
       // Health scores
@@ -472,19 +578,29 @@ export async function audit(options: AuditOptions): Promise<number> {
       // Every issue, grouped by severity, each with its code. A "Top 10" used to hide the
       // other 40 to 80 findings with no flag to show them; the only way to see what was
       // counted was -o json.
-      const printGroup = (label: string, items: AuditIssue[], icon: string) => {
+      const icon = (issue: AuditIssue) => issue.severity === 'error' || issue.severity === 'critical' ? chalk.red('✗') : issue.severity === 'warning' ? chalk.yellow('!') : chalk.blue('i');
+      const printGroup = (label: string, items: AuditIssue[], pages = true) => {
         if (items.length === 0) return;
         console.log('\n' + chalk.bold(`  ${label} (${items.length}):`));
         for (const issue of items) {
-          console.log(`    ${icon} ${issue.title}  ${chalk.dim(issue.code)}`);
-          if (issue.affectedUrls && issue.affectedUrls.length > 1) {
+          console.log(`    ${icon(issue)} ${issue.title}  ${chalk.dim(issue.code)}`);
+          if (pages && issue.affectedUrls && issue.affectedUrls.length > 1) {
             console.log(chalk.dim(`      affects ${issue.affectedUrls.length} pages`));
           }
         }
       };
-      printGroup('Errors', errors, chalk.red('✗'));
-      printGroup('Warnings', warnings, chalk.yellow('!'));
-      printGroup('Notices', notices, chalk.blue('i'));
+
+      if (diff && baseline) {
+        console.log('\n' + chalk.bold(`  Since baseline ${baseline.file}:`) + ` ${diff.added.length} new, ${diff.fixed.length} fixed, ${diff.unchanged} unchanged`);
+        printGroup('New since baseline', diff.added);
+        if (diff.fixed.length > 0) {
+          console.log('\n' + chalk.bold(`  Fixed since baseline (${diff.fixed.length}):`));
+          for (const issue of diff.fixed) console.log(`    ${chalk.green('✓')} ${issue.title}  ${chalk.dim(issue.code)}`);
+        }
+      }
+      printGroup('Errors', errors);
+      printGroup('Warnings', warnings);
+      printGroup('Notices', notices);
       if (mergedIssues.length > 0) {
         console.log(chalk.dim(`\n  Description, impact and fix for each issue: rankcli audit -u ${url} -o json`));
       }
@@ -511,7 +627,11 @@ export async function audit(options: AuditOptions): Promise<number> {
       if (gated) {
         console.log('');
         if (gateResult.passed) {
-          console.log(chalk.green(`  ✓ CI gate passed${gate.failOn ? ` (--fail-on ${gate.failOn})` : ''}${gate.minScore !== undefined ? ` (--min-score ${gate.minScore})` : ''}`));
+          const rules = [
+            ...(spec.failOn ? [`fail-on ${spec.failOn}${diff ? ', new issues only' : ''}`] : []),
+            ...spec.budgets.map(b => `${b.category === 'overall' ? 'score' : `${b.category} score`} ≥ ${b.min}`),
+          ].join('; ');
+          console.log(chalk.green(`  ✓ CI gate passed (${rules})`));
         } else {
           for (const failure of gateResult.failures) console.log(chalk.red(`  ✗ CI gate failed: ${failure}`));
         }
@@ -557,17 +677,40 @@ export async function audit(options: AuditOptions): Promise<number> {
 /** Help text appended to `rankcli audit --help`. Kept here beside EXIT_CODES. */
 export const AUDIT_HELP_TEXT = `
 Exit codes:
-  0  audit completed; no --fail-on / --min-score gate tripped
-  1  a --fail-on or --min-score gate tripped
-  2  bad invocation (missing/invalid --url, invalid flag value)
+  0  audit completed; no gate tripped
+  1  a gate tripped (--fail-on, --min-score, a budget in rankcli.config.json)
+  2  bad invocation (missing/invalid --url or --dir, invalid flag value,
+     invalid config or baseline file)
   3  no real audit: site unreachable, the URL answered 4xx/5xx, no page
      could be analyzed, or an internal error
 
-CI gating (both opt-in; without them any completed audit exits 0):
-  --fail-on error     fail on any error
-  --fail-on warning   fail on any warning or error
-  --fail-on notice    fail on any issue at all
-  --min-score 80      fail if the overall score is below 80
+CI gating (opt-in; without a rule any completed audit exits 0):
+  --fail-on error               fail on any error
+  --fail-on warning             fail on any warning or error
+  --fail-on notice              fail on any issue at all
+  --fail-on score<80            fail if the overall score is below 80 (= --min-score 80)
+  --fail-on score:aiReadiness<70
+                                fail if a category score is below 70 (overall, crawlability,
+                                indexability, onPage, content, links, performance, security,
+                                aiReadiness, social, localSeo, accessibility)
+  Rules combine: --fail-on error,score<80 or the flag repeated.
+  --baseline report.json        count only issues that are not in this saved report, so an
+                                existing site adopts the gate without first fixing every
+                                old finding (save one with: rankcli audit -o json > report.json)
+
+Output (-o): console, json, sarif (GitHub Code Scanning), junit (test reporters).
+  Every machine format is one document on stdout, on failure too.
+
+Protected previews: --header "Authorization: Bearer ..." --cookie "session=..."
+  Sent only to the audited site (and its www. twin), never anywhere else.
+
+Build output: --dir dist --url https://your-site.com
+  Serves the directory locally and audits it as the site, before anything is deployed.
+  Host checks (TLS, security and caching headers, redirects, crawler access) are skipped.
+
+Config: rankcli.config.json in the current directory (or --config <file>) sets url,
+  maxPages, checkLinks, failOn, minScore, budgets, baseline, ignore, headers and dir.
+  Flags win over the file. See the README for the ignore rules.
 
 AI analysis (--ai) runs on your own provider. Hosted: ${Object.entries(AI_PROVIDERS)
   .filter(([, p]) => !p.local)
@@ -583,7 +726,11 @@ AI analysis (--ai) runs on your own provider. Hosted: ${Object.entries(AI_PROVID
 Examples:
   rankcli audit --url https://example.com
   rankcli audit --url https://example.com --fail-on error --min-score 80
+  rankcli audit --url https://example.com --fail-on error --baseline .rankcli/baseline.json
   rankcli audit --url https://example.com -o json > report.json
+  rankcli audit --url https://example.com -o sarif > rankcli.sarif
+  rankcli audit --dir dist --url https://example.com --fail-on error
+  rankcli audit --url https://preview.example.com --header "x-vercel-protection-bypass: $BYPASS"
   rankcli audit --url https://example.com --ai --ai-provider deepseek
   rankcli audit --url https://example.com --ai --ai-provider ollama --ai-model qwen3:8b
 `;
