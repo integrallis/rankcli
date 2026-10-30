@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { init } from './commands/init.js';
 import { analyze } from './commands/analyze.js';
 import { audit, AUDIT_HELP_TEXT } from './commands/audit.js';
+import { diff } from './commands/diff.js';
 import { apply } from './commands/apply.js';
 import { fix } from './commands/fix.js';
 import { trackAdd, trackStatus, trackHistory, trackExport, trackCheck } from './commands/track.js';
@@ -16,6 +17,9 @@ import { login, logout, whoami } from './commands/auth.js';
 import { VERSION } from './version.js';
 
 const program = new Command();
+
+/** A repeatable option: every occurrence is kept, in order. */
+const collect = (value: string, previous: string[] = []): string[] => [...previous, value];
 
 program
   .name('rankcli')
@@ -59,11 +63,16 @@ program
   .command('audit')
   .description('Run an SEO + GEO audit (280+ checks)')
   .option('-u, --url <url>', 'URL to audit (defaults to the url in rankcli.config.json)')
-  .option('-o, --output <format>', 'Output format (json, console)', 'console')
+  .option('--dir <path>', 'Audit a build directory (dist, out, build) served locally instead of the live site; --url names the site it is built for')
+  .option('-o, --output <format>', 'Output format: console, json, sarif, junit', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
-  .option('--max-pages <n>', 'Max pages to crawl (default: 5)')
-  .option('--fail-on <level>', 'CI gate: exit 1 if any issue is at or above this severity (error, warning, notice)')
-  .option('--min-score <n>', 'CI gate: exit 1 if the overall score is below n (0-100)')
+  .option('--max-pages <n>', 'Max pages to audit, the sitemap first (default: 5)')
+  .option('--fail-on <rules>', 'CI gate, comma-separated or repeated: error | warning | notice (any issue at or above), score<80, score:aiReadiness<70', collect)
+  .option('--min-score <n>', 'CI gate: exit 1 if the overall score is below n (the same as --fail-on score<n)')
+  .option('--baseline <file>', 'A saved JSON report: --fail-on then counts only issues that are not in it')
+  .option('--header <header>', '"Name: value" sent with every request to the site (repeatable)', collect)
+  .option('--cookie <cookie>', '"name=value" sent with every request to the site (repeatable)', collect)
+  .option('--config <file>', 'Config file (default: rankcli.config.json in the current directory)')
   .option('--ai', 'Enable AI analysis (your own key, or a local model)')
   .option('--ai-provider <provider>', 'AI provider (auto-detected if omitted; Apple Intelligence on a Mac that has it, or set RANKCLI_AI_PROVIDER): apple, openrouter, openai, anthropic, groq, gemini, deepseek, mistral, cerebras, together, fireworks, ollama, lmstudio, llamacpp, vllm, custom')
   .option('--ai-key <key>', 'AI provider API key (or set the provider\'s env var, e.g. OPENROUTER_API_KEY)')
@@ -72,6 +81,15 @@ program
   .addHelpText('after', AUDIT_HELP_TEXT)
   .action(async (options) => {
     process.exitCode = await audit(options);
+  });
+
+program
+  .command('diff <before> <after>')
+  .description('Compare two saved JSON reports: new issues, fixed issues, score changes')
+  .option('-o, --output <format>', 'Output format (console, json)', 'console')
+  .option('--fail-on <rules>', 'Exit 1 on new issues at or above error | warning | notice; score<N applies to the after report', collect)
+  .action(async (before: string, after: string, options) => {
+    process.exitCode = await diff(before, after, options);
   });
 
 program
