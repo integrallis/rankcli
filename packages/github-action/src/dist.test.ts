@@ -78,13 +78,14 @@ describe.skipIf(!built && !process.env.CI)('built action (dist/index.js)', () =>
     expect(stdout).toContain('::add-mask::rk_plaintext_secret_123');
   }, 60000);
 
-  // The public repo gets this bundle. Premium check implementations stay private (they ship
-  // only in the hosted worker), and nothing secret may ride along.
-  it('carries no premium check code and nothing that looks like a secret', () => {
+  // The Action runs the same audit as `rankcli audit`, every check included (until 2026-10 the
+  // 21 "premium" checks were left out, so the Action scored a site differently from the CLI).
+  // Nothing secret may ride along in the bundle.
+  it('carries every check and nothing that looks like a secret', () => {
     const dir = join(__dirname, '..', 'dist');
     const bundle = readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => readFileSync(join(dir, f), 'utf8')).join('\n');
-    for (const premiumOnly of ['Commercial page without clear CTA', 'Service page lacks interactive tools', 'Content at risk of AI overview displacement']) {
-      expect(bundle).not.toContain(premiumOnly);
+    for (const formerlyEncrypted of ['Commercial page without clear CTA', 'Service page lacks interactive tools', 'Content at risk of AI overview displacement']) {
+      expect(bundle).toContain(formerlyEncrypted);
     }
     for (const secret of [/sk_(live|test)_[A-Za-z0-9]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /whsec_[A-Za-z0-9]{10,}/, /"role"\s*:\s*"service_role"/]) {
       expect(bundle).not.toMatch(secret);
