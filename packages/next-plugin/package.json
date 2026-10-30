@@ -7,6 +7,14 @@
     "access": "public"
   },
   "homepage": "https://rankcli.dev/seo/nextjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/integrallis/rankcli.git",
+    "directory": "packages/next-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -35,14 +43,6 @@
     "sitemap",
     "rankcli"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/integrallis/rankcli.dev.git",
-    "directory": "packages/next-plugin"
-  },
-  "bugs": {
-    "url": "https://github.com/integrallis/rankcli.dev/issues"
-  },
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsup src/index.ts src/metadata.ts --format esm --dts",

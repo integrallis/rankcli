@@ -16,8 +16,9 @@
     }
   ],
   "repository": {
-    "url": "https://github.com/integrallis/rankcli-mcp-server",
-    "source": "github"
+    "url": "https://github.com/integrallis/rankcli",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
   },
   "websiteUrl": "https://rankcli.dev",
   "_meta": {

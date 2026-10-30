@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "RankCLI GitHub Action - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/integrallis/rankcli.git",
+    "directory": "packages/github-action"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli/issues"
+  },
   "main": "dist/index.js",
   "type": "module",
   "scripts": {

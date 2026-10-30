@@ -3,6 +3,14 @@
   "version": "0.0.51",
   "description": "RankCLI - Ship code, get ranked. SEO meets CI/CD.",
   "homepage": "https://rankcli.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/integrallis/rankcli.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli/issues"
+  },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
