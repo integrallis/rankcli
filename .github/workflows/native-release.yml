@@ -39,7 +39,6 @@ permissions:
   contents: write
 
 env:
-  PNPM_VERSION: '8'
   RANKCLI_SUPABASE_URL: ${{ vars.RANKCLI_SUPABASE_URL || 'https://bspljbxwbjiqueeyzyat.supabase.co' }}
   RANKCLI_SUPABASE_ANON_KEY: ${{ vars.RANKCLI_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcGxqYnh3YmppcXVlZXl6eWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzQ1NTksImV4cCI6MjA4NDg1MDU1OX0.7gprxM2gT9cZ99sjZURLltrln78dEnwyFFKYpTzBaUU' }}
   RANKCLI_WEB_URL: https://rankcli.dev
@@ -57,15 +56,13 @@ jobs:
           tag="${{ github.event.release.tag_name || inputs.tag }}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || steps.release.outputs.tag }}
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -151,15 +148,13 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || steps.release.outputs.tag }}
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22' # >=20 for SEA support
           cache: 'pnpm'
@@ -245,7 +240,7 @@ jobs:
 
       - name: Checkout packaging templates
         if: steps.context.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download binaries and calculate checksums
         if: steps.context.outputs.ready == 'true'

@@ -34,7 +34,6 @@ on:
         type: boolean
 
 env:
-  PNPM_VERSION: '8'
   RANKCLI_SUPABASE_URL: ${{ vars.RANKCLI_SUPABASE_URL || 'https://bspljbxwbjiqueeyzyat.supabase.co' }}
   RANKCLI_SUPABASE_ANON_KEY: ${{ vars.RANKCLI_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcGxqYnh3YmppcXVlZXl6eWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzQ1NTksImV4cCI6MjA4NDg1MDU1OX0.7gprxM2gT9cZ99sjZURLltrln78dEnwyFFKYpTzBaUU' }}
   RANKCLI_WEB_URL: https://rankcli.dev
@@ -44,11 +43,9 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -85,7 +82,7 @@ jobs:
         working-directory: packages/cli
         run: npm pack --dry-run
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rankcli-package
           path: |
@@ -102,11 +99,9 @@ jobs:
       contents: write # commits the version bump back to main after a release publish
       id-token: write # npm Trusted Publishing and the MCP registry's GitHub OIDC login
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -114,7 +109,7 @@ jobs:
       - name: Update npm (Trusted Publishing needs npm >= 11.5.1)
         run: npm install -g npm@latest && npm --version
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: rankcli-package
           path: packages/cli/

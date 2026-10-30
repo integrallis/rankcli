@@ -31,7 +31,6 @@ on:
         default: publish
 
 env:
-  PNPM_VERSION: '8'
 
 jobs:
   plugins:
@@ -42,11 +41,9 @@ jobs:
       id-token: write # Trusted Publishing
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'

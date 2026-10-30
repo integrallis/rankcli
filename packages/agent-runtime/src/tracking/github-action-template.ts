@@ -71,10 +71,10 @@ ${permissions}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -100,7 +100,7 @@ ${sync ? `
 ${config.features.createIssues ? `
       - name: Create/update SEO report issue
         if: \${{ !cancelled() && steps.audit.outcome != 'skipped' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -183,7 +183,7 @@ ${config.features.createIssues ? `
 
       - name: Create PR with fixes
         if: \${{ !cancelled() && steps.fixes.outputs.applied != '' && steps.fixes.outputs.applied != '0' }}
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: \${{ secrets.GITHUB_TOKEN }}
           commit-message: 'fix(seo): automated SEO improvements'
@@ -202,7 +202,7 @@ ${config.features.createIssues ? `
 ` : ''}
       - name: Save report artifact
         if: \${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rankcli-report-\${{ github.run_number }}
           path: |
