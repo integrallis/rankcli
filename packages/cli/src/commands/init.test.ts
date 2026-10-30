@@ -27,7 +27,7 @@ describe('parseGitHubRepo', () => {
     expect(parseGitHubRepo('git@github.com:integrallis/rankcli.dev.git')).toBe(
       'integrallis/rankcli.dev'
     );
-    expect(parseGitHubRepo('https://github.com/integrallis/rankcli.dev')).toBe(
+    expect(parseGitHubRepo('https://github.com/integrallis/rankcli')).toBe(
       'integrallis/rankcli.dev'
     );
   });

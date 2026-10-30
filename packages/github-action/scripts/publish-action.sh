@@ -3,9 +3,10 @@
 # PUBLIC action repo (integrallis/rankcli-action). Nothing is pushed - the
 # script prints the push commands for you to run. See PUBLISHING.md.
 #
-# Why a separate repo: `uses: owner/repo@v1` needs a public repo whose
-# tagged commit contains action.yml and the built dist/. This monorepo is
-# private and gitignores dist/, so the action can't be consumed from here.
+# Why a separate repo: `uses: owner/repo@v1` needs a repo whose tagged
+# commit contains action.yml at its root and the built dist/. This repo
+# keeps the action under packages/ and gitignores dist/, so the action
+# can't be consumed from here.
 #
 # Usage (from anywhere):
 #   packages/github-action/scripts/publish-action.sh <path-to-audit-action-clone> <version>

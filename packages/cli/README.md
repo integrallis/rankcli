@@ -296,7 +296,7 @@ See [rankcli.dev/pricing](https://rankcli.dev/pricing).
 ## Links
 
 - **Docs**: [rankcli.dev/docs](https://rankcli.dev/docs)
-- **GitHub**: [github.com/integrallis/rankcli-cli](https://github.com/integrallis/rankcli-cli)
+- **Source**: [github.com/integrallis/rankcli](https://github.com/integrallis/rankcli) (MIT; binaries on the releases page)
 - **Support**: support@rankcli.dev
 
 ## License
