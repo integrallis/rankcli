@@ -30,8 +30,6 @@ on:
           - dry-run
         default: publish
 
-env:
-
 jobs:
   plugins:
     name: ${{ inputs.mode }} ${{ inputs.package }}
