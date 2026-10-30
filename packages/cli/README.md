@@ -152,7 +152,7 @@ Options:
 | `2` | Bad invocation: missing/invalid `--url`, invalid flag value |
 | `3` | No real audit: the site was unreachable, the URL answered 4xx/5xx, no page could be analyzed, or an internal error |
 
-The gates are opt-in: without them, a completed audit exits `0` however many issues it finds. An unreachable site or an error status always exits `3` - it scores 0, not a passing grade. With `-o json`, stdout is always one JSON document (on failure too) carrying `exitCode` and, when gates are set, a `gate` object with the reasons.
+The gates are opt-in: without them, a completed audit exits `0` however many issues it finds. An unreachable site or an error status always exits `3` - it scores 0, not a passing grade. With `-o json`, stdout is always one JSON document (on failure too) carrying `exitCode` and, when gates are set, a `gate` object with the reasons. It also carries `timestamp`, `cliVersion`, `checksRun`, `checksPassed` and `pages`, one entry per audited page with its url, score and error, warning and notice counts.
 
 #### AI analysis (`--ai`)
 

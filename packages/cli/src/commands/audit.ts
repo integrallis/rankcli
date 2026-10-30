@@ -6,6 +6,7 @@ import { execSync } from 'node:child_process';
 
 import { isLoggedIn, WEB_APP_URL, isApiKeyAuth, getApiKey, getSession, getApiUrl, ensureApiKeyPlan } from '../lib/config.js';
 import { showUpsell } from '../lib/upsell.js';
+import { VERSION } from '../version.js';
 import { runSiteAudit } from '../lib/site-audit.js';
 import { configuredUrl, PROJECT_CONFIG_FILE } from '../lib/project-config.js';
 import { resolveAIProvider, runAIAnalysis, AI_PROVIDERS, AI_PROVIDER_IDS, AI_ENV_KEYS, type AIAnalysis } from '../lib/ai.js';
@@ -394,8 +395,13 @@ export async function audit(options: AuditOptions): Promise<number> {
 
       const jsonOutput = {
         url,
+        timestamp: new Date(startTime).toISOString(),
+        cliVersion: VERSION,
         score,
         pagesAudited: successCount,
+        pages: site.pages,
+        checksRun: actualChecksRun,
+        checksPassed: primaryReport.summary?.passed ?? 0,
         totalTime,
         framework: frameworkName,
         issues: mergedIssues,
@@ -532,8 +538,8 @@ export async function audit(options: AuditOptions): Promise<number> {
         } else {
           syncSpinner.warn('Could not sync to cloud');
         }
-      } else {
-        // Show upsell for non-authenticated users
+      } else if (!gated && !process.env.CI) {
+        // The account box, for a person at a terminal: not under a CI gate, not in CI.
         showUpsell('free_audit_complete');
       }
 

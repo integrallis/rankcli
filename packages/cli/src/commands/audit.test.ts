@@ -244,6 +244,27 @@ describe('Audit Command', () => {
     });
   });
 
+  describe('the JSON document', () => {
+    it('carries the timestamp, the CLI version and a per-page breakdown', async () => {
+      await audit({ url: 'https://example.com', output: 'json' });
+      const parsed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string);
+      expect(parsed.cliVersion).toMatch(/^\d+\.\d+\.\d+/);
+      expect(new Date(parsed.timestamp).toISOString()).toBe(parsed.timestamp);
+      expect(parsed.pages.length).toBeGreaterThan(0);
+      expect(parsed.pages[0]).toMatchObject({ url: 'https://example.com', score: expect.any(Number), errors: expect.any(Number), warnings: expect.any(Number), notices: expect.any(Number) });
+      expect(parsed.checksRun).toBeGreaterThan(0);
+    });
+  });
+
+  describe('the account box', () => {
+    it('is not printed under a CI gate', async () => {
+      mockIsLoggedIn.mockReturnValue(false);
+      await audit({ url: 'https://example.com', failOn: 'notice' });
+      const printed = consoleLogSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(printed).not.toContain('Keep this site audited');
+    });
+  });
+
   describe('CI gates', () => {
     const reportWith = (overall: number, severities: string[]) => ({
       url: 'https://example.com',

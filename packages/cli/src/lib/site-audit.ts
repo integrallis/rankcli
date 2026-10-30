@@ -29,11 +29,22 @@ export interface SiteAuditOptions {
   checkLinks?: boolean;
 }
 
+/** One audited page, for the per-page breakdown in the JSON report. */
+export interface PageSummary {
+  url: string;
+  score: number;
+  errors: number;
+  warnings: number;
+  notices: number;
+}
+
 export interface SiteAuditResult {
   /** The report for the URL itself; the scores come from here. */
   primaryReport: AuditReport;
   /** Every audited page's issues, merged by code: what the CLI prints, gates on and fixes. */
   issues: AuditIssue[];
+  /** Each audited page with its own score and counts. */
+  pages: PageSummary[];
   score: number;
   pagesAudited: number;
   pagesDiscovered: number;
@@ -165,6 +176,7 @@ export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAudit
   const auditMs = Date.now() - started;
 
   const allIssues: AuditIssue[][] = [];
+  const pages: PageSummary[] = [];
   let primaryReport: AuditReport | null = null;
   let pagesAudited = 0;
   results.forEach((result, i) => {
@@ -172,6 +184,14 @@ export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAudit
       allIssues.push(result.value.issues);
       if (i === 0) primaryReport = result.value;
       pagesAudited++;
+      const count = (...severities: string[]) => result.value!.issues.filter(x => severities.includes(x.severity)).length;
+      pages.push({
+        url: pagesToAudit[i],
+        score: result.value.healthScore?.overall || 0,
+        errors: count('error', 'critical'),
+        warnings: count('warning'),
+        notices: count('notice', 'info'),
+      });
     }
   });
 
@@ -199,6 +219,7 @@ export async function runSiteAudit(options: SiteAuditOptions): Promise<SiteAudit
   return {
     primaryReport: primary,
     issues: mergeIssues(allIssues),
+    pages,
     score: primary.healthScore?.overall || 0,
     pagesAudited,
     pagesDiscovered: pagesToAudit.length,
