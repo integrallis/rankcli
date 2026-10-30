@@ -21,7 +21,7 @@ jobs:
   seo:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4          # for rankcli.config.json and the baseline
+      - uses: actions/checkout@v7          # for rankcli.config.json and the baseline
       - uses: integrallis/rankcli-action@v1
         with:
           url: https://your-site.com
