@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+dist/
+dist-native/
+dist-upload/
+coverage/
+*.log
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
+packages/mcp-server/mcpb-build/
+packages/mcp-server/*.mcpb

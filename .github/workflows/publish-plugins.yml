@@ -1,0 +1,93 @@
+name: Publish framework plugins
+
+# Publishes astro-rankcli, vite-plugin-rankcli and next-rankcli to npm through
+# Trusted Publishing (OIDC), the same way release.yml publishes the CLI. Manual
+# only. A version that is already on npm is skipped, so re-running is safe.
+#
+# Each package has to be linked to this repository and workflow once, by a
+# maintainer with 2FA:
+#   npx npm@latest trust github <package> --repo integrallis/rankcli --file publish-plugins.yml --allow-publish
+# or npmjs.com -> package -> Settings -> Trusted Publisher. Until that link
+# exists the publish step falls back to the NPM_TOKEN secret and says so.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Which package
+        type: choice
+        options:
+          - all
+          - astro-rankcli
+          - vite-plugin-rankcli
+          - next-rankcli
+        default: all
+      mode:
+        description: publish (Trusted Publishing), or dry-run (build, test, pack)
+        type: choice
+        options:
+          - publish
+          - dry-run
+        default: publish
+
+env:
+  PNPM_VERSION: '8'
+
+jobs:
+  plugins:
+    name: ${{ inputs.mode }} ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Trusted Publishing
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update npm (Trusted Publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest && npm --version
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Resolve packages
+        id: pkgs
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          if [ "$PACKAGE" = all ]; then
+            echo "names=astro-rankcli vite-plugin-rankcli next-rankcli" >> "$GITHUB_OUTPUT"
+          else
+            echo "names=$PACKAGE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build, test and publish
+        env:
+          NAMES: ${{ steps.pkgs.outputs.names }}
+          DRY_RUN: ${{ inputs.mode == 'dry-run' }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          declare -A DIRS=(
+            [astro-rankcli]=astro-plugin
+            [vite-plugin-rankcli]=vite-plugin
+            [next-rankcli]=next-plugin
+          )
+          for name in $NAMES; do
+            dir="packages/${DIRS[$name]}"
+            version=$(node -p "require('./$dir/package.json').version")
+            echo "::group::$name@$version"
+            (cd "$dir" && pnpm build && pnpm test)
+            if [ "$DRY_RUN" = true ]; then
+              (cd "$dir" && npm pack --dry-run)
+            else
+              (cd "$dir" && ../../.github/scripts/npm-publish.sh "$name")
+            fi
+            echo "::endgroup::"
+          done

@@ -1,0 +1,42 @@
+{
+  "name": "rankcli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "RankCLI: the SEO and AI-search audit that runs in CI. The CLI, the audit engine, the MCP server, the GitHub Action and the framework plugins.",
+  "homepage": "https://rankcli.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/integrallis/rankcli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli/issues"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "cli": "pnpm --filter @rankcli/cli",
+    "runtime": "pnpm --filter @rankcli/agent-runtime",
+    "mcp": "pnpm --filter @rankcli/mcp-server"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "keywords": [
+    "seo",
+    "geo",
+    "ai-search",
+    "ci-cd",
+    "cli",
+    "developer-tools",
+    "github-actions",
+    "mcp"
+  ],
+  "author": "Integrallis Software, LLC",
+  "license": "MIT"
+}

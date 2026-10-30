@@ -1,0 +1,225 @@
+# =============================================================================
+# Release: publish the npm packages
+# =============================================================================
+# On a GitHub release tagged vX.Y.Z: build and test, then publish
+# @rankcli/agent-runtime, @rankcli/mcp-server and @rankcli/cli to npm and the MCP
+# server to the official MCP registry. native-release.yml builds the binaries and
+# the Claude Desktop extension from the same release.
+#
+# Publishing uses npm Trusted Publishing (OIDC): each package's Trusted Publisher
+# on npmjs.com must name this repository (integrallis/rankcli) and this file
+# (release.yml). Until that link exists for a package, the publish step falls
+# back to the NPM_TOKEN secret (a granular token with publish rights) and says so.
+# To link: npmjs.com -> package -> Settings -> Trusted Publisher -> GitHub Actions,
+# or `npx npm@latest trust github <package> --repo integrallis/rankcli --file release.yml --allow-publish`.
+#
+# Secrets and variables:
+# - NPM_TOKEN (secret, optional): fallback while Trusted Publishing is not linked.
+# - RANKCLI_SUPABASE_URL, RANKCLI_SUPABASE_ANON_KEY (variables, optional): the hosted
+#   product's public endpoint and anon key, injected into the CLI for `rankcli login`
+#   and cloud sync. They are public values (the same ones every website visitor gets);
+#   the defaults below are the production ones.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to npm'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PNPM_VERSION: '8'
+  RANKCLI_SUPABASE_URL: ${{ vars.RANKCLI_SUPABASE_URL || 'https://bspljbxwbjiqueeyzyat.supabase.co' }}
+  RANKCLI_SUPABASE_ANON_KEY: ${{ vars.RANKCLI_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcGxqYnh3YmppcXVlZXl6eWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzQ1NTksImV4cCI6MjA4NDg1MDU1OX0.7gprxM2gT9cZ99sjZURLltrln78dEnwyFFKYpTzBaUU' }}
+  RANKCLI_WEB_URL: https://rankcli.dev
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # The CLI bakes the version into `rankcli --version` at build time (update-version.js),
+      # so the tag's version has to be in package.json before the build, not only at publish.
+      - name: Set CLI version from release tag
+        if: github.event_name == 'release'
+        working-directory: packages/cli
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" package.json
+          echo "Version set to: $(node -p "require('./package.json').version")"
+
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+
+      - name: Build CLI
+        working-directory: packages/cli
+        run: pnpm build:js
+
+      - name: Test CLI
+        working-directory: packages/cli
+        run: pnpm test
+
+      - name: Verify every check runs
+        working-directory: packages/cli
+        run: node scripts/verify-premium-audit.js
+
+      - name: Package contents
+        working-directory: packages/cli
+        run: npm pack --dry-run
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rankcli-package
+          path: |
+            packages/cli/dist/
+            packages/cli/package.json
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    permissions:
+      contents: write # commits the version bump back to main after a release publish
+      id-token: write # npm Trusted Publishing and the MCP registry's GitHub OIDC login
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update npm (Trusted Publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest && npm --version
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rankcli-package
+          path: packages/cli/
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+
+      - name: Publish agent-runtime
+        working-directory: packages/agent-runtime
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ../../.github/scripts/npm-publish.sh @rankcli/agent-runtime
+
+      - name: Build MCP server
+        working-directory: packages/mcp-server
+        run: pnpm build
+
+      - name: Pin the runtime version in the MCP server
+        working-directory: packages/mcp-server
+        run: |
+          RUNTIME_VERSION=$(cd ../agent-runtime && node -p "require('./package.json').version")
+          sed -i "s|\"workspace:\\*\"|\"^$RUNTIME_VERSION\"|g" package.json
+
+      - name: Publish MCP server
+        working-directory: packages/mcp-server
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ../../.github/scripts/npm-publish.sh @rankcli/mcp-server
+
+      # The official MCP registry (registry.modelcontextprotocol.io) is separate from npm.
+      - name: Sync server.json version
+        if: github.event_name == 'release'
+        working-directory: packages/mcp-server
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp.json
+          mv server.tmp.json server.json
+
+      - name: Install mcp-publisher
+        if: github.event_name == 'release'
+        working-directory: packages/mcp-server
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to MCP Registry
+        if: github.event_name == 'release'
+        working-directory: packages/mcp-server
+        run: |
+          # The registry validates the package against npm, and a version published seconds
+          # earlier is not visible yet. Wait for npm (up to 5 minutes) before publishing.
+          VERSION=$(node -p "require('./package.json').version")
+          for i in $(seq 1 30); do
+            if npm view "@rankcli/mcp-server@$VERSION" version >/dev/null 2>&1; then break; fi
+            echo "Waiting for @rankcli/mcp-server@$VERSION on npm ($i/30)..."; sleep 10
+          done
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+        continue-on-error: true # a directory listing; never block the npm publish that already happened
+
+      - name: Inject the hosted product's public config into the CLI
+        working-directory: packages/cli
+        run: node scripts/inject-config.js
+
+      - name: Pin the runtime version in the CLI
+        working-directory: packages/cli
+        run: |
+          RUNTIME_VERSION=$(cd ../agent-runtime && node -p "require('./package.json').version")
+          sed -i "s|\"workspace:\\*\"|\"^$RUNTIME_VERSION\"|g" package.json
+          grep -A2 '"dependencies"' package.json
+
+      - name: Publish CLI
+        working-directory: packages/cli
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ../../.github/scripts/npm-publish.sh @rankcli/cli
+
+      - name: Commit the version bump back to main
+        if: github.event_name == 'release'
+        run: |
+          # The version was set in-memory by the build job; record it so package.json in git
+          # matches npm. A separate worktree keeps the workspace:* -> pinned rewrite above
+          # (correct only for the tarball) out of the commit.
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          git fetch origin main
+          git worktree add /tmp/version-bump origin/main
+          sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" /tmp/version-bump/packages/cli/package.json
+          cd /tmp/version-bump
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add packages/cli/package.json
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore(cli): bump published version to $VERSION"
+          git push origin HEAD:main
+
+      - name: Summary
+        run: |
+          VERSION=$(cd packages/cli && node -p "require('./package.json').version")
+          {
+            echo "## Published to npm"
+            echo
+            echo "- @rankcli/cli@$VERSION"
+            echo "- @rankcli/agent-runtime@$(cd packages/agent-runtime && node -p "require('./package.json').version")"
+            echo "- @rankcli/mcp-server@$(cd packages/mcp-server && node -p "require('./package.json').version")"
+          } >> "$GITHUB_STEP_SUMMARY"

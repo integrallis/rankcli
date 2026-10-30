@@ -1,0 +1,147 @@
+# CI: every package builds and its tests pass, on every push to main and every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '8'
+
+jobs:
+  runtime:
+    name: Engine (agent-runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Build first: packaging.test.ts inspects the built bundle.
+      - name: Build
+        working-directory: packages/agent-runtime
+        run: pnpm build
+      - name: Type check
+        working-directory: packages/agent-runtime
+        run: pnpm typecheck
+      - name: Test
+        working-directory: packages/agent-runtime
+        run: pnpm test
+
+  cli:
+    name: CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+      - name: Build CLI
+        working-directory: packages/cli
+        run: pnpm build:js
+      - name: Type check
+        working-directory: packages/cli
+        run: pnpm typecheck
+      # Includes the spawned-CLI exit-code tests that CI pipelines depend on: a release must
+      # not ship a `rankcli audit` that cannot fail a build.
+      - name: Test
+        working-directory: packages/cli
+        run: pnpm test
+      # The built CLI reports the codes of the 21 checks that were once encrypted into a WASM
+      # binary (a stale binary shipped for months with none of them).
+      - name: Verify every check runs
+        working-directory: packages/cli
+        run: node scripts/verify-premium-audit.js
+
+  mcp-server:
+    name: MCP server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+      - name: Build
+        working-directory: packages/mcp-server
+        run: pnpm build
+      - name: Type check
+        working-directory: packages/mcp-server
+        run: pnpm typecheck
+      - name: Test
+        working-directory: packages/mcp-server
+        run: pnpm test
+
+  action:
+    name: GitHub Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+      # The ncc bundle is what users run; dist.test.ts executes it the way the Actions runner does.
+      - name: Build
+        working-directory: packages/github-action
+        run: pnpm build
+      - name: Type check
+        working-directory: packages/github-action
+        run: pnpm exec tsc --noEmit
+      - name: Test
+        working-directory: packages/github-action
+        run: pnpm test
+
+  plugins:
+    name: Plugin (${{ matrix.plugin }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        plugin: [astro-plugin, next-plugin, vite-plugin]
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.plugin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Test
+        run: pnpm test

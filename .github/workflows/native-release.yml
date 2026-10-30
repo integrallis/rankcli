@@ -1,0 +1,301 @@
+# =============================================================================
+# Native release: binaries, Homebrew, Scoop and the Claude Desktop extension
+# =============================================================================
+# On a GitHub release tagged vX.Y.Z: builds standalone rankcli binaries (Node
+# Single Executable Applications, no Node install required) for five platforms,
+# attaches them to the release, publishes a Homebrew formula and a Scoop manifest
+# pointing at them, and attaches a Claude Desktop extension (.mcpb) for the MCP
+# server. scripts/build-sea.sh has the details of the single-file build.
+#
+# Secrets:
+# - PACKAGES_PUBLISH_TOKEN: a token that can push to integrallis/homebrew-tap and
+#   integrallis/scoop-bucket. Absent, the binaries are still attached and only
+#   the Homebrew and Scoop steps are skipped.
+# The hosted product's public endpoint (RANKCLI_SUPABASE_URL, RANKCLI_SUPABASE_ANON_KEY)
+# follows the same variables-with-defaults rule as release.yml.
+#
+# Triggers:
+# - release: published (uses the release's own tag)
+# - workflow_dispatch (re-run against an existing tag, for example to retry a
+#   failed publish without cutting a new release)
+
+name: Native release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag that receives the binaries, for example v0.0.52.
+        required: true
+        type: string
+      ref:
+        description: Git ref to build; defaults to the release tag.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PNPM_VERSION: '8'
+  RANKCLI_SUPABASE_URL: ${{ vars.RANKCLI_SUPABASE_URL || 'https://bspljbxwbjiqueeyzyat.supabase.co' }}
+  RANKCLI_SUPABASE_ANON_KEY: ${{ vars.RANKCLI_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcGxqYnh3YmppcXVlZXl6eWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzQ1NTksImV4cCI6MjA4NDg1MDU1OX0.7gprxM2gT9cZ99sjZURLltrln78dEnwyFFKYpTzBaUU' }}
+  RANKCLI_WEB_URL: https://rankcli.dev
+
+jobs:
+  # Claude Desktop installs extensions from a .mcpb bundle rather than by hand-editing
+  # claude_desktop_config.json.
+  desktop-extension:
+    name: Claude Desktop extension (.mcpb)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve release context
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || steps.release.outputs.tag }}
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+
+      - name: Build the bundle
+        working-directory: packages/mcp-server
+        run: |
+          pnpm build
+          pnpm build:mcpb
+
+      - name: Smoke-test it the way Claude Desktop runs it
+        working-directory: packages/mcp-server
+        run: |
+          # A bundle that unzips but does not speak MCP is worse than no bundle: the user gets a
+          # silent failure inside Claude rather than a missing feature.
+          mkdir -p /tmp/mcpb-check && unzip -q -o rankcli-*.mcpb -d /tmp/mcpb-check
+          node -e '
+            const { spawn } = require("node:child_process");
+            const p = spawn("node", ["/tmp/mcpb-check/server/index.js"]);
+            let out = "";
+            p.stdout.on("data", (d) => (out += d));
+            p.stdin.write(JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"ci",version:"0"}}}) + "\n");
+            setTimeout(() => p.stdin.write(JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/list",params:{}}) + "\n"), 1500);
+            setTimeout(() => {
+              let version = null, tools = 0;
+              for (const line of out.split("\n").filter(Boolean)) {
+                try {
+                  const j = JSON.parse(line);
+                  if (j.id === 1) version = j.result?.serverInfo?.version;
+                  if (j.id === 2) tools = (j.result?.tools || []).length;
+                } catch {}
+              }
+              p.kill();
+              console.log("version", version, "tools", tools);
+              // 0.0.0 means the package.json at the bundle root went missing: server.ts
+              // resolves its version through require("../package.json") and falls back silently.
+              if (!version || version === "0.0.0") { console.error("bundle reports no version"); process.exit(1); }
+              if (tools < 10) { console.error("bundle exposed " + tools + " tools"); process.exit(1); }
+            }, 7000);
+          '
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: packages/mcp-server
+        run: gh release upload "${{ steps.release.outputs.tag }}" rankcli-*.mcpb --clobber --repo "${{ github.repository }}"
+
+  native:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            label: linux-x86_64
+            binary: rankcli
+          - runner: ubuntu-24.04-arm
+            label: linux-aarch64
+            binary: rankcli
+          - runner: macos-15-intel
+            label: macos-x86_64
+            binary: rankcli
+          - runner: macos-15
+            label: macos-aarch64
+            binary: rankcli
+          - runner: windows-2025
+            label: windows-x86_64
+            binary: rankcli.exe
+
+    steps:
+      - name: Resolve release context
+        id: release
+        shell: bash
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || steps.release.outputs.tag }}
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22' # >=20 for SEA support
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Set CLI version from release tag
+        shell: bash
+        working-directory: packages/cli
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          sed -i.bak "s|\"version\": \"[^\"]*\"|\"version\": \"${VERSION}\"|" package.json
+          rm -f package.json.bak
+          node scripts/update-version.js
+
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+
+      - name: Build SEA binary
+        shell: bash
+        working-directory: packages/cli
+        run: bash scripts/build-sea.sh "${{ matrix.label }}" "dist-native/${{ matrix.binary }}"
+
+      - name: Smoke-test binary
+        shell: bash
+        working-directory: packages/cli
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          binary="dist-native/${{ matrix.binary }}"
+          test -f "$binary"
+          if [ "${{ runner.os }}" != "Windows" ]; then
+            test -x "$binary"
+          fi
+          version_output="$("$binary" --version)"
+          echo "Reported version: $version_output"
+          [ "$version_output" = "$VERSION" ] || { echo "::error::version mismatch: expected $VERSION, got $version_output"; exit 1; }
+          "$binary" audit --url https://rankcli.dev --output json > /dev/null
+
+      - name: Package release asset
+        id: package
+        shell: bash
+        working-directory: packages/cli
+        run: |
+          raw="rankcli-${{ matrix.label }}${{ runner.os == 'Windows' && '.exe' || '' }}"
+          mkdir -p dist-upload
+          cp "dist-native/${{ matrix.binary }}" "dist-upload/$raw"
+          if [ "${{ runner.os }}" != "Windows" ]; then
+            chmod +x "dist-upload/$raw"
+          fi
+          echo "raw=$raw" >> "$GITHUB_OUTPUT"
+
+      - name: Upload asset to the release
+        shell: bash
+        working-directory: packages/cli
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release upload "${{ steps.release.outputs.tag }}" "dist-upload/${{ steps.package.outputs.raw }}"
+          --clobber --repo "${{ github.repository }}"
+
+  publish-packages:
+    name: Publish Homebrew and Scoop
+    needs: native
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve context and credentials
+        id: context
+        env:
+          TOKEN: ${{ secrets.PACKAGES_PUBLISH_TOKEN }}
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          if [ -n "$TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PACKAGES_PUBLISH_TOKEN is absent; skipping Homebrew and Scoop."
+          fi
+
+      - name: Checkout packaging templates
+        if: steps.context.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Download binaries and calculate checksums
+        if: steps.context.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.context.outputs.tag }}
+        run: |
+          mkdir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --dir dist \
+            --pattern 'rankcli-linux-x86_64' \
+            --pattern 'rankcli-linux-aarch64' \
+            --pattern 'rankcli-macos-x86_64' \
+            --pattern 'rankcli-macos-aarch64' \
+            --pattern 'rankcli-windows-x86_64.exe'
+          {
+            echo "SHA_LINUX_X64=$(sha256sum dist/rankcli-linux-x86_64 | cut -d' ' -f1)"
+            echo "SHA_LINUX_ARM=$(sha256sum dist/rankcli-linux-aarch64 | cut -d' ' -f1)"
+            echo "SHA_MAC_X64=$(sha256sum dist/rankcli-macos-x86_64 | cut -d' ' -f1)"
+            echo "SHA_MAC_ARM=$(sha256sum dist/rankcli-macos-aarch64 | cut -d' ' -f1)"
+            echo "SHA_WIN_X64=$(sha256sum dist/rankcli-windows-x86_64.exe | cut -d' ' -f1)"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish Homebrew formula
+        if: steps.context.outputs.ready == 'true'
+        env:
+          TOKEN: ${{ secrets.PACKAGES_PUBLISH_TOKEN }}
+          VERSION: ${{ steps.context.outputs.version }}
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ steps.context.outputs.tag }}
+        run: |
+          variables='${VERSION} ${BASE} ${SHA_LINUX_X64} ${SHA_LINUX_ARM} ${SHA_MAC_X64} ${SHA_MAC_ARM}'
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/integrallis/homebrew-tap.git" tap
+          envsubst "$variables" < packages/cli/packaging/rankcli.rb > tap/Formula/rankcli.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/rankcli.rb
+          git commit -m "rankcli ${VERSION}" && git push || echo "No formula change"
+
+      - name: Publish Scoop manifest
+        if: steps.context.outputs.ready == 'true'
+        env:
+          TOKEN: ${{ secrets.PACKAGES_PUBLISH_TOKEN }}
+          VERSION: ${{ steps.context.outputs.version }}
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ steps.context.outputs.tag }}
+        run: |
+          variables='${VERSION} ${BASE} ${SHA_WIN_X64}'
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/integrallis/scoop-bucket.git" bucket
+          envsubst "$variables" < packages/cli/packaging/rankcli.json > bucket/bucket/rankcli.json
+          cd bucket
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/rankcli.json
+          git commit -m "rankcli ${VERSION}" && git push || echo "No manifest change"
