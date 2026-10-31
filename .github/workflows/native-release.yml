@@ -231,12 +231,23 @@ jobs:
           tag="${{ github.event.release.tag_name || inputs.tag }}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-          if [ -n "$TOKEN" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$TOKEN" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice::PACKAGES_PUBLISH_TOKEN is absent; skipping Homebrew and Scoop."
+            exit 0
           fi
+          # The formula and the manifest download from this repository's release page with no
+          # credentials, so publishing them while the repository is private would break
+          # `brew install` and `scoop install` for everyone. Fetch one byte as a stranger would.
+          asset="https://github.com/${{ github.repository }}/releases/download/$tag/rankcli-linux-x86_64"
+          status=$(curl -sL --range 0-0 -o /dev/null -w '%{http_code}' "$asset")
+          case "$status" in
+            200|206) echo "ready=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::$asset answers HTTP $status without credentials (private repository?); skipping Homebrew and Scoop. Re-run this workflow with tag=$tag once the release is public."
+              ;;
+          esac
 
       - name: Checkout packaging templates
         if: steps.context.outputs.ready == 'true'
@@ -277,7 +288,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/rankcli.rb
-          git commit -m "rankcli ${VERSION}" && git push || echo "No formula change"
+          if git diff --cached --quiet; then echo "No formula change"; exit 0; fi
+          git commit -m "rankcli ${VERSION}"
+          git push
 
       - name: Publish Scoop manifest
         if: steps.context.outputs.ready == 'true'
@@ -293,4 +306,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add bucket/rankcli.json
-          git commit -m "rankcli ${VERSION}" && git push || echo "No manifest change"
+          if git diff --cached --quiet; then echo "No manifest change"; exit 0; fi
+          git commit -m "rankcli ${VERSION}"
+          git push
