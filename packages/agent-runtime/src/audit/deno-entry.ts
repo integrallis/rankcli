@@ -71,8 +71,12 @@ export { loadRecipe } from '../frameworks/suggestion-engine.js';
 export { generateWorkflow, generateSecretsDoc } from '../tracking/github-action-template.js';
 export type { WorkflowConfig } from '../tracking/github-action-template.js';
 
+// CI plumbing on top of the report (pure functions, no Node APIs).
+export * from './ci/index.js';
+
 // Page discovery (multi-page crawling)
 export { discoverPagesFromLinks, parseSitemap, mergePages } from './discovery/link-crawler.js';
+export { discoverPagesFromSitemap } from './discovery/sitemap.js';
 export { discoverRoutesFromRepo, detectFramework, routesToUrls } from './discovery/repo-routes.js';
 export type { DiscoveredPage } from './discovery/link-crawler.js';
 export type { RouteInfo } from './discovery/repo-routes.js';

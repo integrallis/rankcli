@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -69,8 +69,32 @@ describe.skipIf(!built && !process.env.CI)('built action (dist/index.js)', () =>
   it('fails the step with fail-on-errors (the documented spelling)', async () => {
     const { code, stdout } = await runAction({ url: `${base}/`, 'fail-on-errors': 'true' });
     expect(code).toBe(1);
-    expect(stdout).toContain('::error::SEO audit found');
+    expect(stdout).toMatch(/::error::\d+ issues? at or above fail-on error/);
   }, 60000);
+
+  it('fails the step with fail-on rules and annotates the findings', async () => {
+    const { code, stdout, outputs } = await runAction({ url: `${base}/`, 'fail-on': 'error,score<100' });
+    expect(code).toBe(1);
+    expect(stdout).toMatch(/::error title=[A-Z_]+::/);
+    expect(stdout).toContain('is below the minimum 100');
+    expect(outputs).toMatch(/^new-issues-count<<|^new-issues-count=/m);
+  }, 60000);
+
+  it('audits a build directory with dir, discovering pages from its sitemap', async () => {
+    const dist = join(tmp, 'dist');
+    mkdirSync(join(dist, 'about'), { recursive: true });
+    const page = (t: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${t} - Example</title><meta name="description" content="About ${t}, in enough words for a description."></head><body><h1>${t}</h1><p>${'Words here. '.repeat(60)}</p><a href="/about">About</a></body></html>`;
+    writeFileSync(join(dist, 'index.html'), page('Home'));
+    writeFileSync(join(dist, 'about', 'index.html'), page('About'));
+    writeFileSync(join(dist, 'sitemap.xml'), '<urlset><url><loc>https://example.com/</loc></url><url><loc>https://example.com/about</loc></url></urlset>');
+    writeFileSync(join(dist, 'robots.txt'), 'User-agent: *\nAllow: /\n');
+    const { code, outputs } = await runAction({ dir: dist, url: 'https://example.com', 'max-pages': '2', 'report-file': join(tmp, 'report.json') }, { GITHUB_WORKSPACE: tmp });
+    expect(code).toBe(0);
+    const report = JSON.parse(readFileSync(join(tmp, 'report.json'), 'utf8'));
+    expect(report.discovery.source).toBe('sitemap');
+    expect(report.pages.map((p: { url: string }) => p.url)).toEqual(['https://example.com', 'https://example.com/about']);
+    expect(outputs).toMatch(/^report-file<<|^report-file=/m);
+  }, 90000);
 
   it('masks the API key in the logs, even passed as plain text', async () => {
     // The key check goes to the local server, never to RankCLI's real API.
