@@ -49,7 +49,7 @@ export const REDUNDANT_WHEN_PRESENT: ReadonlyArray<{ keep: string | RegExp; drop
     keep: 'CLIENT_SIDE_RENDERING',
     drop: [
       'REACT_CSR_DETECTED', 'VUE_CSR_DETECTED', 'ANGULAR_NO_UNIVERSAL', 'SPA_WITHOUT_SSR',
-      'EMPTY_BODY_CONTENT', 'HIGH_JS_RENDERING_RATIO', 'AI_LOW_HTML_READABILITY',
+      'EMPTY_BODY_CONTENT', 'HIGH_JS_RENDERING_RATIO', 'AI_LOW_HTML_READABILITY', 'NAV_NOT_IN_HTML',
     ],
   },
   // An empty body has no vocabulary to be undiverse.

@@ -499,6 +499,7 @@ export async function audit(options: AuditOptions): Promise<number> {
         pagesAudited: successCount,
         pages: siteResult.pages,
         discovery: siteResult.discovery,
+        ...(siteResult.linkGraph && { linkGraph: siteResult.linkGraph }),
         checksRun: actualChecksRun,
         checksPassed: primaryReport.summary?.passed ?? 0,
         totalTime,

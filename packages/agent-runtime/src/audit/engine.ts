@@ -22,6 +22,7 @@ import { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 import { analyzePagination } from './checks/pagination.js';
 import { analyzeRedirects } from './checks/redirect-analysis.js';
 import { analyzeCrawlerAccess } from './checks/crawler-access.js';
+import { extractInternalLinks } from './discovery/link-crawler.js';
 // New competitor-parity checks
 import { runAIReadinessChecks } from './checks/ai-readiness.js';
 import { analyzeSERPPreview } from './checks/serp-preview.js';
@@ -561,6 +562,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     wordCount: onPageResult.data.wordCount,
     loadTime: perfData.loadTime,
     issues: issues.map(i => i.code),
+    internalLinks: extractInternalLinks(html, url),
   });
 
   console.error('\n✅ Audit complete!\n');
