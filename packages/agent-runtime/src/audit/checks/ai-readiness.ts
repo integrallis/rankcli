@@ -6,20 +6,7 @@ import * as cheerio from 'cheerio';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 import { checkAgentExperience, type AgentExperienceData } from './agent-experience.js';
-
-// Known AI bot user agents
-const AI_BOTS = {
-  GPTBot: 'GPTBot',
-  'ChatGPT-User': 'ChatGPT-User',
-  'OAI-SearchBot': 'OAI-SearchBot',
-  ClaudeBot: 'ClaudeBot',
-  'Claude-Web': 'Claude-Web',
-  'anthropic-ai': 'anthropic-ai',
-  PerplexityBot: 'PerplexityBot',
-  'Google-Extended': 'Google-Extended',
-  Bytespider: 'Bytespider',
-  CCBot: 'CCBot',
-};
+import { KNOWN_BOTS, type BotClass, type KnownBot } from './ai-bots.js';
 
 export interface LlmsTxtResult {
   exists: boolean;
@@ -32,7 +19,10 @@ export interface AIBotBlockingResult {
   robotsExists: boolean;
   blockedBots: string[];
   allowedBots: string[];
+  /** Every AI crawler (search, user-triggered and training) is disallowed. */
   allBlocked: boolean;
+  /** The same verdicts grouped by what each bot is for (see ai-bots.ts). */
+  classes: Record<BotClass, { allowed: string[]; disallowed: string[] }>;
   // The Content Signals robots.txt extension (Content-Signal: search=yes,
   // ai-train=no,use=reference) - the mechanism Cloudflare's Sep 2026 AI
   // Crawl Control update actually reads, distinct from and in addition to
@@ -158,149 +148,143 @@ export function parseContentSignal(robotsTxtContent: string): string | null {
   return null;
 }
 
+interface RobotsGroup {
+  disallowAll: boolean;
+  allowRoot: boolean;
+}
+
+/** User-agent groups of a robots.txt, by lower-cased token; only root-level rules matter here. */
+function parseRobotsGroups(content: string): Map<string, RobotsGroup> {
+  const groups = new Map<string, RobotsGroup>();
+  let current: string[] = [];
+  let lastWasAgent = false;
+  for (const raw of content.split('\n')) {
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    const directive = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (directive === 'user-agent') {
+      // Consecutive User-agent lines share the rules that follow them.
+      if (!lastWasAgent) current = [];
+      current.push(value.toLowerCase());
+      lastWasAgent = true;
+      for (const token of current) if (!groups.has(token)) groups.set(token, { disallowAll: false, allowRoot: false });
+      continue;
+    }
+    lastWasAgent = false;
+    if (directive === 'disallow' && (value === '/' || value === '/*')) {
+      for (const token of current) groups.get(token)!.disallowAll = true;
+    } else if (directive === 'allow' && (value === '/' || value === '/*')) {
+      for (const token of current) groups.get(token)!.allowRoot = true;
+    }
+  }
+  return groups;
+}
+
+/** Is this bot kept out of the whole site? Its own group wins; otherwise the wildcard applies. */
+export function isDisallowed(bot: KnownBot, groups: Map<string, RobotsGroup>): boolean {
+  const own = bot.robotsTokens.map((token) => groups.get(token)).filter((g): g is RobotsGroup => !!g);
+  if (own.length > 0) return own.some((g) => g.disallowAll) && !own.some((g) => g.allowRoot);
+  const star = groups.get('*');
+  return !!star?.disallowAll;
+}
+
+function emptyClasses(): AIBotBlockingResult['classes'] {
+  return {
+    search: { allowed: [], disallowed: [] },
+    'ai-search': { allowed: [], disallowed: [] },
+    user: { allowed: [], disallowed: [] },
+    training: { allowed: [], disallowed: [] },
+  };
+}
+
+function allAllowed(robotsExists: boolean): AIBotBlockingResult {
+  const classes = emptyClasses();
+  for (const bot of KNOWN_BOTS) classes[bot.class].allowed.push(bot.name);
+  return { robotsExists, blockedBots: [], allowedBots: KNOWN_BOTS.map((b) => b.name), allBlocked: false, contentSignal: null, classes };
+}
+
 /**
- * Check robots.txt for AI bot blocking
+ * Check robots.txt for AI bot blocking, by class.
+ *
+ * A disallowed training crawler is a choice with no visibility cost; a disallowed search
+ * crawler takes the site out of that assistant's answers; a disallowed user-triggered fetcher
+ * means the assistant cannot read a page a user pastes. Googlebot and bingbot are classified
+ * here for the data but reported by the crawlability checks.
  */
 export async function checkAIBotBlocking(baseUrl: string): Promise<{ issues: AuditIssue[]; data: AIBotBlockingResult }> {
   const issues: AuditIssue[] = [];
   const url = new URL('/robots.txt', baseUrl).href;
 
+  let content: string;
+  try {
+    const response = await httpGet<string>(url, { timeout: 10000, validateStatus: () => true });
+    // No robots.txt (or an SPA shell in its place) means every bot is allowed.
+    if (response.status >= 400 || looksLikeHtmlFallback(response.data, response.headers?.['content-type'])) {
+      return { issues, data: allAllowed(false) };
+    }
+    content = response.data as string;
+  } catch {
+    return { issues, data: allAllowed(false) };
+  }
+
+  const groups = parseRobotsGroups(content);
+  const classes = emptyClasses();
   const blockedBots: string[] = [];
   const allowedBots: string[] = [];
-
-  try {
-    const response = await httpGet<string>(url, {
-      timeout: 10000,
-      validateStatus: () => true,
-    });
-
-    if (response.status === 404 || response.status >= 400) {
-      // No robots.txt means all bots are allowed
-      return {
-        issues,
-        data: {
-          robotsExists: false,
-          blockedBots: [],
-          allowedBots: Object.keys(AI_BOTS),
-          allBlocked: false,
-          contentSignal: null,
-        },
-      };
-    }
-
-    const content = response.data as string;
-    const lines = content.split('\n');
-    const contentSignal = parseContentSignal(content);
-
-    // Parse robots.txt for AI bot rules
-    let currentUserAgent = '';
-    const botRules: Record<string, { allowed: boolean; disallowAll: boolean }> = {};
-
-    for (const line of lines) {
-      const trimmed = line.trim().toLowerCase();
-
-      if (trimmed.startsWith('content-signal:')) {
-        // Already captured by parseContentSignal above; skip so it isn't
-        // also mistaken for an unrecognized directive by anything below.
-        continue;
-      } else if (trimmed.startsWith('user-agent:')) {
-        currentUserAgent = trimmed.split(':')[1].trim();
-      } else if (trimmed.startsWith('disallow:')) {
-        const path = trimmed.split(':')[1]?.trim() || '';
-
-        // Check if this user agent matches any AI bot
-        for (const [botKey, botName] of Object.entries(AI_BOTS)) {
-          if (currentUserAgent === '*' || currentUserAgent === botKey.toLowerCase() || currentUserAgent === botName.toLowerCase()) {
-            if (path === '/' || path === '/*') {
-              if (!botRules[botKey]) {
-                botRules[botKey] = { allowed: false, disallowAll: false };
-              }
-              if (currentUserAgent !== '*' || (currentUserAgent === '*' && !botRules[botKey].allowed)) {
-                botRules[botKey].disallowAll = true;
-              }
-            }
-          }
-        }
-      } else if (trimmed.startsWith('allow:')) {
-        // Explicit allow for a bot
-        for (const [botKey] of Object.entries(AI_BOTS)) {
-          if (currentUserAgent === botKey.toLowerCase()) {
-            if (!botRules[botKey]) {
-              botRules[botKey] = { allowed: true, disallowAll: false };
-            }
-            botRules[botKey].allowed = true;
-          }
-        }
-      }
-    }
-
-    // Determine blocked/allowed bots
-    for (const [botKey] of Object.entries(AI_BOTS)) {
-      const rules = botRules[botKey];
-      if (rules?.disallowAll && !rules?.allowed) {
-        blockedBots.push(botKey);
-      } else {
-        allowedBots.push(botKey);
-      }
-    }
-
-    // Generate issues for blocked bots
-    if (blockedBots.length === Object.keys(AI_BOTS).length) {
-      issues.push({
-        ...ISSUE_DEFINITIONS.AI_BOT_BLOCKED_ALL,
-        affectedUrls: [url],
-        details: { blockedBots },
-      });
+  for (const bot of KNOWN_BOTS) {
+    if (isDisallowed(bot, groups)) {
+      classes[bot.class].disallowed.push(bot.name);
+      blockedBots.push(bot.name);
     } else {
-      // Individual bot blocking notices
-      if (blockedBots.includes('GPTBot') || blockedBots.includes('ChatGPT-User')) {
-        issues.push({
-          ...ISSUE_DEFINITIONS.AI_BOT_GPTBOT_BLOCKED,
-          affectedUrls: [url],
-        });
-      }
-      if (blockedBots.includes('ClaudeBot') || blockedBots.includes('Claude-Web') || blockedBots.includes('anthropic-ai')) {
-        issues.push({
-          ...ISSUE_DEFINITIONS.AI_BOT_CLAUDEBOT_BLOCKED,
-          affectedUrls: [url],
-        });
-      }
-      if (blockedBots.includes('PerplexityBot')) {
-        issues.push({
-          ...ISSUE_DEFINITIONS.AI_BOT_PERPLEXITY_BLOCKED,
-          affectedUrls: [url],
-        });
-      }
-      if (blockedBots.includes('Google-Extended')) {
-        issues.push({
-          ...ISSUE_DEFINITIONS.AI_BOT_GOOGLE_EXTENDED_BLOCKED,
-          affectedUrls: [url],
-        });
-      }
+      classes[bot.class].allowed.push(bot.name);
+      allowedBots.push(bot.name);
     }
-
-    return {
-      issues,
-      data: {
-        robotsExists: true,
-        blockedBots,
-        allowedBots,
-        allBlocked: blockedBots.length === Object.keys(AI_BOTS).length,
-        contentSignal,
-      },
-    };
-  } catch (error) {
-    return {
-      issues,
-      data: {
-        robotsExists: false,
-        blockedBots: [],
-        allowedBots: Object.keys(AI_BOTS),
-        allBlocked: false,
-        contentSignal: null,
-      },
-    };
   }
+
+  const aiBots = KNOWN_BOTS.filter((bot) => bot.class !== 'search');
+  const allBlocked = aiBots.every((bot) => blockedBots.includes(bot.name));
+  const names = (cls: BotClass) => classes[cls].disallowed.join(', ');
+
+  if (allBlocked) {
+    issues.push({
+      ...ISSUE_DEFINITIONS.AI_BOT_BLOCKED_ALL,
+      affectedUrls: [url],
+      details: { blockedBots, classes },
+    });
+  } else {
+    if (classes['ai-search'].disallowed.length > 0) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.AI_SEARCH_BOTS_DISALLOWED,
+        description: `robots.txt disallows ${names('ai-search')}. ${ISSUE_DEFINITIONS.AI_SEARCH_BOTS_DISALLOWED.description}`,
+        affectedUrls: [url],
+        details: { disallowed: classes['ai-search'].disallowed },
+      });
+    }
+    if (classes.user.disallowed.length > 0) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.AI_USER_FETCH_DISALLOWED,
+        description: `robots.txt disallows ${names('user')}. ${ISSUE_DEFINITIONS.AI_USER_FETCH_DISALLOWED.description}`,
+        affectedUrls: [url],
+        details: { disallowed: classes.user.disallowed },
+      });
+    }
+    if (classes.training.disallowed.length > 0) {
+      issues.push({
+        ...ISSUE_DEFINITIONS.AI_TRAINING_BOTS_DISALLOWED,
+        description: `robots.txt disallows ${names('training')}. ${ISSUE_DEFINITIONS.AI_TRAINING_BOTS_DISALLOWED.description}`,
+        affectedUrls: [url],
+        details: { disallowed: classes.training.disallowed },
+      });
+    }
+  }
+
+  return {
+    issues,
+    data: { robotsExists: true, blockedBots, allowedBots, allBlocked, contentSignal: parseContentSignal(content), classes },
+  };
 }
 
 /**

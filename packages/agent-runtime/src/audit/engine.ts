@@ -730,7 +730,7 @@ export function formatReport(report: AuditReport): string {
   lines.push(`    Links:         ${report.healthScore.links}/100`);
   lines.push(`    Performance:   ${report.healthScore.performance}/100`);
   lines.push(`    Security:      ${report.healthScore.security}/100`);
-  lines.push(`    AI Readiness:  ${report.healthScore.aiReadiness}/100`);
+  lines.push(`    AI Readiness:  ${report.healthScore.aiReadiness}/100  (hygiene on evidence-backed levers; not a citation predictor)`);
   lines.push(`    Social:        ${report.healthScore.social}/100`);
   lines.push(`    Local SEO:     ${report.healthScore.localSeo}/100`);
   lines.push(`    Accessibility: ${report.healthScore.accessibility}/100`);
