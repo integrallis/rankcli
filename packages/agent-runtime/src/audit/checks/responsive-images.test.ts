@@ -32,6 +32,22 @@ describe('responsive images', () => {
     expect(few.find((f) => f.code === 'IMAGES_MISSING_DIMENSIONS')?.severity).toBe('notice');
   });
 
+  it('does not call a footer image a lazy-loaded hero', async () => {
+    // rankcli.dev 2026-11-02: the only <img> on the page was a badge in the footer with
+    // loading="lazy"; the first-three-images heuristic reported it as above the fold.
+    const found = await codes(
+      `<html><body><main><h1>Title</h1></main><footer><a href="/x"><img src="/badge.png" alt="badge" width="220" height="54" loading="lazy"></a></footer></body></html>`
+    );
+    expect(found.map((f) => f.code)).not.toContain('HERO_IMAGE_LAZY');
+  });
+
+  it('still reports a lazy-loaded image in the header', async () => {
+    const found = await codes(
+      `<html><body><header><img src="/logo.png" alt="logo" width="200" height="50" loading="lazy"></header></body></html>`
+    );
+    expect(found.map((f) => f.code)).toContain('HERO_IMAGE_LAZY');
+  });
+
   it('says nothing when every image is sized', async () => {
     const found = await codes(`<html><body>${img(6, 'width="80" height="60"')}</body></html>`);
     expect(found.map((f) => f.code)).not.toContain('IMAGES_MISSING_DIMENSIONS');

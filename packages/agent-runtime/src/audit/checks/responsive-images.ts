@@ -73,9 +73,12 @@ export function analyzeImage($: cheerio.CheerioAPI, img: any, index: number): Im
   const usesModernFormat = MODERN_FORMATS.some(fmt => srcLower.includes(fmt));
 
   // Estimate if above fold (very rough - based on element order)
-  // Images in first 3 <img> tags or in header/hero are likely above fold
+  // Images in first 3 <img> tags or in header/hero are likely above fold. A footer image is
+  // never above the fold, even when it is the first <img> on a page that draws its hero with
+  // CSS or SVG (a badge in the footer used to be reported as a lazy-loaded hero).
   const isInHeader = $img.closest('header, [class*="hero"], [class*="banner"], [class*="jumbotron"]').length > 0;
-  const isAboveFold = index < 3 || isInHeader;
+  const isInFooter = $img.closest('footer, [class*="footer"]').length > 0;
+  const isAboveFold = !isInFooter && (index < 3 || isInHeader);
 
   // Generate issues
   if (!hasExplicitDimensions) {
