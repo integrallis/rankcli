@@ -85,7 +85,7 @@ if [ -z "$(git -C "$TARGET" ls-files dist/index.js)" ]; then
 fi
 git -C "$TARGET" commit -q -m "Release v$VERSION
 
-Built from rankcli.dev@$SOURCE_SHA (packages/github-action)."
+Built from integrallis/rankcli@$SOURCE_SHA (packages/github-action)."
 git -C "$TARGET" tag -a "v$VERSION" -m "v$VERSION"
 git -C "$TARGET" tag -fa "$MAJOR" -m "$MAJOR -> v$VERSION"
 
