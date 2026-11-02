@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { runFullAudit } from './engine.js';
+import { calculateHealthScore, runFullAudit } from './engine.js';
 import { analyzeOnPage, xRobotsTagHasNoindex } from './checks/on-page.js';
 
 // A tiny local site whose routes each exercise one scoring rule. Every
@@ -219,5 +219,21 @@ describe('noindex detection', () => {
     // ...but a noindex meta tag ships to production, so it stays an error.
     const meta = analyzeOnPage(page('<meta name="robots" content="noindex">'), 'https://my-app.vercel.app/', headers);
     expect(meta.issues.find(i => i.code === 'NOINDEX_TAG')?.severity).toBe('error');
+  });
+});
+
+describe('calculateHealthScore', () => {
+  const issue = (code: string, severity: 'warning' | 'notice', category: string) =>
+    ({ code, severity, category, title: code, description: '', impact: '', howToFix: '', affectedUrls: [] }) as Parameters<typeof calculateHealthScore>[0][number];
+
+  // Structured data used to be a category no score read. It counts in the on-page score now,
+  // at a third of the weight of the on-page essentials: the evidence for schema is small.
+  it('counts structured data in the on-page score, lightly', () => {
+    const clean = calculateHealthScore([]);
+    const noSchema = calculateHealthScore([issue('SCHEMA_MISSING', 'warning', 'structured-data')]);
+    const noTitle = calculateHealthScore([issue('TITLE_MISSING', 'warning', 'on-page')]);
+    expect(clean.onPage - noSchema.onPage).toBe(3);
+    expect(clean.onPage - noTitle.onPage).toBe(9);
+    expect(clean.overall - noSchema.overall).toBeLessThanOrEqual(1);
   });
 });
