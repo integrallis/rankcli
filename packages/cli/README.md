@@ -69,7 +69,7 @@ rankcli geo --url https://yoursite.com
 ```
 
 Analyzes:
-- **AI crawler access**: GPTBot, ClaudeBot, PerplexityBot, Google-Extended
+- **AI crawler access by class**: the search crawlers (OAI-SearchBot, Claude-SearchBot, PerplexityBot), the user-triggered fetchers (ChatGPT-User, Claude-User, Perplexity-User) and the training crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended), each read from robots.txt and fetched live as that bot, so an edge block shows with its status code. Refusing a training crawler costs nothing a user sees; refusing a search crawler takes the site out of that assistant's answers.
 - **JS rendering**: Can AI crawlers see your content?
 - **LLM signals**: Content structure, citations, FAQ extraction
 - **robots.txt**: Are you blocking AI search?
@@ -179,6 +179,10 @@ rankcli audit --fail-on error --baseline .rankcli/baseline.json
 ```
 
 A finding is identified by its code and the page's path, so save the baseline with the same `--max-pages` the gate runs with. The console and the JSON report list what is new since the baseline, what was fixed and what stayed; `rankcli diff` compares any two saved reports.
+
+#### What the AI Readiness score is
+
+It measures hygiene on the levers the citation evidence supports: crawler access by bot class (a fetch as each bot, not only robots.txt), indexability, freshness and answer-first structure. It does not predict citations, and no published study shows that any score does; GeoReady's own calibration of its score against Perplexity citations found no association. Treat it as a regression gate (`--fail-on score:aiReadiness<70`), not a forecast. The JSON report carries this note under `notes.aiReadiness`.
 
 #### Output formats
 

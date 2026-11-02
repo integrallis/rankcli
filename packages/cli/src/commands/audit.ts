@@ -18,6 +18,7 @@ import {
   type BaselineReport,
   type IssueDiff,
   type IgnoredFinding,
+  AI_READINESS_NOTE,
 } from '@rankcli/agent-runtime';
 export { parseHeaderOptions } from '@rankcli/agent-runtime';
 import ora from 'ora';
@@ -508,6 +509,7 @@ export async function audit(options: AuditOptions): Promise<number> {
         ...(ignored.length > 0 && { ignored }),
         ...(baselineSummary && { baseline: baselineSummary }),
         healthScores: primaryReport.healthScore,
+        notes: { aiReadiness: AI_READINESS_NOTE },
         aiAnalysis,
         ...(aiError && { aiError }),
         ...(pageFailure && { error: pageFailure.title }),
@@ -563,6 +565,7 @@ export async function audit(options: AuditOptions): Promise<number> {
         console.log(`    Security:      ${bar(hs.security || 0)} ${hs.security || 0}%`);
         console.log(`    Local SEO:     ${bar(hs.localSeo || 0)} ${hs.localSeo || 0}%`);
         console.log(`    AI Readiness:  ${bar(hs.aiReadiness || 0)} ${hs.aiReadiness || 0}%`);
+        console.log(chalk.dim('                   hygiene on evidence-backed levers; not a citation predictor'));
       }
 
       // Issues by severity

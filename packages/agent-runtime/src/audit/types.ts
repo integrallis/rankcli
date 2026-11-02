@@ -66,6 +66,14 @@ export interface HealthScore {
   accessibility: number;
 }
 
+/**
+ * What the AI Readiness score is, stated wherever the number is printed. No vendor has shown
+ * that any readiness score predicts citations (GeoReady's own calibration study found none),
+ * so this one is sold as what it is: a deterministic gate on the levers the evidence supports.
+ */
+export const AI_READINESS_NOTE =
+  'AI Readiness measures hygiene on the levers the citation evidence supports: crawler access by bot class, indexability, freshness and answer-first structure. It does not predict citations; no published study shows that any score does.';
+
 export interface AuditReport {
   url: string;
   domain: string;
@@ -983,64 +991,81 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     code: 'LLMS_TXT_MISSING',
     severity: 'notice',
     category: 'ai-readiness',
-    title: 'Missing llms.txt file',
-    description: 'No llms.txt file found at the root of the domain.',
-    impact: 'AI crawlers like ChatGPT and Claude may not understand how to best use your content.',
-    howToFix: 'Create an llms.txt file at your domain root with guidance for AI systems. See llmstxt.org for format.',
+    title: 'No llms.txt',
+    description:
+      'No /llms.txt. It is a convention for coding agents and documentation sites (Lighthouse 13.3 audits it; Anthropic, OpenAI, Stripe, Vercel and Supabase publish one for their docs). No search engine or answer engine reads it: Google says it neither helps nor harms, and in a 137,000-domain study 97 percent of the files received no request in a month.',
+    impact: 'None on search or AI answers. A documentation site gains a curated index for the agents that look for one.',
+    howToFix:
+      'For a documentation site, publish /llms.txt: an H1 with the project name, a one-line blockquote description, then markdown links with a short description each (the Lighthouse criteria). For a marketing site, ignore this notice.',
   },
   LLMS_TXT_INVALID: {
     code: 'LLMS_TXT_INVALID',
-    severity: 'warning',
+    severity: 'notice',
     category: 'ai-readiness',
-    title: 'Invalid llms.txt format',
-    description: 'The llms.txt file exists but has invalid format or syntax.',
-    impact: 'AI crawlers may not be able to parse your AI guidance properly.',
-    howToFix: 'Validate your llms.txt file format against the specification at llmstxt.org.',
+    title: 'llms.txt does not follow the convention',
+    description: 'The file exists but does not follow the llms.txt convention (an H1, a blockquote description, markdown links).',
+    impact: 'The agents that read llms.txt (coding agents, Lighthouse’s agentic audit) get less than intended; search and answer engines are unaffected either way.',
+    howToFix: 'Start the file with "# Project name", follow with "> one-line description", then sections of "- [Title](url): description" links. See https://llmstxt.org/.',
   },
   AI_BOT_BLOCKED_ALL: {
     code: 'AI_BOT_BLOCKED_ALL',
-    severity: 'notice',
+    severity: 'warning',
     category: 'ai-readiness',
-    title: 'All AI bots blocked in robots.txt',
-    description: 'robots.txt blocks all major AI crawlers (GPTBot, Claude-Web, PerplexityBot, etc.).',
-    impact: 'Your content will not appear in AI-powered search and assistants.',
-    howToFix: 'Consider allowing some AI bots if you want visibility in AI-generated responses.',
+    title: 'robots.txt disallows every AI crawler, the search ones included',
+    description:
+      'Every AI crawler is disallowed: the search crawlers (OAI-SearchBot, Claude-SearchBot, PerplexityBot), the user-triggered fetchers (ChatGPT-User, Claude-User, Perplexity-User) and the training crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended).',
+    impact:
+      'The site is out of ChatGPT search, Claude search and Perplexity answers, and assistants cannot read a page a user pastes. Disallowing the training crawlers alone would have cost none of that.',
+    howToFix: `Keep the training crawlers disallowed if that is the policy, and allow the rest explicitly:
+
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Allow: /`,
   },
-  AI_BOT_GPTBOT_BLOCKED: {
-    code: 'AI_BOT_GPTBOT_BLOCKED',
-    severity: 'notice',
+  AI_SEARCH_BOTS_DISALLOWED: {
+    code: 'AI_SEARCH_BOTS_DISALLOWED',
+    severity: 'warning',
     category: 'ai-readiness',
-    title: 'GPTBot blocked in robots.txt',
-    description: 'robots.txt blocks OpenAI\'s GPTBot crawler.',
-    impact: 'Your content will not be used to train or cited by ChatGPT.',
-    howToFix: 'Remove "User-agent: GPTBot Disallow: /" if you want ChatGPT visibility.',
+    title: 'robots.txt opts the site out of AI search answers',
+    description:
+      'These are the crawlers that build the index each assistant answers from. OpenAI: "Sites that are opted out of OAI-SearchBot will not be shown in ChatGPT search answers"; Anthropic documents the same for Claude-SearchBot; PerplexityBot is how Perplexity reads the web.',
+    impact:
+      'The site is absent from those answers. This is independent of training: GPTBot and ClaudeBot can stay disallowed without this cost.',
+    howToFix: `Allow the search crawlers explicitly (an Allow in their own group wins over a wildcard Disallow):
+
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+Allow: /`,
   },
-  AI_BOT_CLAUDEBOT_BLOCKED: {
-    code: 'AI_BOT_CLAUDEBOT_BLOCKED',
-    severity: 'notice',
+  AI_USER_FETCH_DISALLOWED: {
+    code: 'AI_USER_FETCH_DISALLOWED',
+    severity: 'warning',
     category: 'ai-readiness',
-    title: 'ClaudeBot blocked in robots.txt',
-    description: 'robots.txt blocks Anthropic\'s ClaudeBot crawler.',
-    impact: 'Your content will not be used by Claude AI.',
-    howToFix: 'Remove "User-agent: ClaudeBot Disallow: /" if you want Claude visibility.',
+    title: 'robots.txt disallows the agents that fetch a page when a user asks',
+    description:
+      'These agents retrieve one page because a user pasted its link or asked about it; they are not crawlers and visit nothing on their own.',
+    impact: 'A user who asks ChatGPT, Claude or Perplexity about a page on this site gets an error instead of its content.',
+    howToFix: `Allow them explicitly:
+
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Allow: /`,
   },
-  AI_BOT_PERPLEXITY_BLOCKED: {
-    code: 'AI_BOT_PERPLEXITY_BLOCKED',
+  AI_TRAINING_BOTS_DISALLOWED: {
+    code: 'AI_TRAINING_BOTS_DISALLOWED',
     severity: 'notice',
     category: 'ai-readiness',
-    title: 'PerplexityBot blocked in robots.txt',
-    description: 'robots.txt blocks Perplexity AI\'s crawler.',
-    impact: 'Your content will not appear in Perplexity AI search results.',
-    howToFix: 'Remove "User-agent: PerplexityBot Disallow: /" if you want Perplexity visibility.',
-  },
-  AI_BOT_GOOGLE_EXTENDED_BLOCKED: {
-    code: 'AI_BOT_GOOGLE_EXTENDED_BLOCKED',
-    severity: 'notice',
-    category: 'ai-readiness',
-    title: 'Google-Extended blocked in robots.txt',
-    description: 'robots.txt blocks Google\'s AI training crawler (Google-Extended).',
-    impact: 'Your content will not be used for Bard/Gemini AI training (regular search unaffected).',
-    howToFix: 'Remove "User-agent: Google-Extended Disallow: /" if you want Google AI visibility.',
+    title: 'robots.txt disallows AI training crawlers',
+    description:
+      'These crawlers collect model-training data only. OpenAI and Anthropic both document the training crawler (GPTBot, ClaudeBot) and the search crawler (OAI-SearchBot, Claude-SearchBot) as separate bots with separate consequences.',
+    impact: 'None on search or AI answers. Reported so the choice is visible, not to change it.',
+    howToFix: 'Nothing, if that is the policy. To allow training on the content, remove the Disallow for the crawler’s group.',
   },
   CLOUDFLARE_AI_CRAWLER_GATE_AMBIGUOUS: {
     code: 'CLOUDFLARE_AI_CRAWLER_GATE_AMBIGUOUS',
@@ -1052,7 +1077,7 @@ export const ISSUE_DEFINITIONS: Record<string, IssueDefinition> = {
     impact:
       'Without an explicit rule, whether AI crawlers (and future citation opportunities in ChatGPT, Claude, Perplexity, etc.) can reach this site now depends on Cloudflare account-level bot-management defaults, not on this codebase — a silent, invisible-to-git failure mode.',
     howToFix:
-      'Two ways to make your stance explicit, either works: (1) add a Content-Signal line to robots.txt - e.g. "Content-Signal: search=yes,ai-train=no,use=reference" - the format Cloudflare\'s AI Crawl Control update actually reads, or (2) add explicit User-agent rules for GPTBot, Claude-Web/ClaudeBot, PerplexityBot, and Google-Extended. Either way, confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
+      'Two ways to make your stance explicit, either works: (1) add a Content-Signal line to robots.txt - e.g. "Content-Signal: search=yes,ai-train=no,use=reference" - the format Cloudflare\'s AI Crawl Control update actually reads, or (2) add explicit User-agent rules for the search crawlers (OAI-SearchBot, Claude-SearchBot, PerplexityBot) and, separately, the training crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended). Either way, confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
   },
   NO_AGENT_EXPERIENCE_SURFACE: {
     code: 'NO_AGENT_EXPERIENCE_SURFACE',

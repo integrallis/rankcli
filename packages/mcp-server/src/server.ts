@@ -612,14 +612,26 @@ ${crawlers.map(([name, info]) => `## ${name}
 
 ## robots.txt Example
 
+The classes have different consequences: disallowing a training crawler costs no visibility, disallowing a search crawler takes the site out of that assistant's answers, disallowing a user-triggered fetcher means the assistant cannot read a page a user pastes.
+
 \`\`\`
-User-agent: GPTBot
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
+# AI search crawlers: the index each assistant answers from
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
 User-agent: PerplexityBot
+Allow: /
+
+# Fetchers that read one page because a user asked about it
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Allow: /
+
+# Training crawlers: allow or disallow as a matter of policy; search is unaffected either way
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: CCBot
+User-agent: Google-Extended
 Allow: /
 \`\`\`
 `;
