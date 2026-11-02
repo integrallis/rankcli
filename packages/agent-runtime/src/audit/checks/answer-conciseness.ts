@@ -205,8 +205,8 @@ export function analyzeAnswerConciseness(
       severity: 'notice',
       category: 'ai-readiness',
       title: 'Questions lack direct, quotable answers',
-      description: `${questionHeadings} question headings found but only ${headingsWithDirectAnswers} have direct answers. AI prefers content that answers questions immediately.`,
-      impact: 'AI may skip your content for sources with clearer, more direct answers.',
+      description: `${questionHeadings} question headings, ${headingsWithDirectAnswers} answered in the paragraph right after. In a 193,507-answer study, 23 percent of the pages assistants cited opened with a direct answer, against 14 percent of pages retrieved but not cited.`,
+      impact: 'The assistant quotes the page that answers first and paraphrases the one that builds up to it.',
       howToFix: 'Start answer paragraphs with a direct 1-2 sentence answer. Avoid filler words like "Well," "So," "Basically." Lead with the answer, then explain.',
       affectedUrls: [url],
       details: {
@@ -277,7 +277,8 @@ export function analyzeAnswerConciseness(
   if (concisenessScore < 50) {
     issues.push({
       code: 'AI_LOW_CONCISENESS',
-      severity: 'warning',
+      // A heuristic score, not a defect a crawler can see: never a failed build.
+      severity: 'notice',
       category: 'ai-readiness',
       title: 'Content lacks concise, quotable answers',
       description: `Conciseness score: ${concisenessScore}/100. AI prefers content with clear, succinct answers it can quote directly.`,

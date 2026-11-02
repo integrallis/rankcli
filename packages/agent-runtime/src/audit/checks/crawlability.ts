@@ -17,6 +17,8 @@ export interface SitemapResult {
   errors: string[];
   lastmodCount?: number;
   invalidLastmodCount?: number;
+  /** Every lastmod is the same day: the build time, not when each page changed. */
+  uniformLastmod?: boolean;
 }
 
 // Sitemap protocol requires W3C Datetime (a subset of ISO 8601): full date,
@@ -24,10 +26,12 @@ export interface SitemapResult {
 // rather than relying on Date's lenient/inconsistent free-form parsing.
 const LASTMOD_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}))?$/;
 
-export function validateLastmodValues(content: string): { count: number; invalidCount: number } {
+export function validateLastmodValues(content: string): { count: number; invalidCount: number; uniform: boolean; sample?: string } {
   const matches = content.match(/<lastmod>([^<]*)<\/lastmod>/g) || [];
   let invalidCount = 0;
   const now = Date.now();
+  const days = new Set<string>();
+  let sample: string | undefined;
 
   for (const match of matches) {
     const value = match.replace(/<\/?lastmod>/g, '').trim();
@@ -35,9 +39,14 @@ export function validateLastmodValues(content: string): { count: number; invalid
     if (!parsed || isNaN(parsed.getTime()) || parsed.getTime() > now) {
       invalidCount++;
     }
+    days.add(value.slice(0, 10));
+    sample ??= value;
   }
 
-  return { count: matches.length, invalidCount };
+  // Ten or more URLs all changed on the same day is a generator stamping the build time.
+  // Google uses lastmod only while it proves accurate and ignores it once it does not.
+  const uniform = matches.length >= 10 && days.size === 1;
+  return { count: matches.length, invalidCount, uniform, sample };
 }
 
 export async function checkRobotsTxt(baseUrl: string): Promise<{ issues: AuditIssue[]; data: RobotsTxtResult }> {
@@ -183,7 +192,7 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
           });
         }
 
-        const { count: lastmodCount, invalidCount: invalidLastmodCount } = validateLastmodValues(content);
+        const { count: lastmodCount, invalidCount: invalidLastmodCount, uniform: uniformLastmod, sample } = validateLastmodValues(content);
 
         if (lastmodCount === 0) {
           issues.push({
@@ -196,11 +205,17 @@ export async function checkSitemap(baseUrl: string, robotsData: RobotsTxtResult)
             affectedUrls: [sitemapUrl],
             details: { invalidCount: invalidLastmodCount, totalCount: lastmodCount },
           });
+        } else if (uniformLastmod) {
+          issues.push({
+            ...ISSUE_DEFINITIONS.SITEMAP_LASTMOD_UNIFORM,
+            affectedUrls: [sitemapUrl],
+            details: { lastmod: sample, urlCount: lastmodCount },
+          });
         }
 
         return {
           issues,
-          data: { exists: true, url: sitemapUrl, urlCount, errors: [], lastmodCount, invalidLastmodCount }
+          data: { exists: true, url: sitemapUrl, urlCount, errors: [], lastmodCount, invalidLastmodCount, uniformLastmod }
         };
       }
     } catch {

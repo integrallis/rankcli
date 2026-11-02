@@ -250,7 +250,8 @@ export function analyzeCitationQuality(
   if (totalReputable === 0 && externalLinks > 0) {
     issues.push({
       code: 'AI_NO_REPUTABLE_CITATIONS',
-      severity: 'warning',
+      // "Reputable" is a curated domain list, so this is a hint, never a failed build.
+      severity: 'notice',
       category: 'ai-readiness',
       title: 'No reputable sources cited',
       description: 'Content has external links but none to recognized authoritative sources. AI prioritizes content that cites reputable sources.',
@@ -273,7 +274,8 @@ export function analyzeCitationQuality(
   if (externalLinks === 0 && totalLinks > 0) {
     issues.push({
       code: 'AI_NO_EXTERNAL_CITATIONS',
-      severity: 'warning',
+      // A product or landing page with no outbound links is normal; a hint, never a failed build.
+      severity: 'notice',
       category: 'ai-readiness',
       title: 'No external sources linked',
       description: 'Content has no external links. AI values content that references and links to authoritative sources.',
@@ -290,9 +292,9 @@ export function analyzeCitationQuality(
       severity: 'warning',
       category: 'ai-readiness',
       title: 'Statistics without source citations',
-      description: `Found ${statisticsWithoutSources} statistic(s) without linked sources. AI is trained to prefer claims backed by citations.`,
-      impact: 'Uncited statistics reduce content credibility and E-E-A-T signals.',
-      howToFix: 'Add source links or citations for all statistics. Include the source name and year when possible (e.g., "according to [Source, 2024]").',
+      description: `Found ${statisticsWithoutSources} statistic(s) with no linked source. In the Princeton GEO experiments, adding statistics with sources raised a page's visibility in generated answers by 29 percent and adding quotations by 40 percent, while keyword stuffing lowered it by 9 percent.`,
+      impact: 'An uncited number is a claim the assistant cannot verify and will not repeat with attribution.',
+      howToFix: 'Link each statistic to its source and name it in the sentence ("according to Ahrefs, 2026"), or drop the number.',
       affectedUrls: [url],
       details: {
         statisticsWithSources,

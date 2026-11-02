@@ -312,24 +312,6 @@ export function analyzeAICitationWorthiness(
     });
   }
 
-  // Stock images detected
-  if (stockImageCount > 0 && stockImageCount >= totalImages * 0.5) {
-    issues.push({
-      code: 'AI_STOCK_IMAGE_HEAVY',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Heavy use of stock images',
-      description: `${stockImageCount} of ${totalImages} images appear to be from stock photo sites. Original visuals signal authenticity.`,
-      impact: 'Stock-heavy content appears less authentic and expert to both users and AI.',
-      howToFix: 'Replace stock photos with original screenshots, diagrams, photos, or custom graphics that AI cannot easily replicate.',
-      affectedUrls: [url],
-      details: {
-        stockImageCount,
-        totalImages,
-      },
-    });
-  }
-
   // No author credentials
   if (!hasAuthorByline && !hasAuthorCredentials) {
     issues.push({
