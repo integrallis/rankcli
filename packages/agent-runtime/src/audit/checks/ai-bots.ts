@@ -137,7 +137,50 @@ export const KNOWN_BOTS: readonly KnownBot[] = [
     userAgent: null,
     loses: "ByteDance's training corpus",
   },
+  {
+    name: 'Applebot-Extended',
+    class: 'training',
+    robotsTokens: ['applebot-extended'],
+    userAgent: null,
+    loses: "Apple's training data (Applebot itself, which powers Siri and Spotlight search, is unaffected)",
+  },
+  {
+    name: 'meta-externalagent',
+    class: 'training',
+    robotsTokens: ['meta-externalagent'],
+    userAgent: null,
+    loses: "Meta's training corpus",
+  },
+  {
+    name: 'Amazonbot',
+    class: 'training',
+    robotsTokens: ['amazonbot'],
+    userAgent: null,
+    loses: "Amazon's training data for Alexa",
+  },
+  {
+    name: 'cohere-ai',
+    class: 'training',
+    robotsTokens: ['cohere-ai'],
+    userAgent: null,
+    loses: "Cohere's training corpus",
+  },
+  {
+    name: 'YouBot',
+    class: 'ai-search',
+    robotsTokens: ['youbot'],
+    userAgent: null,
+    loses: 'You.com answers',
+  },
 ];
+
+/** Who runs the bot, for listings. */
+export const BOT_OPERATOR: Record<string, string> = {
+  Googlebot: 'Google', bingbot: 'Microsoft', 'OAI-SearchBot': 'OpenAI', 'Claude-SearchBot': 'Anthropic', PerplexityBot: 'Perplexity',
+  'ChatGPT-User': 'OpenAI', 'Claude-User': 'Anthropic', 'Perplexity-User': 'Perplexity', GPTBot: 'OpenAI', ClaudeBot: 'Anthropic',
+  CCBot: 'Common Crawl', 'Google-Extended': 'Google', Bytespider: 'ByteDance', 'Applebot-Extended': 'Apple', 'meta-externalagent': 'Meta',
+  Amazonbot: 'Amazon', 'cohere-ai': 'Cohere', YouBot: 'You.com',
+};
 
 export const BOT_CLASS_LABEL: Record<BotClass, string> = {
   search: 'search crawlers',
