@@ -179,7 +179,9 @@ export function canonicalPageUrl(raw: string): string | null {
     const u = new URL(raw);
     u.hash = '';
     for (const p of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref', 'source']) u.searchParams.delete(p);
-    const path = u.pathname.replace(/\/+$/, '') || '/';
+    // /index.html and / are one page; a site whose brand link points at index.html must
+    // key its homepage the way the sitemap and the entry URL spell it (rankcli #23).
+    const path = u.pathname.replace(/\/index\.html?$/i, '/').replace(/\/+$/, '') || '/';
     return `${u.protocol}//${u.hostname.toLowerCase()}${path}${u.search}`;
   } catch {
     return null;
@@ -196,7 +198,9 @@ export function buildLinkGraph(
   audited: Map<string, string[]>,
   sitemap: { urls: string[]; complete: boolean }
 ): LinkGraph {
-  const home = canonicalPageUrl(homeUrl) ?? homeUrl;
+  const canonicalHome = canonicalPageUrl(homeUrl) ?? homeUrl;
+  // The entry URL is the homepage; if the crawl keyed it another way, the first audited page is.
+  const home = audited.has(canonicalHome) ? canonicalHome : ([...audited.keys()][0] ?? canonicalHome);
   const depth: Record<string, number> = { [home]: 0 };
   const queue = [home];
   while (queue.length > 0) {
@@ -211,7 +215,7 @@ export function buildLinkGraph(
   const sitemapPages = [...new Set(sitemap.urls.map(canonicalPageUrl).filter((u): u is string => !!u && u !== home))];
   const complete = sitemap.complete && sitemapPages.length > 0 && sitemapPages.every(page => audited.has(page));
   const graph: LinkGraph = {
-    homepageLinks: (audited.get(home) ?? []).length,
+    homepageLinks: new Set((audited.get(home) ?? []).filter(link => link !== home)).size,
     depth,
     unreachable,
     coverage: { audited: audited.size, sitemap: sitemapPages.length, complete },

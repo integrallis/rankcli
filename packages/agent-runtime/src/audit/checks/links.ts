@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { httpHead } from '../../utils/http.js';
+import { httpGet, httpHead } from '../../utils/http.js';
 import type { AuditIssue } from '../types.js';
 import { ISSUE_DEFINITIONS } from '../types.js';
 
@@ -15,6 +15,25 @@ export interface LinkData {
     external: number;
     internalToExternalRatio: number | null; // null if no external links
   };
+}
+
+const INDETERMINATE = new Set([401, 403, 405, 429]);
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+/** True only when a HEAD, then a browser-like GET, both answer a status that means "gone". */
+async function isDefinitelyBroken(href: string): Promise<boolean> {
+  const head = await httpHead(href, { timeout: 5000, maxRedirects: 5, validateStatus: () => true });
+  if (head.status < 400) return false;
+  if (!INDETERMINATE.has(head.status)) return true;
+  const get = await httpGet(href, {
+    timeout: 5000,
+    maxRedirects: 5,
+    validateStatus: () => true,
+    maxBytes: 2048,
+    headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html,*/*;q=0.8', Range: 'bytes=0-1023' },
+  });
+  if (get.status < 400) return false;
+  return !INDETERMINATE.has(get.status);
 }
 
 export async function analyzeLinks(
@@ -219,18 +238,14 @@ export async function analyzeLinks(
       }
     }
 
-    // Check external links (up to 5)
+    // Check external links (up to 5). A HEAD is refused by many hosts (405) and a 401, 403 or
+    // 429 is bot protection or a rate limit, not a dead link (rankcli #21: Medium answers 403
+    // to every crawler); those are retried once with a browser-like GET and, if still refused,
+    // treated as indeterminate, like a timeout. Only a definite 4xx/5xx counts as broken.
     const externalToCheck = external.slice(0, 5);
     for (const link of externalToCheck) {
       try {
-        const response = await httpHead(link.href, {
-          timeout: 5000,
-          maxRedirects: 5,
-          validateStatus: () => true,
-        });
-        if (response.status >= 400) {
-          brokenExternal.push(link.href);
-        }
+        if (await isDefinitelyBroken(link.href)) brokenExternal.push(link.href);
       } catch {
         // Don't count timeouts as broken for external links
       }

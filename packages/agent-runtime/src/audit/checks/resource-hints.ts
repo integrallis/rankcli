@@ -122,8 +122,9 @@ export function detectThirdPartyDomains(html: string, pageUrl: string): string[]
     }
   });
 
-  // Check images
-  $('img[src]').each((_, el) => {
+  // Check images. A lazy-loaded or low-priority image is fetched after the critical path,
+  // so its origin gains nothing from a preconnect (rankcli.dev #30: a lazy footer badge).
+  $('img[src]').not('[loading="lazy"], [fetchpriority="low"]').each((_, el) => {
     try {
       const src = $(el).attr('src')!;
       const url = new URL(src, pageUrl);
