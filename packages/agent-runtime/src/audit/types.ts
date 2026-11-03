@@ -100,6 +100,8 @@ export interface PageAudit {
   wordCount: number;
   loadTime: number;
   issues: string[]; // Issue codes
+  /** Same-site links in the page's HTML before any JavaScript runs; the site audit's link graph. */
+  internalLinks?: string[];
 }
 
 // Issue definitions

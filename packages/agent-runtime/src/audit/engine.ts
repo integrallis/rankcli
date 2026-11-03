@@ -48,6 +48,7 @@ import { analyzeBingOptimization } from './checks/bing-optimization.js';
 // Competitor-parity checks (from missing-checks.md analysis)
 import { validateRobotsTxt } from './checks/robots-validation.js';
 import { analyzeLlmsTxt } from './checks/llms-txt.js';
+import { extractInternalLinks } from './discovery/link-crawler.js';
 import { analyzeHtmlCompliance } from './checks/html-compliance.js';
 import { analyzeCanonicalDomain } from './checks/canonical-domain.js';
 import { analyzeCachingHeaders } from './checks/caching-headers.js';
@@ -565,6 +566,7 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     wordCount: onPageResult.data.wordCount,
     loadTime: perfData.loadTime,
     issues: issues.map(i => i.code),
+    internalLinks: extractInternalLinks(html, url),
   });
 
   console.error('\n✅ Audit complete!\n');

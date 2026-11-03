@@ -36,7 +36,7 @@ const EXCLUDE_PATTERNS = [
 /**
  * Extract all internal links from HTML content
  */
-function extractLinks(html: string, baseUrl: string): string[] {
+export function extractLinks(html: string, baseUrl: string): string[] {
   const base = new URL(baseUrl);
   const links: Set<string> = new Set();
 
@@ -80,6 +80,9 @@ function extractLinks(html: string, baseUrl: string): string[] {
 
   return Array.from(links);
 }
+
+/** The same-site links in a page's HTML, before any JavaScript runs, one spelling per page. */
+export const extractInternalLinks = extractLinks;
 
 /**
  * Normalize a URL for deduplication

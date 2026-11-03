@@ -11,6 +11,10 @@ export interface SitemapDiscovery {
   /** The first sitemap that answered with XML, if any. */
   sitemapUrl?: string;
   sitemapsRead: number;
+  /** Every page URL read from the sitemaps (the root aside), beyond the `pages` cut. */
+  urls: string[];
+  /** False when reading stopped early (enough pages for the audit, or more child sitemaps than are followed). */
+  complete: boolean;
 }
 
 const MAX_CHILD_SITEMAPS = 5;
@@ -59,7 +63,7 @@ export async function discoverPagesFromSitemap(
   maxPages: number,
   options: { timeout?: number } = {},
 ): Promise<SitemapDiscovery> {
-  const result: SitemapDiscovery = { pages: [], sitemapsRead: 0 };
+  const result: SitemapDiscovery = { pages: [], sitemapsRead: 0, urls: [], complete: false };
   if (maxPages <= 0) return result;
   const timeout = options.timeout ?? 10000;
   const base = new URL(baseUrl);
@@ -71,6 +75,7 @@ export async function discoverPagesFromSitemap(
   ];
   const seen = new Set<string>();
   let pages: DiscoveredPage[] = [];
+  let truncated = false;
 
   for (const candidate of candidates) {
     if (seen.has(candidate)) continue;
@@ -81,19 +86,27 @@ export async function discoverPagesFromSitemap(
     result.sitemapUrl ??= candidate;
 
     if (/<sitemapindex/i.test(xml)) {
-      for (const child of childSitemaps(xml).slice(0, MAX_CHILD_SITEMAPS)) {
+      const children = childSitemaps(xml);
+      if (children.length > MAX_CHILD_SITEMAPS) truncated = true;
+      for (const child of children.slice(0, MAX_CHILD_SITEMAPS)) {
         if (seen.has(child)) continue;
         seen.add(child);
         const childXml = await fetchText(child, timeout, MAX_SITEMAP_BYTES);
         if (!childXml || !isSitemapXml(childXml)) continue;
         result.sitemapsRead++;
         pages = mergePages(pages, parseSitemap(childXml, baseUrl));
-        if (pages.length >= maxPages) break;
+        if (pages.length >= maxPages) {
+          truncated = true;
+          break;
+        }
       }
     } else {
       pages = mergePages(pages, parseSitemap(xml, baseUrl));
     }
-    if (pages.length >= maxPages) break;
+    if (pages.length >= maxPages) {
+      truncated = true;
+      break;
+    }
   }
 
   const pathOf = (url: string): string => {
@@ -105,6 +118,9 @@ export async function discoverPagesFromSitemap(
     }
   };
   const root = pathOf(baseUrl);
-  result.pages = pages.filter(p => pathOf(p.url) !== root).slice(0, maxPages);
+  const own = pages.filter(p => pathOf(p.url) !== root);
+  result.pages = own.slice(0, maxPages);
+  result.urls = own.map(p => p.url);
+  result.complete = result.sitemapsRead > 0 && !truncated;
   return result;
 }
