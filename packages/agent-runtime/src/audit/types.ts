@@ -1466,7 +1466,7 @@ Allow: /`,
     title: 'Email addresses in plain text',
     description: 'Email addresses found in page HTML without obfuscation.',
     impact: 'Email addresses can be harvested by spam bots.',
-    howToFix: 'Use contact forms or obfuscate emails (e.g., name[at]domain.com).',
+    howToFix: 'Keep the mailto: link and give it descriptive link text ("Email us") instead of the address itself; a contact form is the other option. Obfuscation such as name[at]domain.com breaks the link for readers and screen readers and only belongs where an address must appear as text.',
   },
   DIRECTORY_LISTING_ENABLED: {
     code: 'DIRECTORY_LISTING_ENABLED',
@@ -1506,7 +1506,7 @@ Allow: /`,
     title: 'FAQ content without FAQPage schema',
     description: 'Question-format headings found but no FAQPage schema markup.',
     impact: 'Missing out on FAQ rich results and PAA box opportunities.',
-    howToFix: 'Add FAQPage structured data for your Q&A content.',
+    howToFix: 'If these headings introduce real question-and-answer content, add FAQPage structured data for those pairs. If they are headings that merely end in a question mark (research questions, section titles), no markup is appropriate: Google restricts FAQPage to genuine FAQ content and misuse risks a manual action.',
   },
 
   // Internal Link Graph
