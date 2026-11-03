@@ -87,7 +87,7 @@ describe('checkAIBotBlocking by class', () => {
     mockRobots('User-agent: *\nDisallow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n');
     const { issues, data } = await checkAIBotBlocking('https://example.com');
     expect(data.classes['ai-search'].allowed).toEqual(['OAI-SearchBot']);
-    expect(data.classes['ai-search'].disallowed).toEqual(['Claude-SearchBot', 'PerplexityBot']);
+    expect(data.classes['ai-search'].disallowed).toEqual(['Claude-SearchBot', 'PerplexityBot', 'YouBot']);
     expect(data.allBlocked).toBe(false);
     expect(issues.map((i) => i.code).sort()).toEqual(
       ['AI_SEARCH_BOTS_DISALLOWED', 'AI_TRAINING_BOTS_DISALLOWED', 'AI_USER_FETCH_DISALLOWED'].sort()

@@ -113,7 +113,7 @@ Use this for a complete SEO audit.`,
     description: `Check if a website is optimized for AI search engines (GEO - Generative Engine Optimization).
 
 Analyzes:
-- AI crawler access (GPTBot, ClaudeBot, PerplexityBot, etc.)
+- AI crawler access by class (search, AI search, user-triggered, training crawlers)
 - robots.txt rules for AI crawlers
 - JS rendering requirements (can AI crawlers see content?)
 - Content structure for LLM consumption
@@ -142,7 +142,7 @@ Critical for visibility in ChatGPT, Perplexity, Claude, and Gemini responses.`,
   },
   {
     name: 'seo_robots_ai',
-    description: `Analyze robots.txt for AI crawler permissions. Shows which AI crawlers (GPTBot, ClaudeBot, PerplexityBot, etc.) are allowed or blocked.`,
+    description: `Analyze robots.txt for AI crawler access by class: search crawlers (Googlebot, bingbot), AI search crawlers (OAI-SearchBot, Claude-SearchBot, PerplexityBot), user-triggered fetchers (ChatGPT-User, Claude-User, Perplexity-User) and training crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended), with what blocking each class costs.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -156,7 +156,7 @@ Critical for visibility in ChatGPT, Perplexity, Claude, and Gemini responses.`,
   },
   {
     name: 'seo_generate_robots',
-    description: `Generate an AI-friendly robots.txt that allows all major AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.)`,
+    description: `Generate a robots.txt that allows every crawler class, with one group per class (AI search, user-triggered, training) so a site can disallow training alone without losing search or answer visibility.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -332,7 +332,7 @@ Critical for visibility in ChatGPT, Perplexity, Claude, and Gemini responses.`,
   },
   {
     name: 'seo_ai_crawlers',
-    description: `Get information about all known AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) including their user agents and purposes.`,
+    description: `List the known crawlers by what they are for (search, AI search, user-triggered, training), who runs each, and what blocking it costs.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -601,39 +601,36 @@ ${result.recommendations.map(r => `- ${r}`).join('\n')}
 }
 
 function formatAICrawlersInfo(): string {
+  const classes: Array<[string, string, string]> = [
+    ['search', 'Search crawlers', 'Blocking one costs the index that most AI answers draw from.'],
+    ['ai-search', 'AI search crawlers', "Blocking one takes the site out of that assistant's answers."],
+    ['user', 'User-triggered fetchers', 'Blocking one means the assistant cannot read a page a user pastes.'],
+    ['training', 'Training crawlers', 'Blocking one costs nothing a user sees; a policy choice.'],
+  ];
   const crawlers = Object.entries(analyzers.AI_CRAWLERS_INFO);
-  return `# Known AI Crawlers
+  return `# Known AI crawlers, by what they are for
 
-${crawlers.map(([name, info]) => `## ${name}
-- **User-Agent:** ${info.userAgent}
-- **Company:** ${info.company}
-- **Purpose:** ${info.purpose}
+${classes.map(([cls, label, consequence]) => `## ${label}
+
+${consequence}
+
+${crawlers.filter(([, info]) => info.class === cls).map(([name, info]) => `- **${name}** (${info.company}): blocking it costs ${info.loses}`).join('\n')}
 `).join('\n')}
+## robots.txt example
 
-## robots.txt Example
-
-The classes have different consequences: disallowing a training crawler costs no visibility, disallowing a search crawler takes the site out of that assistant's answers, disallowing a user-triggered fetcher means the assistant cannot read a page a user pastes.
+An Allow in a bot's own group wins over a wildcard Disallow. Keep the training crawlers disallowed if that is the policy and allow the rest explicitly:
 
 \`\`\`
-# AI search crawlers: the index each assistant answers from
 User-agent: OAI-SearchBot
 User-agent: Claude-SearchBot
 User-agent: PerplexityBot
-Allow: /
-
-# Fetchers that read one page because a user asked about it
 User-agent: ChatGPT-User
 User-agent: Claude-User
 User-agent: Perplexity-User
 Allow: /
-
-# Training crawlers: allow or disallow as a matter of policy; search is unaffected either way
-User-agent: GPTBot
-User-agent: ClaudeBot
-User-agent: CCBot
-User-agent: Google-Extended
-Allow: /
 \`\`\`
+
+robots.txt cannot lift a block at the CDN edge; \`rankcli audit\` fetches as each bot to find those.
 `;
 }
 
@@ -671,11 +668,24 @@ export async function handleAnalysisTool(
     case 'seo_robots_ai': {
       const { robotsTxt } = args as { robotsTxt: string };
       const result = analyzers.analyzeRobotsTxtForAI(robotsTxt);
+      const row = (label: string, cls: keyof typeof result.byClass) =>
+        `| ${label} | ${result.byClass[cls].allowed.join(', ') || '-'} | ${result.byClass[cls].blocked.join(', ') || '-'} |`;
       return {
         content: [
           {
             type: 'text',
-            text: `## AI Crawler Analysis\n\n**Allowed:** ${result.allowed.join(', ') || 'None'}\n\n**Blocked:** ${result.blocked.join(', ') || 'None'}\n\n**Recommendations:**\n${result.recommendations.map(r => `- ${r}`).join('\n') || '- All good!'}`,
+            text: `## AI crawler access in robots.txt, by class
+
+| Class | Allowed | Disallowed |
+|---|---|---|
+${row('Search crawlers (the index most AI answers draw from)', 'search')}
+${row('AI search crawlers (each assistant\'s own index)', 'ai-search')}
+${row('User-triggered fetchers (one page, because a user asked)', 'user')}
+${row('Training crawlers (model training only)', 'training')}
+
+${result.recommendations.map(r => `- ${r}`).join('\n')}
+
+robots.txt is necessary and not sufficient: a CDN or WAF can refuse a crawler in front of the origin. \`rankcli audit --url …\` fetches the page as each bot and reports what it received.`,
           },
         ],
       };

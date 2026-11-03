@@ -12,6 +12,8 @@
  * - AI search ranking factors
  */
 
+import { KNOWN_BOTS, BOT_CLASS_LABEL, BOT_OPERATOR, type BotClass } from '../audit/checks/ai-bots.js';
+import { parseRobotsGroups, isDisallowed } from '../audit/checks/ai-readiness.js';
 import * as cheerio from 'cheerio';
 import type { AuditIssue, IssueSeverity, IssueCategory } from '../audit/types.js';
 
@@ -75,106 +77,66 @@ export interface LLMSignalResult {
 }
 
 // Known AI crawlers and their user agents
-const AI_CRAWLERS = {
-  // OpenAI
-  GPTBot: { userAgent: 'GPTBot', company: 'OpenAI', purpose: 'ChatGPT training & browsing' },
-  ChatGPTUser: { userAgent: 'ChatGPT-User', company: 'OpenAI', purpose: 'ChatGPT browsing feature' },
-  OAI_SearchBot: { userAgent: 'OAI-SearchBot', company: 'OpenAI', purpose: 'OpenAI search features' },
-  
-  // Anthropic
-  ClaudeBot: { userAgent: 'Claude-Web', company: 'Anthropic', purpose: 'Claude web access' },
-  anthropic_ai: { userAgent: 'anthropic-ai', company: 'Anthropic', purpose: 'Claude training' },
-  
-  // Perplexity
-  PerplexityBot: { userAgent: 'PerplexityBot', company: 'Perplexity', purpose: 'Perplexity AI search' },
-  
-  // Google AI
-  GoogleOther: { userAgent: 'Google-Extended', company: 'Google', purpose: 'Bard/Gemini training' },
-  
-  // Microsoft/Bing
-  Bingbot: { userAgent: 'bingbot', company: 'Microsoft', purpose: 'Bing Chat/Copilot' },
-  
-  // Meta
-  FacebookBot: { userAgent: 'FacebookBot', company: 'Meta', purpose: 'Meta AI features' },
-  MetaAI: { userAgent: 'meta-externalagent', company: 'Meta', purpose: 'Meta AI training' },
-  
-  // Apple
-  Applebot: { userAgent: 'Applebot-Extended', company: 'Apple', purpose: 'Apple Intelligence' },
-  
-  // Amazon
-  Amazonbot: { userAgent: 'Amazonbot', company: 'Amazon', purpose: 'Alexa/Amazon AI' },
-  
-  // Others
-  YouBot: { userAgent: 'YouBot', company: 'You.com', purpose: 'You.com AI search' },
-  CCBot: { userAgent: 'CCBot', company: 'Common Crawl', purpose: 'Training data' },
-  cohere_ai: { userAgent: 'cohere-ai', company: 'Cohere', purpose: 'Cohere training' },
-};
+/**
+ * The crawlers, from the engine's one table (audit/checks/ai-bots.ts), in the shape the MCP
+ * server and the `geo` command list them. The class is what matters: refusing a training
+ * crawler costs nothing a user sees; refusing a search crawler takes the site out of that
+ * assistant's answers; refusing a user-triggered fetcher means the assistant cannot read a
+ * page a user pastes.
+ */
+const AI_CRAWLERS: Record<string, { userAgent: string; company: string; purpose: string; class: BotClass; loses: string }> = Object.fromEntries(
+  KNOWN_BOTS.map((bot) => [
+    bot.name,
+    {
+      userAgent: bot.name,
+      company: BOT_OPERATOR[bot.name] ?? '',
+      purpose: `${BOT_CLASS_LABEL[bot.class].replace(/s$/, '')}: blocking it costs ${bot.loses}`,
+      class: bot.class,
+      loses: bot.loses,
+    },
+  ])
+);
 
 /**
  * Analyze robots.txt for AI crawler permissions
  */
-export function analyzeRobotsTxtForAI(robotsTxt: string): { 
-  allowed: string[]; 
-  blocked: string[]; 
+export function analyzeRobotsTxtForAI(robotsTxt: string): {
+  allowed: string[];
+  blocked: string[];
+  /** The same verdicts by what each bot is for. */
+  byClass: Record<BotClass, { allowed: string[]; blocked: string[] }>;
   recommendations: string[];
 } {
-  const allowed: string[] = [];
-  const blocked: string[] = [];
+  const groups = parseRobotsGroups(robotsTxt);
+  const byClass: Record<BotClass, { allowed: string[]; blocked: string[] }> = {
+    search: { allowed: [], blocked: [] },
+    'ai-search': { allowed: [], blocked: [] },
+    user: { allowed: [], blocked: [] },
+    training: { allowed: [], blocked: [] },
+  };
+  for (const bot of KNOWN_BOTS) {
+    (isDisallowed(bot, groups) ? byClass[bot.class].blocked : byClass[bot.class].allowed).push(bot.name);
+  }
+  const blocked = (Object.keys(byClass) as BotClass[]).flatMap((cls) => byClass[cls].blocked);
+  const allowed = (Object.keys(byClass) as BotClass[]).flatMap((cls) => byClass[cls].allowed);
   const recommendations: string[] = [];
-  
-  const lines = robotsTxt.split('\n').map(l => l.trim().toLowerCase());
-  let currentAgent = '*';
-  
-  for (const line of lines) {
-    if (line.startsWith('user-agent:')) {
-      currentAgent = line.replace('user-agent:', '').trim();
-    } else if (line.startsWith('disallow:')) {
-      const path = line.replace('disallow:', '').trim();
-      if (path === '/' || path === '/*') {
-        // Check if this applies to AI crawlers
-        for (const [name, info] of Object.entries(AI_CRAWLERS)) {
-          if (currentAgent === '*' || currentAgent.includes(info.userAgent.toLowerCase())) {
-            if (!blocked.includes(name)) blocked.push(name);
-          }
-        }
-      }
-    } else if (line.startsWith('allow:')) {
-      for (const [name, info] of Object.entries(AI_CRAWLERS)) {
-        if (currentAgent === '*' || currentAgent.includes(info.userAgent.toLowerCase())) {
-          if (!allowed.includes(name)) allowed.push(name);
-        }
-      }
-    }
+  const list = (cls: BotClass) => byClass[cls].blocked.join(', ');
+  if (byClass.search.blocked.length > 0) {
+    recommendations.push(`🚨 ${list('search')} disallowed: the site is out of the index that most AI answers draw from, not only out of search.`);
   }
-  
-  // Check for explicit AI crawler rules
-  for (const [name, info] of Object.entries(AI_CRAWLERS)) {
-    const hasExplicitRule = lines.some(l => 
-      l.includes(info.userAgent.toLowerCase())
-    );
-    
-    if (!hasExplicitRule && !blocked.includes(name) && !allowed.includes(name)) {
-      // No explicit rule, defaults to allowed
-      allowed.push(name);
-    }
+  if (byClass['ai-search'].blocked.length > 0) {
+    recommendations.push(`⚠️ ${list('ai-search')} disallowed: the site is out of those assistants' answers (OpenAI: a site opted out of OAI-SearchBot is not shown in ChatGPT search answers). Allow them in their own group; an Allow there wins over a wildcard Disallow.`);
   }
-  
-  // Generate recommendations
-  if (blocked.includes('GPTBot')) {
-    recommendations.push('⚠️ GPTBot is blocked - your content won\'t appear in ChatGPT responses');
+  if (byClass.user.blocked.length > 0) {
+    recommendations.push(`⚠️ ${list('user')} disallowed: these fetch one page because a user asked about it, so the assistant answers "I cannot access that page".`);
   }
-  if (blocked.includes('PerplexityBot')) {
-    recommendations.push('⚠️ PerplexityBot is blocked - missing Perplexity AI search visibility');
+  if (byClass.training.blocked.length > 0) {
+    recommendations.push(`ℹ️ ${list('training')} disallowed: training crawlers only. No search or answer visibility is lost; keep it if that is the policy.`);
   }
-  if (blocked.includes('ClaudeBot')) {
-    recommendations.push('⚠️ Claude-Web is blocked - no visibility in Claude AI responses');
+  if (recommendations.length === 0) {
+    recommendations.push('✅ Every crawler class is allowed in robots.txt. A CDN or WAF can still refuse them in front of the origin; `rankcli audit` fetches as each bot to check.');
   }
-  
-  if (allowed.length === 0) {
-    recommendations.push('🚨 All AI crawlers appear to be blocked - zero AI search visibility');
-  }
-  
-  return { allowed, blocked, recommendations };
+  return { allowed, blocked, byClass, recommendations };
 }
 
 /**
@@ -749,10 +711,12 @@ export async function analyzeGEO(
  * Generate AI-optimized robots.txt
  */
 export function generateAIFriendlyRobotsTxt(siteUrl: string): string {
-  return `# AI-Optimized robots.txt
+  const names = (cls: BotClass) => KNOWN_BOTS.filter((bot) => bot.class === cls).map((bot) => `User-agent: ${bot.name}`).join('\n');
+  return `# robots.txt
 # Generated by RankCLI - https://rankcli.dev
+# Four kinds of bot read a site, and blocking each costs something different; the groups
+# below say which. An Allow in a bot's own group wins over a wildcard Disallow.
 
-# Allow all standard crawlers
 User-agent: *
 Allow: /
 Disallow: /api/
@@ -760,50 +724,19 @@ Disallow: /admin/
 Disallow: /_next/static/
 Disallow: /private/
 
-# === AI Search Crawlers ===
-# OpenAI (ChatGPT)
-User-agent: GPTBot
+# AI search crawlers: the index each assistant answers from. Disallowing one takes the site
+# out of that assistant's answers.
+${names('ai-search')}
 Allow: /
 
-User-agent: ChatGPT-User
+# Fetchers that read one page because a user asked about it. Disallowing one means the
+# assistant cannot read a page a user pastes.
+${names('user')}
 Allow: /
 
-User-agent: OAI-SearchBot
-Allow: /
-
-# Anthropic (Claude)
-User-agent: Claude-Web
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-# Perplexity
-User-agent: PerplexityBot
-Allow: /
-
-# Google AI (Gemini/Bard)
-User-agent: Google-Extended
-Allow: /
-
-# Microsoft (Copilot)
-User-agent: bingbot
-Allow: /
-
-# Apple Intelligence
-User-agent: Applebot-Extended
-Allow: /
-
-# Meta AI
-User-agent: meta-externalagent
-Allow: /
-
-# You.com
-User-agent: YouBot
-Allow: /
-
-# Cohere
-User-agent: cohere-ai
+# Training crawlers: model-training data only. Allowed here; disallowing them costs no
+# search or answer visibility, so change this group to Disallow: / if that is the policy.
+${names('training')}
 Allow: /
 
 # Sitemap

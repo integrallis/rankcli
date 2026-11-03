@@ -35,6 +35,17 @@ Allow: /
       expect(result.blocked.length).toBe(0);
     });
 
+    it('reports by class and words the advice for what each class costs', () => {
+      const result = analyzeRobotsTxtForAI('User-agent: GPTBot\nDisallow: /\n\nUser-agent: OAI-SearchBot\nDisallow: /\n');
+      expect(result.byClass.training.blocked).toContain('GPTBot');
+      expect(result.byClass['ai-search'].blocked).toEqual(['OAI-SearchBot']);
+      expect(result.recommendations.some(r => /OAI-SearchBot disallowed: the site is out of those assistants/.test(r))).toBe(true);
+      expect(result.recommendations.some(r => /GPTBot disallowed: training crawlers only/.test(r))).toBe(true);
+      // An Allow in the bot's own group wins over the wildcard.
+      const own = analyzeRobotsTxtForAI('User-agent: *\nDisallow: /\n\nUser-agent: Claude-SearchBot\nAllow: /\n');
+      expect(own.byClass['ai-search'].allowed).toEqual(['Claude-SearchBot']);
+    });
+
     it('handles wildcard disallow', () => {
       const robotsTxt = `
 User-agent: *
@@ -301,8 +312,9 @@ Disallow: /
       const result = generateAIFriendlyRobotsTxt('https://example.com');
       
       expect(result).toContain('GPTBot');
-      expect(result).toContain('Claude-Web');
+      expect(result).toContain('Claude-SearchBot');
       expect(result).toContain('PerplexityBot');
+      expect(result).not.toContain('Claude-Web');
       expect(result).toContain('Allow: /');
       expect(result).toContain('Sitemap: https://example.com/sitemap.xml');
     });

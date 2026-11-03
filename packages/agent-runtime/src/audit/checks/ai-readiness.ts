@@ -148,13 +148,13 @@ export function parseContentSignal(robotsTxtContent: string): string | null {
   return null;
 }
 
-interface RobotsGroup {
+export interface RobotsGroup {
   disallowAll: boolean;
   allowRoot: boolean;
 }
 
 /** User-agent groups of a robots.txt, by lower-cased token; only root-level rules matter here. */
-function parseRobotsGroups(content: string): Map<string, RobotsGroup> {
+export function parseRobotsGroups(content: string): Map<string, RobotsGroup> {
   const groups = new Map<string, RobotsGroup>();
   let current: string[] = [];
   let lastWasAgent = false;
