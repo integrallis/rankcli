@@ -30,6 +30,12 @@ export interface SEOConfig {
   validate?: boolean | ValidationConfig;
 
   /**
+   * Run the full RankCLI audit (280+ SEO and AI-search checks) on the built output after
+   * `astro build`. On by default; `false` to skip it, an object to bound it or gate the build.
+   */
+  audit?: boolean | AuditConfig;
+
+  /**
    * Log validation issues
    */
   logIssues?: boolean;
@@ -107,6 +113,17 @@ export interface ValidationConfig {
   };
 }
 
+/** The full RankCLI audit of the built output. */
+export interface AuditConfig {
+  /** Pages to audit (the sitemap seeds the list). Default: every built page, up to 50. */
+  maxPages?: number;
+  /**
+   * Fail the build on these rules, the same syntax as `rankcli audit --fail-on`: `error`,
+   * `warning` or `notice` (any finding at or above), `score<80`, `score:aiReadiness<70`.
+   */
+  failOn?: string | string[];
+}
+
 export interface SEOIssue {
   code: string;
   message: string;
@@ -152,11 +169,11 @@ function writeUnlessPresent(outDir: string, name: string, content: string, log: 
 /**
  * Create the RankCLI Astro integration.
  *
- * On `astro build` it writes sitemap.xml and robots.txt into the output
- * (never over files your public/ already provides), validates every built
- * page, and fails the build on error-level issues when
- * `validate: { failOnError: true }`. It used to write nothing and never
- * run the validation, so failOnError could not fire.
+ * On `astro build` it writes sitemap.xml and robots.txt into the output (never over files
+ * your public/ already provides), validates every built page's basics, runs the full RankCLI
+ * audit on the output (the same 280+ checks as `rankcli audit --dir dist`, unless
+ * `audit: false`) and fails the build when `audit.failOn` or `validate.failOnError` says so.
+ * A developer who installs this expecting the audit used to get seven checks.
  */
 export default function seoAutopilot(config: SEOConfig): AstroIntegration {
   return {
@@ -198,6 +215,36 @@ export default function seoAutopilot(config: SEOConfig): AstroIntegration {
         }
 
         const errors = issues.filter(i => i.severity === 'error');
+
+        // The full audit of what was built: the same 280+ checks as `rankcli audit --dir`,
+        // served from the output directory as a static host would serve it. The engine is
+        // loaded here, not at import, so `astro dev` never pays for it.
+        if (config.audit !== false) {
+          const auditConfig: AuditConfig = typeof config.audit === 'object' ? config.audit : {};
+          const engine = await import('@rankcli/agent-runtime');
+          const maxPages = auditConfig.maxPages ?? Math.min(Math.max(pageRoutes.length, 1), 50);
+          log(`Auditing the build with RankCLI (${maxPages} page${maxPages === 1 ? '' : 's'}, 280+ checks)...`);
+          const result = await engine.auditSite({ url: siteUrl, dir: outDir, maxPages, staticBuild: true });
+          if (!result) {
+            warn('The RankCLI audit could not run on the build output.');
+          } else {
+            const count = (...severities: string[]) => result.issues.filter(i => severities.includes(i.severity)).length;
+            const [e, w, n] = [count('error', 'critical'), count('warning'), count('notice', 'info')];
+            log(`RankCLI score ${result.score}/100 across ${result.pagesAudited} page${result.pagesAudited === 1 ? '' : 's'}: ${e} errors, ${w} warnings, ${n} notices`);
+            for (const issue of result.issues.filter(i => i.severity !== 'notice' && i.severity !== 'info')) {
+              const pages = issue.affectedUrls?.length ? ` (${issue.affectedUrls.length === 1 ? issue.affectedUrls[0].replace(siteUrl, '') || '/' : `${issue.affectedUrls.length} pages`})` : '';
+              warn(`  ${issue.severity === 'warning' ? 'warn ' : 'error'} [${issue.code}] ${issue.title}${pages}`);
+            }
+            if (n > 0) log(`  ${n} notice${n === 1 ? '' : 's'} not listed; see them with: rankcli audit --dir ${relative(process.cwd(), outDir) || '.'} --url ${siteUrl} -o llm`);
+            if (auditConfig.failOn) {
+              const { spec, error } = engine.parseFailOn(auditConfig.failOn);
+              if (error) throw new Error(`astro-rankcli: invalid audit.failOn: ${error}`);
+              const gate = engine.evaluateGate(spec, result.issues, { ...result.primaryReport.healthScore, overall: result.score });
+              if (!gate.passed) throw new Error(`RankCLI gate failed: ${gate.failures.join('; ')}`);
+            }
+          }
+        }
+
         if (validationConfig.failOnError && errors.length > 0) {
           throw new Error(`SEO validation failed: ${errors.length} error(s) - see the list above`);
         }

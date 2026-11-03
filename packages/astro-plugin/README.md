@@ -1,6 +1,6 @@
 # astro-rankcli
 
-Astro integration for SEO automation - sitemap, robots.txt, meta validation.
+The [RankCLI](https://rankcli.dev) audit on every `astro build`: 280+ SEO and AI-search checks on the pages you just built, with a gate that can fail the build, plus `sitemap.xml`, `robots.txt` and a quick validation of each page's basics.
 
 ## Installation
 
@@ -8,7 +8,15 @@ Astro integration for SEO automation - sitemap, robots.txt, meta validation.
 npm install astro-rankcli
 ```
 
-Works with Astro 3 through 7. On `astro build` it writes `sitemap.xml` and `robots.txt` into the output, unless `public/` already provides them. It then checks every built page (except 404/500) and, with `validate: { failOnError: true }`, fails the build on error-level issues.
+Works with Astro 3 through 7. On `astro build` it writes `sitemap.xml` and `robots.txt` into the output (unless `public/` already provides them), checks every built page's basics (title, description, canonical, headings, image alt text), then serves the output directory the way a static host would and runs the full RankCLI audit on it: the same 280+ checks as `rankcli audit --dir dist`, from crawlability and structured data to AI crawler access and answer-first content. Host-level checks (TLS, security headers, redirects) are skipped, since a build directory has none. Nothing is sent anywhere; the audit runs in the build.
+
+```
+[astro-rankcli] Auditing the build with RankCLI (14 pages, 280+ checks)...
+[astro-rankcli] RankCLI score 84/100 across 14 pages: 0 errors, 3 warnings, 21 notices
+[astro-rankcli]   warn  [META_DESC_SHORT] Meta description too short (2 pages)
+[astro-rankcli]   warn  [IMAGES_MISSING_DIMENSIONS] 4 images without width/height (/blog/launch/)
+[astro-rankcli]   21 notices not listed; see them with: rankcli audit --dir dist --url https://example.com -o llm
+```
 
 ## Usage
 
@@ -49,6 +57,22 @@ export default defineConfig({
   ],
 });
 ```
+
+### The full audit of the build
+
+On by default. Bound it or make it a gate:
+
+```typescript
+rankcli({
+  siteUrl: 'https://example.com',
+  audit: {
+    maxPages: 20,                       // default: every built page, up to 50
+    failOn: ['error', 'score<80'],      // the rules of `rankcli audit --fail-on`
+  },
+})
+```
+
+`failOn` takes `error`, `warning` or `notice` (any finding at or above that severity), `score<80` (the overall score) and `score:aiReadiness<70` (a category score); the build fails with the reasons in the error. `audit: false` turns the audit off and leaves the sitemap, robots.txt and validation. Everything the audit finds is listed with its code, so `rankcli audit --dir dist --url https://example.com -o json` gives the fix for any of them.
 
 ### Head Content Helper
 
@@ -136,11 +160,14 @@ const robots = generateRobots('https://example.com', {
 
 - **Sitemap Generation**: Automatic XML sitemap with custom routes, exclusions
 - **Robots.txt**: Configurable rules, crawl delays, host directives
-- **Page Validation**: Check for SEO issues during build
+- **The RankCLI audit**: 280+ SEO and AI-search checks on the built output, with a CI gate
+- **Page Validation**: a quick check of each page's basics during the build
 - **Head Content Helper**: Generate SEO meta tags with proper escaping
 - **Open Graph & Twitter Cards**: Full social metadata support
 
 ## Validation Checks
+
+The quick per-page validation (the full audit's findings carry the engine's own codes):
 
 | Check | Code | Severity |
 |-------|------|----------|

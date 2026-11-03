@@ -1,6 +1,6 @@
 # vite-plugin-rankcli
 
-Vite plugin for SEO validation, sitemap generation, and meta tag injection.
+Vite plugin for SEO lint on each build: meta validation, sitemap.xml and robots.txt. It is not the audit: for the full 280+ SEO and AI-search checks on the built site, run `npx @rankcli/cli audit --dir dist --url https://your-site.com` after `vite build` (or use [`integrallis/rankcli-action`](https://github.com/marketplace/actions/rankcli-seo-audit) in CI).
 
 ## Installation
 

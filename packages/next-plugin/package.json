@@ -1,7 +1,7 @@
 {
   "name": "next-rankcli",
   "version": "0.0.1",
-  "description": "Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt - RankCLI",
+  "description": "Next.js helpers for SEO: metadata and JSON-LD generation, sitemap and robots.txt routes. The full 280-check audit of a deployed or preview URL is rankcli audit",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

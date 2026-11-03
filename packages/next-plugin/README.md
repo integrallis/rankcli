@@ -1,6 +1,6 @@
 # next-rankcli
 
-Next.js plugin for SEO automation - metadata generation, sitemap, robots.txt.
+Next.js helpers for SEO: metadata and JSON-LD generation, sitemap and robots.txt routes. They are not the audit: for the full 280+ SEO and AI-search checks, run `npx @rankcli/cli audit --url https://your-preview-url` on a deployed or preview URL, where Next.js streaming metadata and crawler access can actually be observed (or use [`integrallis/rankcli-action`](https://github.com/marketplace/actions/rankcli-seo-audit) in CI).
 
 ## Installation
 
