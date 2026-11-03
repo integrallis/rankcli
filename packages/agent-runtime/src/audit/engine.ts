@@ -22,6 +22,7 @@ import { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 import { analyzePagination } from './checks/pagination.js';
 import { analyzeRedirects } from './checks/redirect-analysis.js';
 import { analyzeCrawlerAccess } from './checks/crawler-access.js';
+import { analyzeMetadataPlacement } from './checks/metadata-placement.js';
 // New competitor-parity checks
 import { runAIReadinessChecks } from './checks/ai-readiness.js';
 import { analyzeSERPPreview } from './checks/serp-preview.js';
@@ -462,6 +463,9 @@ export async function runFullAudit(options: AuditOptions): Promise<AuditReport> 
     asyncChecks.push(safeAsyncIssues('Crawler Access', async () => (await analyzeCrawlerAccess(url)).issues));
     asyncChecks.push(safeAsync('Canonical Domain', () => analyzeCanonicalDomain(url)));
   }
+  // Metadata that only the bots on a framework's list get in <head> (Next.js streaming
+  // metadata), or that landed in <body> for everyone: a fetch as Googlebot tells the two apart.
+  asyncChecks.push(safeAsync('Metadata Placement', () => analyzeMetadataPlacement(html, url, { compareAsGooglebot: !staticBuild })));
   // Framework-specific checks (React/Next.js/WordPress/etc recipes) - this
   // was previously CLI-only (packages/cli/src/commands/audit.ts ran it as
   // its own separate "Phase 2.5" on top of runFullAudit's results); every
