@@ -5,6 +5,10 @@
 set -euo pipefail
 NAME="${1:?usage: npm-publish.sh <package-name>}"
 VERSION=$(node -p "require('./package.json').version")
+# The workflow file that ran this, for the trust-link command in the messages
+# (GITHUB_WORKFLOW_REF looks like owner/repo/.github/workflows/release.yml@refs/heads/main).
+WORKFLOW_FILE="${GITHUB_WORKFLOW_REF%%@*}"; WORKFLOW_FILE="${WORKFLOW_FILE##*/}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-integrallis/rankcli}"
 if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
   echo "$NAME@$VERSION is already on npm, skipping"
   exit 0
@@ -13,8 +17,8 @@ if npm publish --access public --ignore-scripts; then
   echo "published $NAME@$VERSION (Trusted Publishing)"
 elif [ -n "${NPM_TOKEN:-}" ] && NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish --access public --ignore-scripts; then
   echo "published $NAME@$VERSION with NPM_TOKEN"
-  echo "::warning::$NAME is not linked to Trusted Publishing from this repository, so this used the token. A maintainer with 2FA links it once: npx npm@latest trust github $NAME --repo integrallis/rankcli --file release.yml --allow-publish"
+  echo "::warning::$NAME is not linked to Trusted Publishing from this repository, so this used the token. A maintainer with 2FA links it once: npx npm@latest trust github $NAME --repo $GITHUB_REPOSITORY --file $WORKFLOW_FILE --allow-publish"
 else
-  echo "::error::$NAME@$VERSION was not published: Trusted Publishing is not linked to integrallis/rankcli + release.yml and no working NPM_TOKEN exists."
+  echo "::error::$NAME@$VERSION was not published: Trusted Publishing is not linked to $GITHUB_REPOSITORY + $WORKFLOW_FILE and the NPM_TOKEN secret is ${NPM_TOKEN:+set but refused}${NPM_TOKEN:-missing on $GITHUB_REPOSITORY}."
   exit 1
 fi
