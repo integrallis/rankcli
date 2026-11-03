@@ -412,27 +412,6 @@ export function analyzeFreshnessSignals(
     });
   }
 
-  // Low AI citation readiness
-  if (aiCitationOptimization.aiCitationReadiness === 'low' && qdfRelevance.isLikelyQDFTopic) {
-    issues.push({
-      code: 'LOW_AI_CITATION_READINESS',
-      severity: 'notice',
-      category: 'content',
-      title: 'Low AI citation readiness for fresh content',
-      description: 'This page lacks freshness signals that AI assistants prioritize.',
-      impact: 'AI assistants cite content 25.7% fresher than organic results. Missing signals reduce citation odds.',
-      howToFix: 'Add dateModified schema, visible update date, and current year mentions.',
-      affectedUrls: [url],
-      details: {
-        aiCitationReadiness: aiCitationOptimization.aiCitationReadiness,
-        missingSignals: [
-          !dateSignals.hasSchemaDateModified && 'dateModified schema',
-          !freshnessIndicators.hasUpdateNotice && 'visible update notice',
-          !freshnessIndicators.hasCurrentYearMention && 'current year mention',
-        ].filter(Boolean),
-      },
-    });
-  }
 
   return {
     issues,

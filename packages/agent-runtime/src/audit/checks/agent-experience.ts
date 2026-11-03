@@ -95,14 +95,6 @@ export async function checkAgentExperience(
   // Only worth flagging when a site has essentially no agent-facing
   // discovery surface at all — this is a forward-looking opportunity
   // check, not a compliance requirement, so it stays low-severity and
-  // only fires below a meaningful threshold.
-  if (presentCount === 0) {
-    issues.push({
-      ...ISSUE_DEFINITIONS.NO_AGENT_EXPERIENCE_SURFACE,
-      affectedUrls: [baseUrl],
-      details: { checkedPaths: SIGNAL_PATHS.map((s) => s.path) },
-    });
-  }
 
   return { issues, data: { signals, score } };
 }

@@ -229,19 +229,6 @@ export function analyzeBrandMentionOptimization(
   // Generate issues
 
 
-  // No USP
-  if (!hasUSP) {
-    issues.push({
-      code: 'AI_NO_USP',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No unique selling proposition (USP) detected',
-      description: 'AI needs clear differentiators to recommend your brand over competitors. No USP patterns found.',
-      impact: 'AI may not distinguish your brand from competitors when making recommendations.',
-      howToFix: 'Add clear differentiators: "The only...", "Unlike competitors...", "Guaranteed...", specific numbers (e.g., "50% faster").',
-      affectedUrls: [url],
-    });
-  }
 
   // Missing brand topic coverage
   const missingTopics: string[] = [];
@@ -251,26 +238,6 @@ export function analyzeBrandMentionOptimization(
   if (!hasProofPoints) missingTopics.push('proof points/case studies');
 
 
-  // No review platform integration
-  if (!hasReviewLinks && !hasTestimonials) {
-    issues.push({
-      code: 'AI_NO_REVIEW_INTEGRATION',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No review platform integration',
-      description: 'No links to review platforms or testimonial sections found. AI uses review signals from multiple platforms for trust.',
-      impact: 'Missing review diversity signals that AI uses for brand trust assessment.',
-      howToFix: 'Link to your profiles on relevant review platforms (G2, Capterra, Trustpilot, etc.) and display testimonials with attribution.',
-      affectedUrls: [url],
-      details: {
-        relevantPlatforms: [
-          'B2B SaaS: G2, Capterra, TrustRadius',
-          'Local: Google Business, Yelp, BBB',
-          'Professional: Clutch, UpCity',
-        ],
-      },
-    });
-  }
 
 
   return {

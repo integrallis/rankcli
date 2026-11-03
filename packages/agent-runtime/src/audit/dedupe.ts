@@ -39,8 +39,7 @@ export const REDUNDANT_WHEN_PRESENT: ReadonlyArray<{ keep: string | RegExp; drop
   { keep: 'NO_ORGANIZATION_SCHEMA', drop: ['ORGANIZATION_SCHEMA_MISSING'] },
 
   // No title, no H1: the findings about their wording are implied.
-  { keep: 'TITLE_MISSING', drop: ['LOW_CTR_POTENTIAL', 'NO_KEYWORDS_IN_TITLE', 'TITLE_TOO_SHORT'] },
-  { keep: 'META_DESC_MISSING', drop: ['LOW_CTR_POTENTIAL'] },
+  { keep: 'TITLE_MISSING', drop: ['NO_KEYWORDS_IN_TITLE', 'TITLE_TOO_SHORT'] },
   { keep: 'H1_MISSING', drop: ['NO_VISIBLE_HEADLINE', 'NO_KEYWORDS_IN_H1', 'H1_MISSING_KEYWORD'] },
 
   // Client-side rendering, diagnosed once. CLIENT_SIDE_RENDERING carries the per-framework fix.
@@ -58,8 +57,7 @@ export const REDUNDANT_WHEN_PRESENT: ReadonlyArray<{ keep: string | RegExp; drop
   { keep: 'NO_INTERNAL_LINKS', drop: ['NO_CONTENT_INTERNAL_LINKS', 'HIGH_ORPHAN_RISK', 'LINKS_NO_INTERNAL'] },
 
   // No testimonials on the page, said once instead of six times.
-  { keep: 'NO_SOCIAL_PROOF', drop: ['BOFU_NO_SOCIAL_PROOF', 'AI_NO_TESTIMONIALS', 'AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'] },
-  { keep: 'AI_NO_TESTIMONIALS', drop: ['AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'] },
+  { keep: 'NO_SOCIAL_PROOF', drop: ['BOFU_NO_SOCIAL_PROOF'] },
   // The brand-score composite restates the brand-definition finding it is built from.
 ];
 

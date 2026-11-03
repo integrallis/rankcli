@@ -293,41 +293,7 @@ export function analyzeReviewEcosystem(
 
   // Generate issues
 
-  // No review platform links
-  if (linkedPlatforms.length === 0 && embeddedPlatforms.length === 0) {
-    issues.push({
-      code: 'AI_NO_REVIEW_PLATFORMS',
-      severity: 'warning',
-      category: 'ai-readiness',
-      title: 'No review platform integration',
-      description: 'No links or embeds from review platforms detected. AI uses review signals from multiple platforms to assess brand trust.',
-      impact: 'Missing review diversity signals that AI uses when recommending brands.',
-      howToFix: 'Link to your profiles on 2-3 relevant review platforms. Consider embedding review widgets for social proof.',
-      affectedUrls: [url],
-      details: {
-        suggestedPlatforms: {
-          'All businesses': ['Google Business', 'Trustpilot', 'BBB'],
-          'SaaS/Software': ['G2', 'Capterra', 'Product Hunt'],
-          'Professional services': ['Clutch', 'UpCity'],
-          'Local services': ['Angi', 'HomeAdvisor', 'Yelp'],
-        },
-      },
-    });
-  }
 
-  // No testimonials
-  if (testimonialCount === 0) {
-    issues.push({
-      code: 'AI_NO_TESTIMONIALS',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No testimonials or reviews on page',
-      description: 'No customer testimonials found on the page. AI looks for social proof when evaluating brand trustworthiness.',
-      impact: 'Missing on-page social proof that strengthens brand authority.',
-      howToFix: 'Add customer testimonials with: name attribution, company/title, and optionally photos. Use blockquote elements for semantic markup.',
-      affectedUrls: [url],
-    });
-  }
 
   // Testimonials without attribution
   if (testimonialCount > 0 && !hasAttribution) {
@@ -363,25 +329,6 @@ export function analyzeReviewEcosystem(
     });
   }
 
-  // Low review ecosystem score
-  if (reviewEcosystemScore < 40) {
-    issues.push({
-      code: 'AI_WEAK_REVIEW_ECOSYSTEM',
-      severity: 'warning',
-      category: 'ai-readiness',
-      title: 'Weak review ecosystem integration',
-      description: `Review ecosystem score: ${reviewEcosystemScore}/100. AI uses review diversity across platforms to assess brand trust.`,
-      impact: 'Low review presence may result in AI recommending better-reviewed competitors.',
-      howToFix: 'Build review diversity: 1) Link to review platforms, 2) Add testimonials with attribution, 3) Implement review schema, 4) Display trust badges.',
-      affectedUrls: [url],
-      details: {
-        reviewEcosystemScore,
-        linkedPlatforms,
-        testimonialCount,
-        hasAggregateRating,
-      },
-    });
-  }
 
   return {
     issues,

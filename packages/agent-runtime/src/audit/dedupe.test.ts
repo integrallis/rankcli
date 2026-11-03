@@ -27,14 +27,9 @@ describe('dedupeIssues', () => {
     expect(codes(dedupeIssues([issue('META_DESC_MISSING')]))).toEqual(['META_DESC_MISSING']);
   });
 
-  it('collapses the six no-testimonials findings into one', () => {
-    const six = ['NO_SOCIAL_PROOF', 'BOFU_NO_SOCIAL_PROOF', 'AI_NO_TESTIMONIALS', 'AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'];
-    expect(codes(dedupeIssues(six.map((c) => issue(c))))).toEqual(['NO_SOCIAL_PROOF']);
-  });
-
-  it('collapses the review-ecosystem trio under the testimonials finding on a page with no commercial check', () => {
-    const four = ['AI_NO_TESTIMONIALS', 'AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'];
-    expect(codes(dedupeIssues(four.map((c) => issue(c))))).toEqual(['AI_NO_TESTIMONIALS']);
+  it('collapses the two no-testimonials findings into one', () => {
+    const two = ['NO_SOCIAL_PROOF', 'BOFU_NO_SOCIAL_PROOF'];
+    expect(codes(dedupeIssues(two.map((c) => issue(c))))).toEqual(['NO_SOCIAL_PROOF']);
   });
 
   it('diagnoses a client-rendered shell once, and the implied thin-content findings go with it', () => {

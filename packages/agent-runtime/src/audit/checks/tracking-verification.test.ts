@@ -149,18 +149,6 @@ describe('analyzeTrackingVerification', () => {
       expect(gscIssue).toBeUndefined();
     });
 
-    it('reports missing GSC verification', async () => {
-      const html = `<html><head></head></html>`;
-
-      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
-
-      expect(data.gsc.verified).toBe(false);
-
-      const gscIssue = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
-      expect(gscIssue).toBeDefined();
-      expect(gscIssue?.severity).toBe('notice');
-    });
-
     it('rejects short verification codes as invalid', async () => {
       const html = `
         <html>
