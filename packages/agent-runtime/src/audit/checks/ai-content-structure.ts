@@ -196,22 +196,24 @@ export function analyzeAIContentStructure(
 
   // Generate issues
 
-  // No tables for comparisons
-  if (!hasComparisonTable && bodyText.includes('compar') || bodyText.includes('vs') || bodyText.includes('versus')) {
+  // No tables for comparisons. Word-bounded: "vs" as a substring matched canvas, cvs and svs,
+  // and the old operator precedence fired this on any page containing them, table or no table.
+  const comparesThings = /\b(compar(e|es|ed|ing|ison|isons)|versus|vs\.?)\b/.test(bodyText);
+  if (!hasComparisonTable && comparesThings) {
     issues.push({
       code: 'AI_NO_COMPARISON_TABLE',
       severity: 'notice',
       category: 'ai-readiness',
-      title: 'Comparison content without table format',
-      description: 'Your content mentions comparisons but doesn\'t use a table format. AI systems can easily parse and quote table data.',
-      impact: 'AI may not accurately extract comparison data, reducing chances of being cited in AI-generated comparisons.',
-      howToFix: 'Convert comparison content to HTML tables with clear headers. Example: Feature | Option A | Option B',
+      title: 'Comparison content without a table',
+      description: 'The page compares things in prose. In a 193,507-answer study of AI assistants, pages with tables had 69 percent higher odds of being cited; a table is also the unit an assistant can quote whole.',
+      impact: 'A comparison in prose gets paraphrased or skipped; one in a table gets quoted.',
+      howToFix: 'Put the comparison in an HTML table with header cells: one row per option, one column per criterion.',
       affectedUrls: [url],
     });
   }
 
   // No numbered lists for procedural content
-  if (!hasStepByStep && (bodyText.includes('step') || bodyText.includes('how to') || bodyText.includes('guide'))) {
+  if (!hasStepByStep && /\b(steps?|how to|guide|tutorial|walkthrough)\b/.test(bodyText)) {
     issues.push({
       code: 'AI_NO_NUMBERED_STEPS',
       severity: 'notice',
@@ -224,66 +226,17 @@ export function analyzeAIContentStructure(
     });
   }
 
-  // No Q&A format
-  if (!hasExplicitQA && questionCount === 0) {
-    issues.push({
-      code: 'AI_NO_QA_FORMAT',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No question-and-answer format detected',
-      description: 'Content lacks explicit Q&A structure. AI systems often look for clear question-answer pairs to provide direct responses.',
-      impact: 'Lower chance of being featured in AI direct answers or FAQ-style responses.',
-      howToFix: 'Add FAQ section with common questions as headings (H2/H3) followed by concise answers. Implement FAQ schema markup.',
-      affectedUrls: [url],
-      details: {
-        suggestions: [
-          'Use question words in headings (What, How, Why, etc.)',
-          'Follow questions with short, direct answer paragraphs',
-          'Add FAQ schema markup for structured data',
-          'Consider using <details>/<summary> for expandable Q&A',
-        ],
-      },
-    });
-  }
-
-  // Questions without direct answers
-  if (questionCount >= 2 && !hasDirectAnswers) {
-    issues.push({
-      code: 'AI_QUESTIONS_NO_DIRECT_ANSWERS',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Questions in headings lack direct answers',
-      description: `Found ${questionCount} question-style headings but answers are too long or not immediately following. AI prefers concise answers right after questions.`,
-      impact: 'AI may struggle to extract clear answers, reducing citation likelihood.',
-      howToFix: 'Start each answer section with a 1-2 sentence direct answer, then expand with details. First sentence should standalone as a complete answer.',
-      affectedUrls: [url],
-    });
-  }
-
-  // No definitions
-  if (!hasDefinitions && (bodyText.includes('what is') || bodyText.includes('definition'))) {
-    issues.push({
-      code: 'AI_NO_DEFINITIONS',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Missing clear definitions',
-      description: 'Content discusses concepts but lacks Wikipedia-style definitions. AI loves clear "X is a..." statements.',
-      impact: 'Less likely to be cited for definitional queries in AI search.',
-      howToFix: 'Add clear definitions early in content: "[Term] is a [category] that [distinguishing features]." Make first paragraph a complete definition.',
-      affectedUrls: [url],
-    });
-  }
-
   // Low quotability
   if (structureScore < 50) {
     issues.push({
       code: 'AI_LOW_STRUCTURE_SCORE',
-      severity: 'warning',
+      // A heuristic score, not a defect a crawler can see: never a failed build.
+      severity: 'notice',
       category: 'ai-readiness',
       title: 'Content structure not optimized for AI parsing',
       description: `AI structure score: ${structureScore}/100. Content lacks structured elements that AI can easily parse and quote.`,
       impact: 'Lower likelihood of being cited in AI-generated answers due to poor content structure.',
-      howToFix: 'Improve content structure: add tables for data, numbered lists for steps, bullet points for features, Q&A sections for common questions.',
+      howToFix: 'Give the assistant something to quote whole: a table for data or comparisons, a numbered list for steps, and a short paragraph that answers each question heading.',
       affectedUrls: [url],
       details: {
         structureScore,

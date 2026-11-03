@@ -349,7 +349,7 @@ export function analyzeFreshnessSignals(
       category: 'structured-data',
       title: 'Missing dateModified in schema',
       description: 'Schema markup lacks dateModified property.',
-      impact: 'dateModified signals content freshness to search engines and AI assistants, boosting citation odds by ~18%.',
+      impact: 'Freshness is one of the few levers the citation evidence supports: cited URLs are 25.7 percent newer than organic results (Ahrefs), and pages updated within three months averaged 6.0 ChatGPT citations against 3.6 for stale ones (SE Ranking). dateModified is how a page states its date to a crawler.',
       howToFix: 'Add dateModified property to your Article/WebPage schema with ISO 8601 format.',
       affectedUrls: [url],
       details: {
@@ -366,7 +366,7 @@ export function analyzeFreshnessSignals(
       category: 'content',
       title: 'Time-sensitive content may be stale',
       description: `Content was last modified ${dateSignals.daysSinceModified} days ago on a topic that benefits from freshness.`,
-      impact: 'Query Deserves Freshness (QDF) prioritizes fresh content for this topic type.',
+      impact: 'Query Deserves Freshness (QDF) prioritizes fresh content for this topic type, and AI citations decay with a half-life of about 4.5 weeks, so a page that is not refreshed drops out of answers.',
       howToFix: `Update this content ${qdfRelevance.updateFrequencyRecommendation}. Add new data, stats, or insights.`,
       affectedUrls: [url],
       details: {
@@ -406,7 +406,7 @@ export function analyzeFreshnessSignals(
       category: 'content',
       title: 'No visible publish/update date',
       description: 'Content page lacks a visible date for users.',
-      impact: 'Users prefer seeing when content was published/updated for credibility.',
+      impact: 'Readers and assistants both judge freshness from a visible date; cited pages are 25.7 percent newer than organic results (Ahrefs).',
       howToFix: 'Display publish date and last updated date on the page.',
       affectedUrls: [url],
     });
