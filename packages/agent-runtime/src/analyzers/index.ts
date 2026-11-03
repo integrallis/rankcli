@@ -180,8 +180,9 @@ export async function analyzeComprehensive(
   const prioritizedRecommendations: string[] = [];
   
   // Critical GEO issues first
-  if (geo.aiCrawlerAccess.blockedCrawlers.length > 0) {
-    prioritizedRecommendations.push('🚨 URGENT: Unblock AI crawlers (GPTBot, PerplexityBot) in robots.txt');
+  const blockedForAnswers = [...geo.aiCrawlerAccess.byClass.search.blocked, ...geo.aiCrawlerAccess.byClass['ai-search'].blocked];
+  if (blockedForAnswers.length > 0) {
+    prioritizedRecommendations.push(`🚨 URGENT: Allow ${blockedForAnswers.join(', ')} in robots.txt - AI answers draw from them`);
   }
   if (geo.aiCrawlerAccess.jsRenderingRequired && !geo.aiCrawlerAccess.hasPrerendering) {
     prioritizedRecommendations.push('🚨 URGENT: Implement SSR - AI crawlers cannot see your JS-rendered content');

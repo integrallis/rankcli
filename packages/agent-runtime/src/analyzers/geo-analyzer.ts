@@ -29,9 +29,12 @@ export interface GEOAnalysisResult {
 }
 
 export interface AIAccessResult {
+  /** True when no search, AI search or user-triggered crawler is disallowed (training is policy). */
   robotsTxtAllowsAI: boolean;
   blockedCrawlers: string[];
   allowedCrawlers: string[];
+  /** The same split as analyzeRobotsTxtForAI(): which class each disallowed crawler belongs to. */
+  byClass: Record<BotClass, { allowed: string[]; blocked: string[] }>;
   hasPrerendering: boolean;
   jsRenderingRequired: boolean;
   serverSideRendered: boolean;
@@ -100,6 +103,11 @@ const AI_CRAWLERS: Record<string, { userAgent: string; company: string; purpose:
 /**
  * Analyze robots.txt for AI crawler permissions
  */
+/** The disallowed crawlers whose absence costs answers: search and AI search. */
+export function visibilityBlocked(byClass: Record<BotClass, { allowed: string[]; blocked: string[] }>): string[] {
+  return [...byClass.search.blocked, ...byClass['ai-search'].blocked];
+}
+
 export function analyzeRobotsTxtForAI(robotsTxt: string): {
   allowed: string[];
   blocked: string[];
@@ -462,16 +470,31 @@ export function generateGEOIssues(
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
   
-  // Critical: AI crawler access issues
-  if (aiAccess.blockedCrawlers.length > 0) {
+  // Critical: a search or AI search crawler disallowed. Training crawlers are a policy choice
+  // the audit reports as a notice (AI_TRAINING_BOTS_DISALLOWED); they cost no visibility.
+  const blockedForAnswers = visibilityBlocked(aiAccess.byClass);
+  if (blockedForAnswers.length > 0) {
+    const allow = blockedForAnswers.map((bot) => `User-agent: ${bot}\nAllow: /`).join('\n\n');
     issues.push({
       code: 'GEO_AI_CRAWLERS_BLOCKED',
       severity: 'critical',
       category: 'technical',
-      title: `${aiAccess.blockedCrawlers.length} AI crawlers blocked in robots.txt`,
-      description: `The following AI crawlers are blocked: ${aiAccess.blockedCrawlers.join(', ')}. This prevents your content from appearing in AI search results.`,
-      impact: 'Your content will NOT appear in ChatGPT, Perplexity, or Claude responses',
-      howToFix: `Update robots.txt to allow AI crawlers:\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Claude-Web\nAllow: /`,
+      title: `${blockedForAnswers.length} crawler${blockedForAnswers.length === 1 ? '' : 's'} that AI answers draw from disallowed in robots.txt`,
+      description: `Disallowed: ${blockedForAnswers.join(', ')}. ${blockedForAnswers.map((bot) => `${bot}: ${AI_CRAWLERS[bot]?.loses ?? 'visibility'}`).join('; ')}.`,
+      impact: 'The site cannot appear in the answers those crawlers feed',
+      howToFix: `Allow them in robots.txt (training crawlers such as GPTBot and ClaudeBot can stay disallowed; that costs no visibility):\n\n${allow}`,
+      affectedUrls: [url],
+    });
+  }
+  if (aiAccess.byClass.user.blocked.length > 0) {
+    issues.push({
+      code: 'GEO_AI_USER_FETCH_BLOCKED',
+      severity: 'warning',
+      category: 'technical',
+      title: `${aiAccess.byClass.user.blocked.length} user-triggered fetcher${aiAccess.byClass.user.blocked.length === 1 ? '' : 's'} disallowed in robots.txt`,
+      description: `Disallowed: ${aiAccess.byClass.user.blocked.join(', ')}. These fetch one page because a user pasted its link or asked about it; the assistant then reads nothing from the page.`,
+      impact: 'A user who asks an assistant about this site gets an answer without the page',
+      howToFix: `Allow them in robots.txt:\n\n${aiAccess.byClass.user.blocked.map((bot) => `User-agent: ${bot}\nAllow: /`).join('\n\n')}`,
       affectedUrls: [url],
     });
   }
@@ -600,21 +623,16 @@ export async function analyzeGEO(
   robotsTxt?: string
 ): Promise<GEOAnalysisResult> {
   // Analyze AI crawler access
-  let aiCrawlerAccess: AIAccessResult = {
-    robotsTxtAllowsAI: true,
-    blockedCrawlers: [],
-    allowedCrawlers: Object.keys(AI_CRAWLERS),
+  const robotsAnalysis = analyzeRobotsTxtForAI(robotsTxt ?? '');
+  const aiCrawlerAccess: AIAccessResult = {
+    robotsTxtAllowsAI: visibilityBlocked(robotsAnalysis.byClass).length === 0 && robotsAnalysis.byClass.user.blocked.length === 0,
+    blockedCrawlers: robotsAnalysis.blocked,
+    allowedCrawlers: robotsAnalysis.allowed,
+    byClass: robotsAnalysis.byClass,
     hasPrerendering: false,
     jsRenderingRequired: false,
     serverSideRendered: true,
   };
-  
-  if (robotsTxt) {
-    const robotsAnalysis = analyzeRobotsTxtForAI(robotsTxt);
-    aiCrawlerAccess.blockedCrawlers = robotsAnalysis.blocked;
-    aiCrawlerAccess.allowedCrawlers = robotsAnalysis.allowed;
-    aiCrawlerAccess.robotsTxtAllowsAI = robotsAnalysis.blocked.length === 0;
-  }
   
   // Analyze rendering mode
   const renderingMode = detectRenderingMode(html);
@@ -652,8 +670,15 @@ export async function analyzeGEO(
   // Generate recommendations
   const recommendations: string[] = [];
   
-  if (aiCrawlerAccess.blockedCrawlers.length > 0) {
-    recommendations.push('🚨 URGENT: Unblock AI crawlers in robots.txt');
+  const blockedForAnswers = visibilityBlocked(aiCrawlerAccess.byClass);
+  if (blockedForAnswers.length > 0) {
+    recommendations.push(`🚨 URGENT: Allow ${blockedForAnswers.join(', ')} in robots.txt (AI answers draw from them)`);
+  }
+  if (aiCrawlerAccess.byClass.user.blocked.length > 0) {
+    recommendations.push(`Allow the user-triggered fetchers ${aiCrawlerAccess.byClass.user.blocked.join(', ')} in robots.txt`);
+  }
+  if (aiCrawlerAccess.byClass.training.blocked.length > 0) {
+    recommendations.push(`Training crawlers disallowed by policy (${aiCrawlerAccess.byClass.training.blocked.join(', ')}): no visibility cost`);
   }
   if (aiCrawlerAccess.jsRenderingRequired) {
     recommendations.push('🚨 URGENT: Implement SSR/SSG for AI crawler access');
@@ -681,9 +706,7 @@ export async function analyzeGEO(
   let score = llmSignals.overallLLMFriendliness;
   
   // Penalties
-  if (aiCrawlerAccess.blockedCrawlers.length > 0) {
-    score -= aiCrawlerAccess.blockedCrawlers.length * 10;
-  }
+  score -= blockedForAnswers.length * 10 + aiCrawlerAccess.byClass.user.blocked.length * 5;
   if (aiCrawlerAccess.jsRenderingRequired && !aiCrawlerAccess.hasPrerendering) {
     score -= 30;
   }

@@ -114,8 +114,16 @@ export async function geo(options: GeoOptions): Promise<void> {
     console.log('\n' + chalk.bold('  AI Crawler Access:'));
     const { aiCrawlerAccess } = geoResult;
     
-    if (aiCrawlerAccess.blockedCrawlers.length > 0) {
-      console.log(chalk.red(`    ❌ Blocked: ${aiCrawlerAccess.blockedCrawlers.join(', ')}`));
+    const { byClass } = aiCrawlerAccess;
+    const blockedForAnswers = [...byClass.search.blocked, ...byClass['ai-search'].blocked];
+    if (blockedForAnswers.length > 0) {
+      console.log(chalk.red(`    ❌ Disallowed, AI answers draw from them: ${blockedForAnswers.join(', ')}`));
+    }
+    if (byClass.user.blocked.length > 0) {
+      console.log(chalk.yellow(`    ⚠️  Disallowed, user-triggered fetchers: ${byClass.user.blocked.join(', ')}`));
+    }
+    if (byClass.training.blocked.length > 0) {
+      console.log(chalk.dim(`    ○ Disallowed, training only (no visibility cost): ${byClass.training.blocked.join(', ')}`));
     }
     if (aiCrawlerAccess.allowedCrawlers.length > 0) {
       const topAllowed = aiCrawlerAccess.allowedCrawlers.slice(0, 5);

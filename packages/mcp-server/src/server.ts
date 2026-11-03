@@ -394,7 +394,9 @@ function formatGEOResult(result: Awaited<ReturnType<typeof analyzers.analyzeGEO>
   const access = robots.unknown
     ? `| ❔ Unknown | ${robots.note} |`
     : `| ✅ Allowed | ${result.aiCrawlerAccess.allowedCrawlers.join(', ') || 'None'} |
-| ❌ Blocked | ${result.aiCrawlerAccess.blockedCrawlers.join(', ') || 'None'} |`;
+| ❌ Disallowed, AI answers draw from them | ${[...result.aiCrawlerAccess.byClass.search.blocked, ...result.aiCrawlerAccess.byClass['ai-search'].blocked].join(', ') || 'None'} |
+| ⚠️ Disallowed, user-triggered fetchers | ${result.aiCrawlerAccess.byClass.user.blocked.join(', ') || 'None'} |
+| ○ Disallowed, training only (no visibility cost) | ${result.aiCrawlerAccess.byClass.training.blocked.join(', ') || 'None'} |`;
   return `# GEO Analysis (AI Search Optimization)
 
 **Score:** ${result.score}/100
