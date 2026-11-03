@@ -3,6 +3,23 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { vi } from 'vitest';
+
+// The engine audit of the output is mocked: the real one serves the directory and runs 280
+// checks, which is the engine's own test suite's job. parseFailOn and evaluateGate stay real.
+const auditSite = vi.fn();
+vi.mock('@rankcli/agent-runtime', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@rankcli/agent-runtime')>()),
+  auditSite: (...args: unknown[]) => auditSite(...args),
+}));
+const auditResult = (score: number, issues: Array<{ code: string; severity: string; affectedUrls?: string[] }>) => ({
+  score,
+  pagesAudited: 2,
+  issues: issues.map(i => ({ category: 'on-page', title: `Title ${i.code}`, description: '', impact: '', howToFix: '', affectedUrls: ['https://example.com/'], ...i })),
+  primaryReport: { healthScore: { overall: score, crawlability: score, indexability: score, onPage: score, content: score, links: score, performance: score, security: score, aiReadiness: score, social: score, localSeo: score, accessibility: score } },
+});
+auditSite.mockImplementation(async () => auditResult(90, []));
+
 import seoAutopilot, {
   generateSitemap,
   generateRobots,
@@ -371,5 +388,64 @@ describe('astro-seo-autopilot', () => {
       expect(robots).toContain('Disallow: /admin');
       expect(robots).toContain('Sitemap: https://example.com/sitemap.xml');
     });
+  });
+});
+
+describe('the full RankCLI audit of the build', () => {
+  let outDir: string;
+  beforeEach(() => {
+    outDir = mkdtempSync(join(tmpdir(), 'astro-rankcli-audit-'));
+    mkdirSync(join(outDir, 'about'), { recursive: true });
+    writeFileSync(join(outDir, 'index.html'), '<html><head><title>Home</title><meta name="description" content="A home page description that is long enough."></head><body><h1>Home</h1></body></html>');
+    writeFileSync(join(outDir, 'about', 'index.html'), '<html><head><title>About</title><meta name="description" content="An about page description that is long enough."></head><body><h1>About</h1></body></html>');
+    auditSite.mockClear();
+    auditSite.mockImplementation(async () => auditResult(90, []));
+  });
+  afterEach(() => {
+    rmSync(outDir, { recursive: true, force: true });
+  });
+
+  const run = (config: Partial<SEOConfig> = {}) => {
+    const logs: string[] = [];
+    const warns: string[] = [];
+    const hook = seoAutopilot({ siteUrl: 'https://example.com', ...config }).hooks['astro:build:done']!;
+    const promise = hook({ dir: pathToFileURL(outDir + '/'), pages: [{ pathname: '' }, { pathname: 'about/' }], logger: { info: (m: string) => logs.push(m), warn: (m: string) => warns.push(m) } });
+    return { promise, logs, warns };
+  };
+
+  it('audits the output directory as the site, every built page by default', async () => {
+    const { promise, logs } = run();
+    await promise;
+    expect(auditSite).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.com', maxPages: 2, staticBuild: true }));
+    expect(String((auditSite.mock.calls[0][0] as { dir: string }).dir).replace(/\/$/, '')).toBe(outDir);
+    expect(logs.some(l => /RankCLI score 90\/100 across 2 pages: 0 errors, 0 warnings, 0 notices/.test(l))).toBe(true);
+  });
+
+  it('lists errors and warnings with their codes, counts notices, and can be bounded', async () => {
+    auditSite.mockImplementation(async () => auditResult(70, [
+      { code: 'TITLE_MISSING', severity: 'error', affectedUrls: ['https://example.com/about/'] },
+      { code: 'META_DESC_SHORT', severity: 'warning', affectedUrls: ['https://example.com/', 'https://example.com/about/'] },
+      { code: 'LLMS_TXT_MISSING', severity: 'notice' },
+    ]));
+    const { promise, logs, warns } = run({ audit: { maxPages: 1 } });
+    await promise;
+    expect(auditSite).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 1 }));
+    expect(warns).toContain('  error [TITLE_MISSING] Title TITLE_MISSING (/about/)');
+    expect(warns).toContain('  warn  [META_DESC_SHORT] Title META_DESC_SHORT (2 pages)');
+    expect(warns.some(w => w.includes('LLMS_TXT_MISSING'))).toBe(false);
+    expect(logs.some(l => /1 notice not listed/.test(l))).toBe(true);
+  });
+
+  it('fails the build on the gate rules of rankcli audit --fail-on', async () => {
+    auditSite.mockImplementation(async () => auditResult(70, [{ code: 'META_DESC_SHORT', severity: 'warning' }]));
+    await expect(run({ audit: { failOn: 'error' } }).promise).resolves.toBeUndefined();
+    await expect(run({ audit: { failOn: ['error', 'score<80'] } }).promise).rejects.toThrow(/RankCLI gate failed: .*score 70/);
+    await expect(run({ audit: { failOn: 'warning' } }).promise).rejects.toThrow(/META_DESC_SHORT|warning/);
+    await expect(run({ audit: { failOn: 'severe' } }).promise).rejects.toThrow(/invalid audit.failOn/);
+  });
+
+  it('skips the audit with audit: false', async () => {
+    await run({ audit: false }).promise;
+    expect(auditSite).not.toHaveBeenCalled();
   });
 });

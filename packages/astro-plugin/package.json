@@ -1,7 +1,7 @@
 {
   "name": "astro-rankcli",
-  "version": "0.0.1",
-  "description": "Astro integration for SEO automation - sitemap, robots.txt, meta injection - RankCLI",
+  "version": "0.1.0",
+  "description": "Astro integration: on every build, the full RankCLI audit of the output (280+ SEO and AI-search checks, with a CI gate), plus sitemap.xml, robots.txt and per-page meta validation",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -35,6 +35,9 @@
     "astro",
     "astro-integration",
     "seo",
+    "geo",
+    "ai-search",
+    "audit",
     "sitemap",
     "rankcli"
   ],
@@ -46,6 +49,9 @@
   },
   "peerDependencies": {
     "astro": "^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "dependencies": {
+    "@rankcli/agent-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

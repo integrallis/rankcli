@@ -130,6 +130,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      # astro-rankcli bundles the engine's types and imports it in its build hook, so the
+      # runtime's dist has to exist before the plugin builds (the same order the Action and
+      # MCP server jobs use). The other two plugins do not need it, and it costs them little.
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
       - name: Build
         run: pnpm build
       - name: Test
