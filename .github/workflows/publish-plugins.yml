@@ -51,6 +51,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # astro-rankcli depends on the engine (workspace:* here, a real version on npm). The
+      # runtime has to be built for the plugin to build, and the published version it is
+      # pinned to has to exist on npm already: publish the plugins after a CLI release.
+      - name: Build agent-runtime
+        working-directory: packages/agent-runtime
+        run: pnpm build
+
+      - name: The runtime version the plugins pin must be on npm
+        id: runtime
+        run: |
+          RUNTIME_VERSION=$(node -p "require('./packages/agent-runtime/package.json').version")
+          if ! npm view "@rankcli/agent-runtime@$RUNTIME_VERSION" version >/dev/null 2>&1; then
+            echo "::error::@rankcli/agent-runtime@$RUNTIME_VERSION is not on npm yet; release the CLI first, then publish the plugins."
+            exit 1
+          fi
+          echo "version=$RUNTIME_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Resolve packages
         id: pkgs
         env:
@@ -67,6 +84,7 @@ jobs:
           NAMES: ${{ steps.pkgs.outputs.names }}
           DRY_RUN: ${{ inputs.mode == 'dry-run' }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RUNTIME_VERSION: ${{ steps.runtime.outputs.version }}
         run: |
           set -euo pipefail
           declare -A DIRS=(
@@ -78,6 +96,9 @@ jobs:
             dir="packages/${DIRS[$name]}"
             version=$(node -p "require('./$dir/package.json').version")
             echo "::group::$name@$version"
+            # The same pin release.yml applies to the CLI: npm publish would ship "workspace:*" as is.
+            sed -i "s|\"workspace:\\*\"|\"^$RUNTIME_VERSION\"|g" "$dir/package.json"
+            grep -A2 '"dependencies"' "$dir/package.json" || true
             (cd "$dir" && pnpm build && pnpm test)
             if [ "$DRY_RUN" = true ]; then
               (cd "$dir" && npm pack --dry-run)
