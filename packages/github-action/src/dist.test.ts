@@ -108,7 +108,7 @@ describe.skipIf(!built && !process.env.CI)('built action (dist/index.js)', () =>
   it('carries every check and nothing that looks like a secret', () => {
     const dir = join(__dirname, '..', 'dist');
     const bundle = readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => readFileSync(join(dir, f), 'utf8')).join('\n');
-    for (const formerlyEncrypted of ['Commercial page without clear CTA', 'Service page lacks interactive tools', 'Content at risk of AI overview displacement']) {
+    for (const formerlyEncrypted of ['Low vocabulary diversity (thin content signal)', 'Service page lacks interactive tools', 'Content at risk of AI overview displacement']) {
       expect(bundle).toContain(formerlyEncrypted);
     }
     for (const secret of [/sk_(live|test)_[A-Za-z0-9]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /whsec_[A-Za-z0-9]{10,}/, /"role"\s*:\s*"service_role"/]) {

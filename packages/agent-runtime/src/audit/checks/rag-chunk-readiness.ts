@@ -129,17 +129,6 @@ export function analyzeRAGChunkReadiness(
   if (totalSections >= 3 && wellSizedSectionCount / totalSections < 0.5) {
     const tooLong = sections.filter((s) => s.sizeQuality === 'too-long').length;
     const tooShort = sections.filter((s) => s.sizeQuality === 'too-short').length;
-    issues.push({
-      code: 'RAG_CHUNK_SIZE_MISMATCH',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Most sections are poorly sized for AI retrieval chunking',
-      description: `${wellSizedSectionCount} of ${totalSections} sections fall in a well-sized range for RAG retrieval (roughly 150-450 words); ${tooLong} are too long and likely to get split mid-thought, ${tooShort} are too short and likely to get merged with unrelated neighbors.`,
-      impact: 'When an AI answer engine retrieves a chunk of this page in response to a query, oversized sections risk being cut off mid-point and undersized ones risk losing standalone context — both reduce the odds the retrieved chunk reads coherently in an AI-generated answer.',
-      howToFix: 'Break up long sections (450+ words) with an additional H2/H3 subheading roughly every 300-400 words. Merge very short sections (under 150 words) into a neighboring section or expand them with enough context to stand alone.',
-      affectedUrls: [url],
-      details: { wellSizedSectionCount, totalSections, tooLong, tooShort },
-    });
   }
 
   if (totalSections >= 3 && danglingReferenceCount / totalSections > 0.3) {

@@ -24,7 +24,7 @@ describe('dedupeIssues', () => {
 
   it('leaves a secondary code alone when its primary did not fire', () => {
     expect(codes(dedupeIssues([issue('HTML_NO_VIEWPORT')]))).toEqual(['HTML_NO_VIEWPORT']);
-    expect(codes(dedupeIssues([issue('BING_NOT_VERIFIED')]))).toEqual(['BING_NOT_VERIFIED']);
+    expect(codes(dedupeIssues([issue('META_DESC_MISSING')]))).toEqual(['META_DESC_MISSING']);
   });
 
   it('collapses the six no-testimonials findings into one', () => {
@@ -65,5 +65,12 @@ describe('dedupeIssues', () => {
     for (const rule of REDUNDANT_WHEN_PRESENT) {
       if (typeof rule.keep === 'string') expect(rule.drop).not.toContain(rule.keep);
     }
+  });
+});
+
+describe('no sitemap makes IndexNow moot', () => {
+  it('keeps the sitemap finding and drops the IndexNow one', () => {
+    expect(codes(dedupeIssues([issue('SITEMAP_MISSING'), issue('INDEXNOW_NOT_IMPLEMENTED')]))).toEqual(['SITEMAP_MISSING']);
+    expect(codes(dedupeIssues([issue('INDEXNOW_NOT_IMPLEMENTED')]))).toEqual(['INDEXNOW_NOT_IMPLEMENTED']);
   });
 });

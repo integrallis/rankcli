@@ -117,33 +117,6 @@ export async function analyzeBingOptimization(
   // Search Console leaves no trace at all, hence the "if not yet".
   if (!hasBingMetaTag && !hasBingSiteAuth && !hasBingDnsRecord) {
     detectedIssues.push('No Bing site verification');
-    issues.push({
-      code: 'BING_NOT_VERIFIED',
-      // A notice: verification done through Search Console import or a DNS record this run
-      // could not see leaves no trace in the HTML, so this cannot be a warning.
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: verification.dnsChecked
-        ? 'Site not verified with Bing Webmaster Tools'
-        : 'Bing Webmaster Tools verification not visible in the HTML',
-      description: verification.dnsChecked
-        ? 'No msvalidate.01 meta tag in the HTML, no MS= TXT record on the domain and no /BingSiteAuth.xml file. ChatGPT Search uses Bing\'s index. Verifying your site with Bing Webmaster Tools ensures proper indexing and access to Bing-specific SEO tools.'
-        : 'No msvalidate.01 meta tag in the HTML and no /BingSiteAuth.xml file. The site may be verified through a DNS record instead, which this run could not check. ChatGPT Search uses Bing\'s index. Verifying your site with Bing Webmaster Tools ensures proper indexing and access to Bing-specific SEO tools.',
-      impact: 'May reduce visibility in ChatGPT Search results and miss Bing-specific optimization opportunities.',
-      howToFix: 'If the site is not yet in Bing Webmaster Tools: 1) Go to Bing Webmaster Tools, 2) Add your site (or import it from Google Search Console), 3) Choose a verification method (meta tag, DNS record or XML file), 4) Add the verification code to your site.',
-      affectedUrls: [url],
-      details: {
-        hasBingMetaTag,
-        hasBingSiteAuth,
-        hasBingDnsRecord,
-        dnsChecked: verification.dnsChecked,
-        verificationMethods: [
-          'Add <meta name="msvalidate.01" content="YOUR_CODE"> to <head>',
-          'Add an MS=YOUR_CODE TXT record to the domain\'s DNS',
-          'Upload BingSiteAuth.xml to root directory',
-        ],
-      },
-    });
   }
 
   // No IndexNow for Bing
@@ -188,20 +161,6 @@ export async function analyzeBingOptimization(
 
   if (hasAddressOnPage && !hasLocalBusinessSchema) {
     detectedIssues.push('Local business may not be on Bing Places');
-    issues.push({
-      code: 'BING_PLACES_MISSING',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Local business not optimized for Bing Places',
-      description: 'Your site appears to have a physical location but may not be listed on Bing Places. Bing Places listings appear in Bing Maps and can be referenced by AI assistants.',
-      impact: 'Missing local search visibility in Bing and potential AI assistant recommendations for local queries.',
-      howToFix: 'Claim your Bing Places listing: 1) Go to bingplaces.com, 2) Claim or add your business, 3) Verify ownership, 4) Add complete business information.',
-      affectedUrls: [url],
-      details: {
-        bingPlacesUrl: 'https://www.bingplaces.com/',
-        recommendation: 'Also add sameAs link to your Bing Places listing in Organization schema',
-      },
-    });
   }
 
   return {

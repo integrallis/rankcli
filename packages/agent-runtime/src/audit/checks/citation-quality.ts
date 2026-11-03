@@ -319,27 +319,6 @@ export function analyzeCitationQuality(
     });
   }
 
-  // Low citation score
-  if (citationScore < 40) {
-    issues.push({
-      code: 'AI_LOW_CITATION_QUALITY',
-      // A notice: a heuristic score, not a defect a crawler can see, and it fired on most sites.
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Content citation quality needs improvement',
-      description: `Citation quality score: ${citationScore}/100. Well-cited content ranks higher in AI search results.`,
-      impact: 'Low citation quality signals reduce E-E-A-T and AI citation likelihood.',
-      howToFix: 'Improve citations: 1) Link to reputable sources, 2) Cite statistics with sources, 3) Add a references section, 4) Use inline citations for claims.',
-      affectedUrls: [url],
-      details: {
-        citationScore,
-        externalLinks,
-        reputableSources: totalReputable,
-        statisticsWithSources,
-        statisticsWithoutSources,
-      },
-    });
-  }
 
   return {
     issues,

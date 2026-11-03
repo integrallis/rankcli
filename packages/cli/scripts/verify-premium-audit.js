@@ -13,7 +13,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { mkdtempSync } = require('fs');
 const { tmpdir } = require('os');
-const { premiumChecks } = require('@rankcli/agent-runtime');
+const { premiumChecks, REDUNDANT_WHEN_PRESENT } = require('@rankcli/agent-runtime');
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Acme Widgets - Pricing</title><meta name="description" content="Acme widgets pricing and plans.">
@@ -58,14 +58,25 @@ server.listen(0, '127.0.0.1', async () => {
       for (const issue of check(PAGE, url).issues) expected.add(issue.code);
     }
     const reported = await audit(url);
+    // The engine's dedupe pass drops a code whenever a broader one is in the same report (and
+    // the broader one may itself have been dropped by its own rule), so a code is excused when
+    // a rule drops it and that rule's primary is reported or excused the same way.
+    const covered = new Set(reported);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const rule of REDUNDANT_WHEN_PRESENT) {
+        const fires = typeof rule.keep === 'string' ? covered.has(rule.keep) : [...covered].some((code) => rule.keep.test(code));
+        if (!fires) continue;
+        for (const code of rule.drop) if (!covered.has(code)) { covered.add(code); grew = true; }
+      }
+    }
+    const missing = [...expected].filter((code) => !covered.has(code));
     const found = [...expected].filter((code) => reported.has(code));
-    // The engine's dedupe pass drops a code when a broader one is present, so the report
-    // carries most of the expected codes, not necessarily all of them.
-    if (expected.size === 0 || found.length < Math.ceil(expected.size / 2)) {
-      console.error(`verify-premium-audit: ${found.length} of the ${expected.size} codes the 21 checks report for the page reached the CLI's report (${reported.size} issues)`);
+    if (expected.size === 0 || missing.length > 0) {
+      console.error(`verify-premium-audit: ${missing.length} of the ${expected.size} codes the 21 checks report for the page never reached the CLI's report and no dedupe rule excuses them: ${missing.join(', ') || '(none expected)'} (${reported.size} issues)`);
       process.exitCode = 1;
     } else {
-      console.log(`verify-premium-audit: ok - ${found.length}/${expected.size} codes from the 21 checks reported (e.g. ${found.slice(0, 3).join(', ')})`);
+      console.log(`verify-premium-audit: ok - ${found.length}/${expected.size} codes from the 21 checks reported, the rest deduped (e.g. ${found.slice(0, 3).join(', ')})`);
     }
   } catch (error) {
     console.error(`verify-premium-audit: ${error.message}`);

@@ -836,19 +836,6 @@ export function analyzeEEATSignals(
     }
   }
 
-  // General E-E-A-T recommendations
-  if (!author.name && !organization.name) {
-    issues.push({
-      code: 'NO_ENTITY_IDENTIFIED',
-      severity: 'notice',
-      category: 'content',
-      title: 'No author or organization identified',
-      description: 'Page lacks clear attribution to an author or organization.',
-      impact: 'Anonymous content may be seen as less trustworthy.',
-      howToFix: 'Add author byline or organization information with structured data.',
-      affectedUrls: [url],
-    });
-  }
 
   if (!organization.hasSchema) {
     issues.push({
@@ -889,18 +876,6 @@ export function analyzeEEATSignals(
     });
   }
 
-  if (experienceSignals.length === 0 && !isYMYL) {
-    issues.push({
-      code: 'NO_EXPERIENCE_SIGNALS',
-      severity: 'notice',
-      category: 'content',
-      title: 'No first-hand experience signals detected',
-      description: 'Content lacks indicators of personal/first-hand experience.',
-      impact: 'The "Experience" in E-E-A-T values authentic, first-hand knowledge.',
-      howToFix: 'Add personal insights, original photos, or hands-on testing details.',
-      affectedUrls: [url],
-    });
-  }
 
   // Additional issues for enhanced E-E-A-T signals (2025 best practices)
 
@@ -959,18 +934,6 @@ export function analyzeEEATSignals(
 
   // Video experience for product/review content
   const isReviewContent = /\b(review|reviews|reviewed|comparison|compared|vs\.?|best \w+|top \d+)\b/.test(headline);
-  if (isReviewContent && !videoExperience.hasVideo) {
-    issues.push({
-      code: 'REVIEW_NO_VIDEO',
-      severity: 'notice',
-      category: 'content',
-      title: 'Review content without video',
-      description: 'Product review or comparison content lacks video demonstrations.',
-      impact: 'Video content signals first-hand experience, highly valued by Google and AI tools.',
-      howToFix: 'Add hands-on video reviews showing actual product testing and demonstration.',
-      affectedUrls: [url],
-    });
-  }
 
   return {
     issues,

@@ -21,13 +21,12 @@ export const REDUNDANT_WHEN_PRESENT: ReadonlyArray<{ keep: string | RegExp; drop
   { keep: 'APPLE_TOUCH_ICON_MISSING', drop: ['HTML_NO_APPLE_TOUCH_ICON'] },
   { keep: 'LLMS_TXT_MISSING', drop: ['AI_NO_LLMS_TXT'] },
   { keep: 'INDEXNOW_NOT_IMPLEMENTED', drop: ['BING_NO_INDEXNOW'] },
-  { keep: 'BING_VERIFICATION_MISSING', drop: ['BING_NOT_VERIFIED'] },
-  { keep: 'SITEMAP_MISSING', drop: ['BING_SITEMAP_MISSING', 'SITEMAP_NOT_IN_ROBOTS'] },
+  // No sitemap makes IndexNow moot: Bing's advice is an accurate lastmod paired with IndexNow.
+  { keep: 'SITEMAP_MISSING', drop: ['BING_SITEMAP_MISSING', 'SITEMAP_NOT_IN_ROBOTS', 'INDEXNOW_NOT_IMPLEMENTED'] },
   { keep: 'ROBOTS_TXT_MISSING', drop: ['SITEMAP_NOT_IN_ROBOTS'] },
   { keep: 'IMAGES_MISSING_DIMENSIONS', drop: ['IMG_NO_DIMENSIONS'] },
   { keep: 'NO_MODERN_IMAGE_FORMATS', drop: ['IMAGE_NOT_WEBP_AVIF'] },
   { keep: 'SOCIAL_PROFILES_NOT_LINKED', drop: ['NO_SOCIAL_PROFILES'] },
-  { keep: 'NO_EXPERIENCE_SIGNALS', drop: ['AI_NO_EXPERIENCE_SIGNALS'] },
 
   // No structured data at all makes every "your schema lacks X" finding moot.
   {
@@ -62,7 +61,6 @@ export const REDUNDANT_WHEN_PRESENT: ReadonlyArray<{ keep: string | RegExp; drop
   { keep: 'NO_SOCIAL_PROOF', drop: ['BOFU_NO_SOCIAL_PROOF', 'AI_NO_TESTIMONIALS', 'AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'] },
   { keep: 'AI_NO_TESTIMONIALS', drop: ['AI_NO_REVIEW_INTEGRATION', 'AI_NO_REVIEW_PLATFORMS', 'AI_WEAK_REVIEW_ECOSYSTEM'] },
   // The brand-score composite restates the brand-definition finding it is built from.
-  { keep: 'AI_NO_BRAND_DEFINITION', drop: ['AI_LOW_BRAND_SCORE', 'NO_ENTITY_DEFINITION'] },
 ];
 
 /**

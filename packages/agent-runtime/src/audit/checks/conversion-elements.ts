@@ -427,17 +427,6 @@ export function analyzeConversionElements(
   // Above-the-fold issues for commercial pages
   if (pageType === 'commercial' || pageType === 'mixed') {
     if (!aboveFold.hasCTA) {
-      issues.push({
-        code: 'COMMERCIAL_NO_CTA',
-        severity: 'warning',
-        category: 'content',
-        title: 'Commercial page without clear CTA',
-        description: 'This appears to be a commercial page but has no clear call-to-action.',
-        impact: 'Without a CTA, visitors have no clear next step. 80% of users only see above-the-fold content.',
-        howToFix: 'Add a prominent CTA button above the fold (e.g., "Get Free Quote", "Contact Us", "Start Free Trial").',
-        affectedUrls: [url],
-        details: { pageType },
-      });
       recommendations.push('Add prominent CTA button above the fold');
     }
 
@@ -478,17 +467,6 @@ export function analyzeConversionElements(
 
   // Engagement triggers for any page type
   if (!engagementTriggers.hasEmbeddedVideo && !engagementTriggers.hasInteractiveElement) {
-    issues.push({
-      code: 'NO_ENGAGEMENT_TRIGGERS',
-      severity: 'notice',
-      category: 'content',
-      title: 'No engagement triggers found',
-      description: 'Page lacks interactive elements, videos, or calculators.',
-      impact: 'Interactive content increases dwell time, a user signal that influences rankings.',
-      howToFix: 'Add video content, calculators, interactive tools, or expandable sections.',
-      affectedUrls: [url],
-      details: { engagementScore: engagementTriggers.engagementScore },
-    });
     recommendations.push('Add video or interactive elements to increase engagement');
   }
 

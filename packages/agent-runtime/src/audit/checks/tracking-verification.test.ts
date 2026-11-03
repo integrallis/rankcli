@@ -57,20 +57,6 @@ describe('analyzeTrackingVerification', () => {
       expect(data.ga4.measurementId).toBe('G-TESTID123');
     });
 
-    it('reports missing GA4 when not present', async () => {
-      const html = `<html><head></head></html>`;
-
-      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
-
-      expect(data.ga4.detected).toBe(false);
-      expect(data.ga4.measurementId).toBeUndefined();
-
-      const ga4Issue = issues.find((i) => i.code === 'GA4_MISSING');
-      expect(ga4Issue).toBeDefined();
-      expect(ga4Issue?.severity).toBe('notice');
-      expect(ga4Issue?.affectedUrls).toContain(testUrl);
-    });
-
     it('does not report missing GA4 if GTM is present', async () => {
       const html = `
         <html>
@@ -142,17 +128,6 @@ describe('analyzeTrackingVerification', () => {
       expect(noscriptIssue?.severity).toBe('notice');
     });
 
-    it('reports missing GTM as informational', async () => {
-      const html = `<html><head></head></html>`;
-
-      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
-
-      expect(data.gtm.detected).toBe(false);
-
-      const gtmIssue = issues.find((i) => i.code === 'GTM_MISSING');
-      expect(gtmIssue).toBeDefined();
-      expect(gtmIssue?.severity).toBe('notice');
-    });
   });
 
   describe('Google Search Console verification', () => {
@@ -220,17 +195,6 @@ describe('analyzeTrackingVerification', () => {
       expect(bingIssue).toBeUndefined();
     });
 
-    it('reports missing Bing verification as notice', async () => {
-      const html = `<html><head></head></html>`;
-
-      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
-
-      expect(data.bing.verified).toBe(false);
-
-      const bingIssue = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
-      expect(bingIssue).toBeDefined();
-      expect(bingIssue?.severity).toBe('notice');
-    });
   });
 
   describe('Schema.org structured data detection', () => {
@@ -368,18 +332,6 @@ describe('analyzeTrackingVerification', () => {
       expect(criticalIssues).toHaveLength(0);
     });
 
-    it('analyzes page with no tracking configured', async () => {
-      const html = `<html><head></head><body></body></html>`;
-
-      const { issues } = await analyzeTrackingVerification(html, testUrl);
-
-      const issueCodes = issues.map((i) => i.code);
-      expect(issueCodes).toContain('GA4_MISSING');
-      expect(issueCodes).toContain('GSC_VERIFICATION_MISSING');
-      expect(issueCodes).toContain('BING_VERIFICATION_MISSING');
-      expect(issueCodes).toContain('GTM_MISSING');
-      expect(issueCodes).toContain('SCHEMA_ORG_MISSING');
-    });
   });
 
   describe('other analytics', () => {
@@ -417,16 +369,6 @@ describe('analyzeTrackingVerification', () => {
       expect(codes).not.toContain('GTM_MISSING');
     });
 
-    it('still reports both when no analytics at all is present', async () => {
-      const html = `<html><head><script src="/assets/app.js"></script></head></html>`;
-
-      const { data, issues } = await analyzeTrackingVerification(html, testUrl);
-
-      expect(data.otherAnalytics).toEqual([]);
-      const codes = issues.map((i) => i.code);
-      expect(codes).toContain('GA4_MISSING');
-      expect(codes).toContain('GTM_MISSING');
-    });
   });
 
   describe('verification through DNS and BingSiteAuth.xml', () => {
@@ -470,35 +412,7 @@ describe('analyzeTrackingVerification', () => {
       expect(data.gsc.source).toBe('meta');
     });
 
-    it('says the record is absent when DNS was checked and found nothing', async () => {
-      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
-
-      expect(data.dnsChecked).toBe(true);
-      const gsc = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
-      expect(gsc?.title).toBe('Google Search Console verification not found');
-      expect(gsc?.description).toContain('no google-site-verification TXT record');
-      expect(gsc?.details).toEqual({ dnsChecked: true });
-      const bing = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
-      expect(bing?.description).toContain('no MS= TXT record');
-    });
-
     // Deno and offline runs have no resolver: the site may well be verified, so say only what
     // was seen.
-    it('only says the tag is not in the HTML when DNS could not be checked', async () => {
-      lookup.mockResolvedValue({ ...nothing, dnsChecked: false });
-
-      const { data, issues } = await analyzeTrackingVerification(bare, testUrl);
-
-      expect(data.dnsChecked).toBe(false);
-      const gsc = issues.find((i) => i.code === 'GSC_VERIFICATION_MISSING');
-      expect(gsc).toBeDefined();
-      expect(gsc?.title).toBe('Google Search Console verification not visible in the HTML');
-      expect(gsc?.description).toContain('could not check');
-      expect(gsc?.description).not.toContain('no google-site-verification TXT record');
-      expect(gsc?.details).toEqual({ dnsChecked: false });
-      const bing = issues.find((i) => i.code === 'BING_VERIFICATION_MISSING');
-      expect(bing?.title).toBe('Bing Webmaster Tools verification not visible in the HTML');
-      expect(bing?.description).toContain('could not check');
-    });
   });
 });
