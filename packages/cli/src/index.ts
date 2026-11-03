@@ -64,7 +64,7 @@ program
   .description('Run an SEO + GEO audit (280+ checks)')
   .option('-u, --url <url>', 'URL to audit (defaults to the url in rankcli.config.json)')
   .option('--dir <path>', 'Audit a build directory (dist, out, build) served locally instead of the live site; --url names the site it is built for')
-  .option('-o, --output <format>', 'Output format: console, json, sarif, junit', 'console')
+  .option('-o, --output <format>', 'Output format: console, json, sarif, junit, llm (plain Markdown for an agent)', 'console')
   .option('--check-links', 'Check for broken internal/external links (slower)')
   .option('--max-pages <n>', 'Max pages to audit, the sitemap first (default: 5)')
   .option('--fail-on <rules>', 'CI gate, comma-separated or repeated: error | warning | notice (any issue at or above), score<80, score:aiReadiness<70', collect)

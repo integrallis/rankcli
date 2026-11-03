@@ -33,6 +33,7 @@ import { showUpsell } from '../lib/upsell.js';
 import { VERSION } from '../version.js';
 import { runSiteAudit } from '../lib/site-audit.js';
 import { resolveAuditSettings, loadBaselineFile, PROJECT_CONFIG_FILE, type AuditSettings } from '../lib/project-config.js';
+import { renderForAgent } from '../lib/agent-format.js';
 import { resolveAIProvider, runAIAnalysis, AI_PROVIDERS, AI_PROVIDER_IDS, AI_ENV_KEYS, type AIAnalysis } from '../lib/ai.js';
 
 export interface AuditOptions {
@@ -78,7 +79,7 @@ export const EXIT_CODES = {
   AUDIT_FAILED: 3,
 } as const;
 
-export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'junit'] as const;
+export const OUTPUT_FORMATS = ['console', 'json', 'sarif', 'junit', 'llm'] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
 export type { GateResult, FailOnLevel };
@@ -312,6 +313,8 @@ export async function audit(options: AuditOptions): Promise<number> {
       console.log(JSON.stringify(toSarif({ url: url ?? '', issues: [], toolVersion: VERSION, exitCode: code, error: message }), null, 2));
     } else if (format === 'junit') {
       console.log(toJUnit({ url: url ?? '', issues: [], error: message }));
+    } else if (format === 'llm') {
+      console.log(`# RankCLI audit${url ? ` of ${url}` : ''}\nNo audit ran: ${message} (exit code ${code}).\n`);
     } else {
       console.error(`\n❌ ${message}\n`);
     }
@@ -523,6 +526,25 @@ export async function audit(options: AuditOptions): Promise<number> {
         }),
       };
       console.log(JSON.stringify(jsonOutput, null, 2));
+      if (!gateResult.passed) {
+        for (const failure of gateResult.failures) console.error(`Gate failed: ${failure}`);
+      }
+    } else if (format === 'llm') {
+      console.log(renderForAgent({
+        url,
+        score,
+        pagesAudited: successCount,
+        cliVersion: VERSION,
+        issues: mergedIssues,
+        healthScores: primaryReport.healthScore as unknown as Record<string, number> | undefined,
+        framework: frameworkName,
+        dir: settings.dir,
+        gated,
+        gate: gateResult,
+        baseline: baselineSummary ? { file: baselineSummary.file, added: baselineSummary.added.length, fixed: baselineSummary.fixed.length, unchanged: baselineSummary.unchanged } : null,
+        ignored: ignored.length,
+        note: AI_READINESS_NOTE,
+      }));
       if (!gateResult.passed) {
         for (const failure of gateResult.failures) console.error(`Gate failed: ${failure}`);
       }
