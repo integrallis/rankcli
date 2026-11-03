@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        plugin: [astro-plugin, next-plugin, vite-plugin]
+        plugin: [astro-plugin, next-plugin, vite-plugin, nuxt-plugin]
     defaults:
       run:
         working-directory: packages/${{ matrix.plugin }}

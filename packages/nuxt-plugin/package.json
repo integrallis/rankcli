@@ -1,0 +1,63 @@
+{
+  "name": "nuxt-rankcli",
+  "version": "0.1.0",
+  "description": "Nuxt module: after nuxi generate, the full RankCLI audit of the output (280+ SEO and AI-search checks, with a CI gate). A server build has nothing static to audit; the module says so and names the command for the deploy.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://rankcli.dev/seo/nuxt",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/integrallis/rankcli.git",
+    "directory": "packages/nuxt-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/integrallis/rankcli/issues"
+  },
+  "type": "module",
+  "main": "./dist/module.js",
+  "module": "./dist/module.js",
+  "types": "./dist/module.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js",
+      "types": "./dist/module.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "seo",
+    "geo",
+    "ai-search",
+    "audit",
+    "rankcli"
+  ],
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "tsup src/module.ts --format esm --dts --external @nuxt/kit",
+    "dev": "tsup src/module.ts --format esm --dts --external @nuxt/kit --watch",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "nuxt": "^3.0.0 || ^4.0.0"
+  },
+  "dependencies": {
+    "@nuxt/kit": "^3.0.0 || ^4.0.0",
+    "@rankcli/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@nuxt/schema": "^4.6.0",
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  }
+}

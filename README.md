@@ -18,7 +18,8 @@ No account. Nothing leaves your machine except the requests to your own site.
 | [`packages/agent-runtime`](packages/agent-runtime) | The audit engine every surface runs: the checks, the scoring, framework detection, fix recipes | `npm i @rankcli/agent-runtime` |
 | [`packages/mcp-server`](packages/mcp-server) | A local MCP server with 15 tools for Claude, Cursor, Codex and any MCP client | `npx @rankcli/mcp-server` |
 | [`packages/github-action`](packages/github-action) | The GitHub Action that fails the build on SEO regressions and comments on the PR | `uses: integrallis/rankcli-action@v1` |
-| [`packages/astro-plugin`](packages/astro-plugin), [`next-plugin`](packages/next-plugin), [`vite-plugin`](packages/vite-plugin) | Build-time SEO lint for Astro, Next.js and Vite | `astro-rankcli`, `next-rankcli`, `vite-plugin-rankcli` |
+| [`packages/astro-plugin`](packages/astro-plugin), [`nuxt-plugin`](packages/nuxt-plugin) | The full audit of the build output after `astro build` and `nuxi generate`, with a CI gate; the Astro one also writes sitemap.xml and robots.txt | `astro-rankcli`, `nuxt-rankcli` |
+| [`packages/next-plugin`](packages/next-plugin), [`vite-plugin`](packages/vite-plugin) | SEO lint and helpers for Next.js and Vite builds (not the audit) | `next-rankcli`, `vite-plugin-rankcli` |
 
 The source is published under the Functional Source License (FSL-1.1-MIT; the plugins are MIT),
 see [License](#license). The hosted product at [rankcli.dev](https://rankcli.dev) (scheduled
