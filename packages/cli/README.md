@@ -132,7 +132,7 @@ rankcli audit [options]
 Options:
   -u, --url <url>           URL to audit (or the url in rankcli.config.json)
   --dir <path>              Audit a build directory (dist, out, build) served locally; --url names the site it is built for
-  -o, --output <format>     Output: console (default), json, sarif, junit
+  -o, --output <format>     Output: console (default), json, sarif, junit, llm
   --max-pages <n>           Pages to audit, the sitemap first (default: 5)
   --check-links             Check broken links
   --fail-on <rules>         CI gate: error | warning | notice, score<80, score:aiReadiness<70 (comma-separated or repeated)
@@ -192,6 +192,7 @@ It measures hygiene on the levers the citation evidence supports: crawler access
 | `json` | One document: `url`, `timestamp`, `cliVersion`, `score`, `healthScores`, `pages` (one entry per audited page with its score and counts), `discovery` (where the pages came from), `checksRun`, `checksPassed`, `issues` (code, severity, category, title, description, impact, howToFix, affectedUrls), `ignored`, `baseline` (new, fixed, unchanged), `gate` and `exitCode` |
 | `sarif` | SARIF 2.1.0 for GitHub Code Scanning (`github/codeql-action/upload-sarif`) and other SARIF readers: one rule per code, one result per page, `baselineState` when a baseline is given, file locations with `--dir` |
 | `junit` | JUnit XML for test reporters: findings at or above the gate's severity are failures, the rest pass with the finding in their output |
+| `llm` | The report as an agent reads it: plain Markdown, every finding with its code, the fix's first sentence on errors and warnings, the category scores, in a few hundred tokens. For Claude Code, Cursor and the like: `rankcli audit --url … -o llm` |
 
 #### Protected previews
 
