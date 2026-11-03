@@ -1,0 +1,2698 @@
+{
+  "source": "npm search API, keywords framework, cli, react, vue, build, testing, database, server, typescript, css, bundler, orm, api, auth, ui, ranked by npm popularity; package homepages that are sites of their own",
+  "builtAt": "2026-11-03T01:28:36.495Z",
+  "count": 400,
+  "sites": [
+    {
+      "origin": "https://expressjs.com",
+      "packages": [
+        "express"
+      ]
+    },
+    {
+      "origin": "https://orm.drizzle.team",
+      "packages": [
+        "drizzle-orm",
+        "drizzle-kit",
+        "drizzle-graphql",
+        "@depup/drizzle-kit"
+      ]
+    },
+    {
+      "origin": "https://postcss.org",
+      "packages": [
+        "postcss"
+      ]
+    },
+    {
+      "origin": "https://react.dev",
+      "packages": [
+        "react-is",
+        "react-dom",
+        "scheduler",
+        "react",
+        "eslint-plugin-react-hooks"
+      ]
+    },
+    {
+      "origin": "https://rollupjs.org",
+      "packages": [
+        "rollup",
+        "@rollup/wasm-node",
+        "@rollup/browser",
+        "yougile-rollup",
+        "@depup/rollup"
+      ]
+    },
+    {
+      "origin": "https://www.deque.com",
+      "packages": [
+        "axe-core"
+      ]
+    },
+    {
+      "origin": "https://zod.dev",
+      "packages": [
+        "zod"
+      ]
+    },
+    {
+      "origin": "http://chaijs.com",
+      "packages": [
+        "chai"
+      ]
+    },
+    {
+      "origin": "https://hono.dev",
+      "packages": [
+        "hono"
+      ]
+    },
+    {
+      "origin": "https://nextjs.org",
+      "packages": [
+        "next"
+      ]
+    },
+    {
+      "origin": "https://rolldown.rs",
+      "packages": [
+        "@rolldown/binding-linux-x64-gnu",
+        "rolldown",
+        "@rolldown/binding-linux-x64-musl",
+        "@rolldown/binding-linux-arm64-gnu",
+        "@rolldown/binding-wasm32-wasi"
+      ]
+    },
+    {
+      "origin": "https://tanstack.com",
+      "packages": [
+        "@tanstack/virtual-core",
+        "@tanstack/react-store",
+        "@tanstack/table-core",
+        "@tanstack/react-virtual",
+        "@tanstack/react-table"
+      ]
+    },
+    {
+      "origin": "https://typescript-eslint.io",
+      "packages": [
+        "@typescript-eslint/parser",
+        "@typescript-eslint/types",
+        "@typescript-eslint/visitor-keys",
+        "@typescript-eslint/eslint-plugin",
+        "@typescript-eslint/typescript-estree"
+      ]
+    },
+    {
+      "origin": "https://axios-http.com",
+      "packages": [
+        "axios"
+      ]
+    },
+    {
+      "origin": "https://underscorejs.org",
+      "packages": [
+        "underscore"
+      ]
+    },
+    {
+      "origin": "https://istanbul.js.org",
+      "packages": [
+        "nyc",
+        "istanbul-lib-report"
+      ]
+    },
+    {
+      "origin": "https://mswjs.io",
+      "packages": [
+        "msw",
+        "@msw/playwright"
+      ]
+    },
+    {
+      "origin": "https://vite.dev",
+      "packages": [
+        "vite"
+      ]
+    },
+    {
+      "origin": "https://www.embla-carousel.com",
+      "packages": [
+        "embla-carousel-react",
+        "embla-carousel-reactive-utils",
+        "embla-carousel",
+        "embla-carousel-autoplay",
+        "embla-carousel-fade"
+      ]
+    },
+    {
+      "origin": "https://yargs.js.org",
+      "packages": [
+        "yargs"
+      ]
+    },
+    {
+      "origin": "https://developer.mozilla.org",
+      "packages": [
+        "mdn-data"
+      ]
+    },
+    {
+      "origin": "https://facebook.github.io",
+      "packages": [
+        "prop-types"
+      ]
+    },
+    {
+      "origin": "https://mongoosejs.com",
+      "packages": [
+        "mongoose"
+      ]
+    },
+    {
+      "origin": "https://pglite.dev",
+      "packages": [
+        "@electric-sql/pglite",
+        "@electric-sql/pglite-tools",
+        "@electric-sql/pglite-socket",
+        "@electric-sql/pglite-pgvector",
+        "@electric-sql/pglite-pg_hashids"
+      ]
+    },
+    {
+      "origin": "https://preactjs.com",
+      "packages": [
+        "preact",
+        "@lynx-js/internal-preact"
+      ]
+    },
+    {
+      "origin": "https://knexjs.org",
+      "packages": [
+        "knex"
+      ]
+    },
+    {
+      "origin": "https://modelcontextprotocol.io",
+      "packages": [
+        "@modelcontextprotocol/server"
+      ]
+    },
+    {
+      "origin": "https://mths.be",
+      "packages": [
+        "cssesc",
+        "css.escape"
+      ]
+    },
+    {
+      "origin": "https://babel.dev",
+      "packages": [
+        "@babel/plugin-transform-typescript",
+        "@babel/plugin-syntax-typescript",
+        "@babel/preset-typescript"
+      ]
+    },
+    {
+      "origin": "https://docs.expo.dev",
+      "packages": [
+        "@expo/config-plugins",
+        "@expo/ui",
+        "expo-build-properties",
+        "expo-auth-session",
+        "expo-local-authentication"
+      ]
+    },
+    {
+      "origin": "https://sequelize.org",
+      "packages": [
+        "sequelize",
+        "@sequelize/core",
+        "@subql/x-sequelize",
+        "sequelize-enovate"
+      ]
+    },
+    {
+      "origin": "https://fast-check.dev",
+      "packages": [
+        "fast-check"
+      ]
+    },
+    {
+      "origin": "https://sidorares.github.io",
+      "packages": [
+        "mysql2"
+      ]
+    },
+    {
+      "origin": "https://tsx.hirok.io",
+      "packages": [
+        "tsx"
+      ]
+    },
+    {
+      "origin": "https://www.prisma.io",
+      "packages": [
+        "@prisma/client",
+        "@prisma/nextjs-monorepo-workaround-plugin"
+      ]
+    },
+    {
+      "origin": "https://fastify.dev",
+      "packages": [
+        "fastify"
+      ]
+    },
+    {
+      "origin": "https://jestjs.io",
+      "packages": [
+        "@jest/core",
+        "jest-cli",
+        "jest"
+      ]
+    },
+    {
+      "origin": "https://mikro-orm.io",
+      "packages": [
+        "@mikro-orm/core",
+        "mikro-orm",
+        "@mikro-orm/postgresql",
+        "@mikro-orm/migrations",
+        "@mikro-orm/knex"
+      ]
+    },
+    {
+      "origin": "https://the-guild.dev",
+      "packages": [
+        "graphql-ws"
+      ]
+    },
+    {
+      "origin": "https://www.better-auth.com",
+      "packages": [
+        "@better-auth/drizzle-adapter",
+        "@better-auth/memory-adapter",
+        "@better-auth/mongo-adapter",
+        "@better-auth/telemetry",
+        "@better-auth/core"
+      ]
+    },
+    {
+      "origin": "https://getbootstrap.com",
+      "packages": [
+        "bootstrap"
+      ]
+    },
+    {
+      "origin": "https://gulpjs.com",
+      "packages": [
+        "gulp",
+        "gulp-cli"
+      ]
+    },
+    {
+      "origin": "https://standardschema.dev",
+      "packages": [
+        "@standard-schema/spec"
+      ]
+    },
+    {
+      "origin": "https://storybook.js.org",
+      "packages": [
+        "storybook"
+      ]
+    },
+    {
+      "origin": "https://better-auth.com",
+      "packages": [
+        "better-auth",
+        "@better-auth/infra"
+      ]
+    },
+    {
+      "origin": "https://firebase.google.com",
+      "packages": [
+        "firebase",
+        "firebase-admin",
+        "rxfire"
+      ]
+    },
+    {
+      "origin": "https://nitro.build",
+      "packages": [
+        "nitro",
+        "nitro-nightly"
+      ]
+    },
+    {
+      "origin": "http://yeoman.io",
+      "packages": [
+        "yeoman-environment",
+        "yeoman-generator",
+        "yo",
+        "@yeoman/namespace",
+        "@yeoman/conflicter"
+      ]
+    },
+    {
+      "origin": "https://svelte.dev",
+      "packages": [
+        "svelte",
+        "@sveltejs/kit",
+        "@sveltejs/package"
+      ]
+    },
+    {
+      "origin": "https://kulshekhar.github.io",
+      "packages": [
+        "ts-jest"
+      ]
+    },
+    {
+      "origin": "https://react-hook-form.com",
+      "packages": [
+        "react-hook-form",
+        "@hookform/resolvers"
+      ]
+    },
+    {
+      "origin": "https://reactjs.org",
+      "packages": [
+        "client-only",
+        "server-only"
+      ]
+    },
+    {
+      "origin": "https://koajs.com",
+      "packages": [
+        "koa"
+      ]
+    },
+    {
+      "origin": "https://plopjs.com",
+      "packages": [
+        "plop"
+      ]
+    },
+    {
+      "origin": "https://ant.design",
+      "packages": [
+        "antd"
+      ]
+    },
+    {
+      "origin": "https://bun.com",
+      "packages": [
+        "bun"
+      ]
+    },
+    {
+      "origin": "https://floating-ui.com",
+      "packages": [
+        "@floating-ui/react-dom",
+        "@floating-ui/react",
+        "@floating-ui/vue"
+      ]
+    },
+    {
+      "origin": "https://gruntjs.com",
+      "packages": [
+        "grunt"
+      ]
+    },
+    {
+      "origin": "https://flmngr.com",
+      "packages": [
+        "@flmngr/flmngr-server-node-express",
+        "@flmngr/flmngr-server-node"
+      ]
+    },
+    {
+      "origin": "https://vuejs.org",
+      "packages": [
+        "vue"
+      ]
+    },
+    {
+      "origin": "https://www.assistant-ui.com",
+      "packages": [
+        "@assistant-ui/react"
+      ]
+    },
+    {
+      "origin": "https://swiperjs.com",
+      "packages": [
+        "swiper"
+      ]
+    },
+    {
+      "origin": "https://grammy.dev",
+      "packages": [
+        "grammy",
+        "@grammyjs/conversations",
+        "@grammyjs/types",
+        "@grammyjs/runner"
+      ]
+    },
+    {
+      "origin": "https://mastra.ai",
+      "packages": [
+        "@mastra/core",
+        "mastra"
+      ]
+    },
+    {
+      "origin": "https://www.passportjs.org",
+      "packages": [
+        "passport",
+        "@fastify/passport"
+      ]
+    },
+    {
+      "origin": "https://javascript.nwbox.com",
+      "packages": [
+        "nwsapi"
+      ]
+    },
+    {
+      "origin": "https://quilljs.com",
+      "packages": [
+        "quill"
+      ]
+    },
+    {
+      "origin": "https://sinonjs.org",
+      "packages": [
+        "sinon"
+      ]
+    },
+    {
+      "origin": "https://nitro.margelo.com",
+      "packages": [
+        "react-native-nitro-modules"
+      ]
+    },
+    {
+      "origin": "https://vitest.dev",
+      "packages": [
+        "@vitest/browser-playwright",
+        "@vitest/browser-preview",
+        "@vitest/istanbul-lib-report"
+      ]
+    },
+    {
+      "origin": "https://clerk.com",
+      "packages": [
+        "@clerk/react",
+        "@clerk/testing",
+        "@clerk/nextjs",
+        "@clerk/localizations",
+        "@clerk/clerk-js"
+      ]
+    },
+    {
+      "origin": "https://mochajs.org",
+      "packages": [
+        "mocha"
+      ]
+    },
+    {
+      "origin": "https://neon.com",
+      "packages": [
+        "@neondatabase/serverless"
+      ]
+    },
+    {
+      "origin": "https://react-svgr.com",
+      "packages": [
+        "@svgr/cli",
+        "@svgr/core",
+        "@svgr/webpack"
+      ]
+    },
+    {
+      "origin": "https://rtlcss.com",
+      "packages": [
+        "rtlcss"
+      ]
+    },
+    {
+      "origin": "https://rushjs.io",
+      "packages": [
+        "@microsoft/rush"
+      ]
+    },
+    {
+      "origin": "https://sonner.emilkowal.ski",
+      "packages": [
+        "sonner"
+      ]
+    },
+    {
+      "origin": "https://strapi.io",
+      "packages": [
+        "@strapi/strapi"
+      ]
+    },
+    {
+      "origin": "https://ckeditor.com",
+      "packages": [
+        "@ckeditor/ckeditor5-core",
+        "@ckeditor/ckeditor5-engine",
+        "ckeditor5",
+        "@ckeditor/ckeditor5-collaboration-core",
+        "@ckeditor/ckeditor5-comments"
+      ]
+    },
+    {
+      "origin": "https://ditojs.github.io",
+      "packages": [
+        "objection"
+      ]
+    },
+    {
+      "origin": "https://docs.slack.dev",
+      "packages": [
+        "@slack/types",
+        "@slack/web-api",
+        "@slack/socket-mode",
+        "@slack/oauth",
+        "@slack/bolt"
+      ]
+    },
+    {
+      "origin": "https://openapi-ts.dev",
+      "packages": [
+        "openapi-fetch",
+        "openapi-typescript",
+        "openapi-react-query"
+      ]
+    },
+    {
+      "origin": "https://hapi.dev",
+      "packages": [
+        "@hapi/hapi"
+      ]
+    },
+    {
+      "origin": "https://solidjs.com",
+      "packages": [
+        "solid-js"
+      ]
+    },
+    {
+      "origin": "https://daisyui.com",
+      "packages": [
+        "daisyui"
+      ]
+    },
+    {
+      "origin": "https://dexie.org",
+      "packages": [
+        "dexie"
+      ]
+    },
+    {
+      "origin": "https://oxc.rs",
+      "packages": [
+        "oxlint",
+        "@oxc-parser/binding-linux-x64-gnu",
+        "oxc-parser",
+        "@oxc-parser/binding-linux-x64-musl",
+        "@oxlint/binding-linux-x64-gnu"
+      ]
+    },
+    {
+      "origin": "https://typegoose.github.io",
+      "packages": [
+        "@typegoose/typegoose"
+      ]
+    },
+    {
+      "origin": "https://ui.shadcn.com",
+      "packages": [
+        "@shadcn/react",
+        "shadcn"
+      ]
+    },
+    {
+      "origin": "https://eslint.vuejs.org",
+      "packages": [
+        "eslint-plugin-vue"
+      ]
+    },
+    {
+      "origin": "https://payloadcms.com",
+      "packages": [
+        "payload"
+      ]
+    },
+    {
+      "origin": "https://pinia.vuejs.org",
+      "packages": [
+        "pinia",
+        "@pinia/nuxt",
+        "@pinia/testing"
+      ]
+    },
+    {
+      "origin": "https://ui.nuxt.com",
+      "packages": [
+        "@nuxt/ui"
+      ]
+    },
+    {
+      "origin": "https://cypress.io",
+      "packages": [
+        "cypress"
+      ]
+    },
+    {
+      "origin": "https://wxt.dev",
+      "packages": [
+        "wxt",
+        "@dword-design/wxt-fork"
+      ]
+    },
+    {
+      "origin": "https://oss.callstack.com",
+      "packages": [
+        "@testing-library/react-native",
+        "react-native-builder-bob"
+      ]
+    },
+    {
+      "origin": "https://rnfirebase.io",
+      "packages": [
+        "@react-native-firebase/app",
+        "@react-native-firebase/firestore",
+        "@react-native-firebase/database",
+        "@react-native-firebase/auth"
+      ]
+    },
+    {
+      "origin": "https://stryker-mutator.io",
+      "packages": [
+        "@stryker-mutator/api",
+        "@stryker-mutator/core"
+      ]
+    },
+    {
+      "origin": "https://convex.dev",
+      "packages": [
+        "convex"
+      ]
+    },
+    {
+      "origin": "https://floydspace.github.io",
+      "packages": [
+        "serverless-esbuild",
+        "aws-lambda-nodejs-esbuild"
+      ]
+    },
+    {
+      "origin": "https://jasmine.github.io",
+      "packages": [
+        "jasmine-core",
+        "@jasminejs/reporters"
+      ]
+    },
+    {
+      "origin": "https://redux-toolkit.js.org",
+      "packages": [
+        "@reduxjs/toolkit"
+      ]
+    },
+    {
+      "origin": "https://single-spa.js.org",
+      "packages": [
+        "single-spa"
+      ]
+    },
+    {
+      "origin": "https://zenstack.dev",
+      "packages": [
+        "@zenstackhq/cli",
+        "@zenstackhq/tanstack-query"
+      ]
+    },
+    {
+      "origin": "https://appium.io",
+      "packages": [
+        "@appium/schema",
+        "@appium/types",
+        "@appium/support",
+        "@appium/logger",
+        "appium"
+      ]
+    },
+    {
+      "origin": "https://markdown-to-jsx.quantizor.dev",
+      "packages": [
+        "markdown-to-jsx"
+      ]
+    },
+    {
+      "origin": "https://mantine.dev",
+      "packages": [
+        "@mantine/ssr",
+        "@mantine/core",
+        "@mantine/dates",
+        "@mantine/notifications",
+        "@mantine/modals"
+      ]
+    },
+    {
+      "origin": "https://docs.plasmo.com",
+      "packages": [
+        "plasmo"
+      ]
+    },
+    {
+      "origin": "https://vaul.emilkowal.ski",
+      "packages": [
+        "vaul"
+      ]
+    },
+    {
+      "origin": "https://www.ag-grid.com",
+      "packages": [
+        "ag-charts-types",
+        "ag-grid-community",
+        "ag-grid-react",
+        "ag-charts-locale",
+        "ag-charts-community"
+      ]
+    },
+    {
+      "origin": "https://platejs.org",
+      "packages": [
+        "platejs",
+        "@platejs/core"
+      ]
+    },
+    {
+      "origin": "https://buttes.dev",
+      "packages": [
+        "axios-ntlm"
+      ]
+    },
+    {
+      "origin": "https://docs.pimlico.io",
+      "packages": [
+        "permissionless",
+        "@permissionless/wagmi"
+      ]
+    },
+    {
+      "origin": "https://jawj.github.io",
+      "packages": [
+        "zapatos"
+      ]
+    },
+    {
+      "origin": "https://popmotion.io",
+      "packages": [
+        "style-value-types",
+        "popmotion",
+        "@popmotion/easing"
+      ]
+    },
+    {
+      "origin": "https://allurereport.org",
+      "packages": [
+        "allure-js-commons",
+        "allure-playwright"
+      ]
+    },
+    {
+      "origin": "https://bookshelfjs.org",
+      "packages": [
+        "bookshelf",
+        "@depup/bookshelf"
+      ]
+    },
+    {
+      "origin": "https://ionicframework.com",
+      "packages": [
+        "@ionic/core",
+        "@ionic/angular"
+      ]
+    },
+    {
+      "origin": "https://pdf-lib.js.org",
+      "packages": [
+        "pdf-lib"
+      ]
+    },
+    {
+      "origin": "https://verdaccio.org",
+      "packages": [
+        "@verdaccio/file-locking",
+        "@verdaccio/core",
+        "verdaccio-audit",
+        "@verdaccio/url",
+        "verdaccio"
+      ]
+    },
+    {
+      "origin": "https://apitools.dev",
+      "packages": [
+        "@apidevtools/openapi-schemas",
+        "swagger-cli"
+      ]
+    },
+    {
+      "origin": "https://json-render.dev",
+      "packages": [
+        "@json-render/core",
+        "@json-render/react",
+        "@json-render/shadcn",
+        "@json-render/react-native"
+      ]
+    },
+    {
+      "origin": "https://quasar.dev",
+      "packages": [
+        "@quasar/extras",
+        "quasar",
+        "@quasar/app-vite",
+        "@quasar/vite-plugin"
+      ]
+    },
+    {
+      "origin": "https://effect.website",
+      "packages": [
+        "@effect/sql-pg",
+        "@effect/sql-d1",
+        "@effect/sql-sqlite-do",
+        "@effect/sql-sqlite-bun",
+        "@effect/atom-react"
+      ]
+    },
+    {
+      "origin": "https://icons.sanity.dev",
+      "packages": [
+        "@sanity/icons"
+      ]
+    },
+    {
+      "origin": "https://karma-runner.github.io",
+      "packages": [
+        "karma"
+      ]
+    },
+    {
+      "origin": "https://ng.ant.design",
+      "packages": [
+        "ng-zorro-antd"
+      ]
+    },
+    {
+      "origin": "https://sailsjs.com",
+      "packages": [
+        "sails",
+        "sails-hook-orm"
+      ]
+    },
+    {
+      "origin": "https://input-otp.rodz.dev",
+      "packages": [
+        "input-otp"
+      ]
+    },
+    {
+      "origin": "https://lingui.dev",
+      "packages": [
+        "@lingui/cli",
+        "@lingui/metro-transformer"
+      ]
+    },
+    {
+      "origin": "https://tinyhttp.v1rtl.site",
+      "packages": [
+        "@tinyhttp/app"
+      ]
+    },
+    {
+      "origin": "https://www.sanity.io",
+      "packages": [
+        "@sanity/client",
+        "@sanity/ui",
+        "@sanity/logos",
+        "@sanity/access-ui",
+        "@sanity/themer-legacy"
+      ]
+    },
+    {
+      "origin": "https://chakra-ui.com",
+      "packages": [
+        "@chakra-ui/react",
+        "@chakra-ui/provider",
+        "@chakra-ui/charts"
+      ]
+    },
+    {
+      "origin": "http://javascript.nwbox.com",
+      "packages": [
+        "@asamuzakjp/nwsapi"
+      ]
+    },
+    {
+      "origin": "http://validatejs.org",
+      "packages": [
+        "validate.js"
+      ]
+    },
+    {
+      "origin": "https://bulma.io",
+      "packages": [
+        "bulma"
+      ]
+    },
+    {
+      "origin": "https://vue-macros.dev",
+      "packages": [
+        "@vue-macros/common"
+      ]
+    },
+    {
+      "origin": "https://thymikee.github.io",
+      "packages": [
+        "jest-preset-angular"
+      ]
+    },
+    {
+      "origin": "https://emotion.sh",
+      "packages": [
+        "@emotion/babel-plugin",
+        "@emotion/css",
+        "babel-plugin-emotion"
+      ]
+    },
+    {
+      "origin": "https://modernjs.dev",
+      "packages": [
+        "@modern-js/utils",
+        "@modern-js/node-bundle-require",
+        "@modern-js/runtime-utils",
+        "@modern-js/plugin",
+        "@modern-js/runtime"
+      ]
+    },
+    {
+      "origin": "https://ariakit.com",
+      "packages": [
+        "@ariakit/react"
+      ]
+    },
+    {
+      "origin": "https://bundlewatch.io",
+      "packages": [
+        "bundlewatch"
+      ]
+    },
+    {
+      "origin": "https://linkify.js.org",
+      "packages": [
+        "linkifyjs"
+      ]
+    },
+    {
+      "origin": "https://expresso-ts.com",
+      "packages": [
+        "@expressots/adapter-express",
+        "@expressots/shared",
+        "@expressots/core"
+      ]
+    },
+    {
+      "origin": "https://graphile.org",
+      "packages": [
+        "graphile-build-pg",
+        "graphile-build"
+      ]
+    },
+    {
+      "origin": "https://mdxjs.com",
+      "packages": [
+        "@mdx-js/react",
+        "@mdx-js/loader",
+        "@mdx-js/rollup",
+        "@mdx-js/esbuild"
+      ]
+    },
+    {
+      "origin": "https://react-component.github.io",
+      "packages": [
+        "rc-resize-observer",
+        "rc-motion",
+        "@rc-component/trigger",
+        "@rc-component/table",
+        "@rc-component/menu"
+      ]
+    },
+    {
+      "origin": "https://valkey.io",
+      "packages": [
+        "@valkey/valkey-glide-linux-x64-musl",
+        "@valkey/valkey-glide",
+        "@valkey/valkey-glide-linux-x64-gnu",
+        "@valkey/valkey-glide-linux-arm64-gnu",
+        "@valkey/valkey-glide-linux-arm64-musl"
+      ]
+    },
+    {
+      "origin": "https://msw-sb.vercel.app",
+      "packages": [
+        "msw-storybook-addon"
+      ]
+    },
+    {
+      "origin": "http://waterlinejs.org",
+      "packages": [
+        "waterline"
+      ]
+    },
+    {
+      "origin": "https://iabtcf.com",
+      "packages": [
+        "@iabtcf/core",
+        "@iabtechlabtcf/core",
+        "@iabtechlabtcf/cmpapi",
+        "@iabtcf/cmpapi",
+        "@iabtechlabtcf/stub"
+      ]
+    },
+    {
+      "origin": "https://orval.dev",
+      "packages": [
+        "orval"
+      ]
+    },
+    {
+      "origin": "https://stagehand.dev",
+      "packages": [
+        "@browserbasehq/stagehand"
+      ]
+    },
+    {
+      "origin": "https://enzymejs.github.io",
+      "packages": [
+        "enzyme-shallow-equal",
+        "enzyme-adapter-utils",
+        "enzyme-adapter-react-16",
+        "@wojtekmaj/enzyme-adapter-react-17",
+        "@wojtekmaj/enzyme-adapter-utils"
+      ]
+    },
+    {
+      "origin": "https://typestrong.org",
+      "packages": [
+        "ts-node"
+      ]
+    },
+    {
+      "origin": "https://jayson.tedeh.net",
+      "packages": [
+        "jayson"
+      ]
+    },
+    {
+      "origin": "http://angularjs.org",
+      "packages": [
+        "angular-mocks",
+        "angular-messages"
+      ]
+    },
+    {
+      "origin": "https://formidable.com",
+      "packages": [
+        "@urql/exchange-auth"
+      ]
+    },
+    {
+      "origin": "https://hypequery.com",
+      "packages": [
+        "@hypequery/clickhouse",
+        "@hypequery/cli",
+        "@hypequery/datasets",
+        "@hypequery/serve",
+        "@hypequery/mcp"
+      ]
+    },
+    {
+      "origin": "https://onury.io",
+      "packages": [
+        "notation"
+      ]
+    },
+    {
+      "origin": "https://solana.com",
+      "packages": [
+        "@solana/web3.js"
+      ]
+    },
+    {
+      "origin": "https://valibot.dev",
+      "packages": [
+        "valibot"
+      ]
+    },
+    {
+      "origin": "https://www.11ty.dev",
+      "packages": [
+        "@11ty/eleventy"
+      ]
+    },
+    {
+      "origin": "https://commitlint.js.org",
+      "packages": [
+        "@commitlint/cli",
+        "commitlint"
+      ]
+    },
+    {
+      "origin": "https://coreui.io",
+      "packages": [
+        "@coreui/coreui",
+        "@coreui/coreui-pro"
+      ]
+    },
+    {
+      "origin": "https://labs.convex.dev",
+      "packages": [
+        "convex-ents",
+        "@convex-dev/auth"
+      ]
+    },
+    {
+      "origin": "https://ai-sdk.dev",
+      "packages": [
+        "@ai-sdk/react",
+        "@ai-sdk/vue"
+      ]
+    },
+    {
+      "origin": "https://www.idb-orm.com",
+      "packages": [
+        "@indexeddb-orm/idb-orm"
+      ]
+    },
+    {
+      "origin": "https://grafast.org",
+      "packages": [
+        "@dataplan/pg"
+      ]
+    },
+    {
+      "origin": "https://swc.rs",
+      "packages": [
+        "@swc/core-linux-x64-musl",
+        "@swc/core-linux-x64-gnu",
+        "@swc/core",
+        "@swc/core-darwin-x64",
+        "@swc/core-linux-arm64-musl"
+      ]
+    },
+    {
+      "origin": "https://base-ui.com",
+      "packages": [
+        "@base-ui/react"
+      ]
+    },
+    {
+      "origin": "https://comunica.dev",
+      "packages": [
+        "@comunica/core",
+        "@comunica/utils-iterator",
+        "@comunica/utils-data-factory",
+        "@comunica/utils-query-operation"
+      ]
+    },
+    {
+      "origin": "http://jasmine.github.io",
+      "packages": [
+        "jasmine"
+      ]
+    },
+    {
+      "origin": "https://casbin.apache.org",
+      "packages": [
+        "typeorm-adapter"
+      ]
+    },
+    {
+      "origin": "https://kysely.dev",
+      "packages": [
+        "kysely-replication",
+        "kysely-neon",
+        "kysely"
+      ]
+    },
+    {
+      "origin": "https://www.antdv.com",
+      "packages": [
+        "ant-design-vue"
+      ]
+    },
+    {
+      "origin": "https://tabler.io",
+      "packages": [
+        "@tabler/core",
+        "@tabler/icons"
+      ]
+    },
+    {
+      "origin": "http://yahoo.github.com",
+      "packages": [
+        "gear"
+      ]
+    },
+    {
+      "origin": "https://discord.js.org",
+      "packages": [
+        "@discordjs/util",
+        "@discordjs/rest",
+        "@discordjs/ws",
+        "@discordjs/builders",
+        "discord.js"
+      ]
+    },
+    {
+      "origin": "https://react.email",
+      "packages": [
+        "@react-email/render"
+      ]
+    },
+    {
+      "origin": "https://univer.ai",
+      "packages": [
+        "@univerjs-pro/bases",
+        "@univerjs-pro/bases-ui",
+        "@univerjs/sheets-ui",
+        "@univerjs/docs-ui",
+        "@univerjs/ui"
+      ]
+    },
+    {
+      "origin": "http://www.taffydb.com",
+      "packages": [
+        "taffydb"
+      ]
+    },
+    {
+      "origin": "http://www.wheresrhys.co.uk",
+      "packages": [
+        "fetch-mock"
+      ]
+    },
+    {
+      "origin": "https://element-plus.org",
+      "packages": [
+        "element-plus",
+        "@element-plus/icons-vue"
+      ]
+    },
+    {
+      "origin": "https://cerbos.dev",
+      "packages": [
+        "@cerbos/orm-prisma"
+      ]
+    },
+    {
+      "origin": "https://terser.org",
+      "packages": [
+        "html-minifier-terser"
+      ]
+    },
+    {
+      "origin": "https://twurple.js.org",
+      "packages": [
+        "@twurple/api-call",
+        "@twurple/auth"
+      ]
+    },
+    {
+      "origin": "https://uppy.io",
+      "packages": [
+        "@uppy/dashboard",
+        "@uppy/informer"
+      ]
+    },
+    {
+      "origin": "http://www.jacklmoore.com",
+      "packages": [
+        "autosize"
+      ]
+    },
+    {
+      "origin": "https://airbnb.io",
+      "packages": [
+        "enzyme"
+      ]
+    },
+    {
+      "origin": "https://atproto.com",
+      "packages": [
+        "@atproto/lex-builder",
+        "@atproto/api"
+      ]
+    },
+    {
+      "origin": "https://a2ui.org",
+      "packages": [
+        "@a2ui/web_core",
+        "@a2ui/lit",
+        "@a2ui/react"
+      ]
+    },
+    {
+      "origin": "https://ccxt.com",
+      "packages": [
+        "ccxt"
+      ]
+    },
+    {
+      "origin": "https://reactnative.dev",
+      "packages": [
+        "react-native"
+      ]
+    },
+    {
+      "origin": "https://swr.vercel.app",
+      "packages": [
+        "swr"
+      ]
+    },
+    {
+      "origin": "https://www.visulima.com",
+      "packages": [
+        "@visulima/packem"
+      ]
+    },
+    {
+      "origin": "https://scroll-into-view.dev",
+      "packages": [
+        "scroll-into-view-if-needed",
+        "compute-scroll-into-view"
+      ]
+    },
+    {
+      "origin": "https://vanilla-picker.js.org",
+      "packages": [
+        "vanilla-picker"
+      ]
+    },
+    {
+      "origin": "https://reactflow.dev",
+      "packages": [
+        "@xyflow/react"
+      ]
+    },
+    {
+      "origin": "https://www.duckdb.org",
+      "packages": [
+        "duckdb"
+      ]
+    },
+    {
+      "origin": "https://knip.dev",
+      "packages": [
+        "knip"
+      ]
+    },
+    {
+      "origin": "https://docs.pact.io",
+      "packages": [
+        "@pact-foundation/pact"
+      ]
+    },
+    {
+      "origin": "https://nodemon.io",
+      "packages": [
+        "nodemon"
+      ]
+    },
+    {
+      "origin": "https://vitepress.dev",
+      "packages": [
+        "vitepress"
+      ]
+    },
+    {
+      "origin": "https://get.foundation",
+      "packages": [
+        "foundation-sites"
+      ]
+    },
+    {
+      "origin": "https://react-error-boundary-lib.vercel.app",
+      "packages": [
+        "react-error-boundary"
+      ]
+    },
+    {
+      "origin": "http://restify.com",
+      "packages": [
+        "restify"
+      ]
+    },
+    {
+      "origin": "https://code.haverbeke.berlin",
+      "packages": [
+        "style-mod"
+      ]
+    },
+    {
+      "origin": "https://orange-orm.io",
+      "packages": [
+        "orange-orm"
+      ]
+    },
+    {
+      "origin": "https://vue-styleguidist.github.io",
+      "packages": [
+        "vue-docgen-api",
+        "vue-inbrowser-compiler-independent-utils"
+      ]
+    },
+    {
+      "origin": "https://adminlte.io",
+      "packages": [
+        "admin-lte"
+      ]
+    },
+    {
+      "origin": "https://honohub.dev",
+      "packages": [
+        "hono-rate-limiter"
+      ]
+    },
+    {
+      "origin": "https://openapi-enforcer.com",
+      "packages": [
+        "openapi-enforcer"
+      ]
+    },
+    {
+      "origin": "https://logtape.org",
+      "packages": [
+        "@logtape/drizzle-orm"
+      ]
+    },
+    {
+      "origin": "https://ng-mocks.sudo.eu",
+      "packages": [
+        "ng-mocks"
+      ]
+    },
+    {
+      "origin": "http://lesscss.org",
+      "packages": [
+        "less"
+      ]
+    },
+    {
+      "origin": "https://triplit.dev",
+      "packages": [
+        "@triplit/client"
+      ]
+    },
+    {
+      "origin": "https://chat-sdk.dev",
+      "packages": [
+        "@chat-adapter/state-memory",
+        "@chat-adapter/state-pg",
+        "chat"
+      ]
+    },
+    {
+      "origin": "https://typescript-config.codecompose.dev",
+      "packages": [
+        "@codecompose/typescript-config"
+      ]
+    },
+    {
+      "origin": "https://polished.js.org",
+      "packages": [
+        "polished"
+      ]
+    },
+    {
+      "origin": "https://redux-orm.github.io",
+      "packages": [
+        "redux-orm"
+      ]
+    },
+    {
+      "origin": "https://ctrf.io",
+      "packages": [
+        "playwright-ctrf-json-reporter",
+        "ctrf"
+      ]
+    },
+    {
+      "origin": "https://protobufes.com",
+      "packages": [
+        "@bufbuild/protobuf",
+        "@bufbuild/protoplugin"
+      ]
+    },
+    {
+      "origin": "https://styled-components.com",
+      "packages": [
+        "styled-components"
+      ]
+    },
+    {
+      "origin": "https://x.ant.design",
+      "packages": [
+        "@ant-design/x",
+        "@ant-design/x-markdown",
+        "@ant-design/x-sdk"
+      ]
+    },
+    {
+      "origin": "https://stytch.com",
+      "packages": [
+        "@stytch/vanilla-js",
+        "@stytch/react",
+        "@stytch/nextjs"
+      ]
+    },
+    {
+      "origin": "https://typeorm-extension.tada5hi.net",
+      "packages": [
+        "typeorm-extension"
+      ]
+    },
+    {
+      "origin": "https://case.contract-testing.io",
+      "packages": [
+        "@contract-case/case-core-plugin-http",
+        "@contract-case/case-core-plugin-function-dsl",
+        "@contract-case/case-core-plugin-function",
+        "@contract-case/case-core",
+        "@contract-case/case-plugin-dsl-types"
+      ]
+    },
+    {
+      "origin": "https://docs.swmansion.com",
+      "packages": [
+        "react-native-reanimated",
+        "react-native-worklets"
+      ]
+    },
+    {
+      "origin": "https://frontmcp.dev",
+      "packages": [
+        "@frontmcp/lazy-zod"
+      ]
+    },
+    {
+      "origin": "https://paraglidejs.com",
+      "packages": [
+        "@inlang/paraglide-js"
+      ]
+    },
+    {
+      "origin": "https://stylelint.io",
+      "packages": [
+        "stylelint"
+      ]
+    },
+    {
+      "origin": "https://mui.com",
+      "packages": [
+        "@mui/styled-engine",
+        "@mui/system",
+        "@mui/material",
+        "@mui/x-internals",
+        "@mui/icons-material"
+      ]
+    },
+    {
+      "origin": "https://atlassian.design",
+      "packages": [
+        "@atlaskit/icon",
+        "@atlaskit/motion",
+        "@atlaskit/tooltip",
+        "@atlaskit/popper",
+        "@atlaskit/portal"
+      ]
+    },
+    {
+      "origin": "https://primevue.dev",
+      "packages": [
+        "primevue"
+      ]
+    },
+    {
+      "origin": "https://viem.sh",
+      "packages": [
+        "viem"
+      ]
+    },
+    {
+      "origin": "https://caderek.github.io",
+      "packages": [
+        "benny"
+      ]
+    },
+    {
+      "origin": "https://stacks.co",
+      "packages": [
+        "c32check"
+      ]
+    },
+    {
+      "origin": "https://typegraphql.com",
+      "packages": [
+        "type-graphql"
+      ]
+    },
+    {
+      "origin": "https://kirbyup.getkirby.com",
+      "packages": [
+        "kirbyup"
+      ]
+    },
+    {
+      "origin": "https://ng-native.com",
+      "packages": [
+        "@ng-native/metro"
+      ]
+    },
+    {
+      "origin": "https://openapistack.co",
+      "packages": [
+        "openapi-backend"
+      ]
+    },
+    {
+      "origin": "https://heroui.com",
+      "packages": [
+        "@heroui/theme"
+      ]
+    },
+    {
+      "origin": "https://akveo.github.io",
+      "packages": [
+        "@ui-kitten/metro-config"
+      ]
+    },
+    {
+      "origin": "https://ruv.io",
+      "packages": [
+        "ruvector"
+      ]
+    },
+    {
+      "origin": "https://rxdb.info",
+      "packages": [
+        "rxdb"
+      ]
+    },
+    {
+      "origin": "https://tom-select.js.org",
+      "packages": [
+        "tom-select"
+      ]
+    },
+    {
+      "origin": "https://alecperkins.net",
+      "packages": [
+        "sequelize-strict-attributes"
+      ]
+    },
+    {
+      "origin": "https://avajs.dev",
+      "packages": [
+        "ava"
+      ]
+    },
+    {
+      "origin": "https://vercel.com",
+      "packages": [
+        "sandbox"
+      ]
+    },
+    {
+      "origin": "https://vue3datepicker.com",
+      "packages": [
+        "@vuepic/vue-datepicker"
+      ]
+    },
+    {
+      "origin": "https://codecept.io",
+      "packages": [
+        "codeceptjs"
+      ]
+    },
+    {
+      "origin": "https://qwik.dev",
+      "packages": [
+        "@builder.io/qwik"
+      ]
+    },
+    {
+      "origin": "http://loopback.io",
+      "packages": [
+        "loopback"
+      ]
+    },
+    {
+      "origin": "https://vueflow.dev",
+      "packages": [
+        "@vue-flow/core"
+      ]
+    },
+    {
+      "origin": "http://grommet.io",
+      "packages": [
+        "grommet"
+      ]
+    },
+    {
+      "origin": "https://crawlee.dev",
+      "packages": [
+        "@crawlee/types",
+        "@crawlee/memory-storage"
+      ]
+    },
+    {
+      "origin": "https://floating-vue.starpad.dev",
+      "packages": [
+        "floating-vue"
+      ]
+    },
+    {
+      "origin": "https://astro.build",
+      "packages": [
+        "@astrojs/compiler-binding",
+        "@astrojs/compiler-binding-linux-x64-gnu"
+      ]
+    },
+    {
+      "origin": "https://bigalorm.dev",
+      "packages": [
+        "bigal"
+      ]
+    },
+    {
+      "origin": "https://www.byteland.app",
+      "packages": [
+        "ink-scroll-list",
+        "ink-scroll-view"
+      ]
+    },
+    {
+      "origin": "https://mael.dev",
+      "packages": [
+        "clipanion"
+      ]
+    },
+    {
+      "origin": "https://naver.github.io",
+      "packages": [
+        "@cfcs/core"
+      ]
+    },
+    {
+      "origin": "https://pactumjs.github.io",
+      "packages": [
+        "pactum"
+      ]
+    },
+    {
+      "origin": "https://ts-sql-query.readthedocs.io",
+      "packages": [
+        "ts-sql-query"
+      ]
+    },
+    {
+      "origin": "https://nitrostack.ai",
+      "packages": [
+        "@nitrostack/core"
+      ]
+    },
+    {
+      "origin": "http://zpao.github.io",
+      "packages": [
+        "qrcode.react"
+      ]
+    },
+    {
+      "origin": "https://docs.apify.com",
+      "packages": [
+        "apify-client"
+      ]
+    },
+    {
+      "origin": "https://waku.gg",
+      "packages": [
+        "waku"
+      ]
+    },
+    {
+      "origin": "https://abp.io",
+      "packages": [
+        "@abp/utils",
+        "@abp/bootstrap-datepicker",
+        "@abp/core",
+        "@abp/timeago",
+        "@abp/luxon"
+      ]
+    },
+    {
+      "origin": "https://casbin.org",
+      "packages": [
+        "casbin-sequelize-adapter",
+        "drizzle-adapter"
+      ]
+    },
+    {
+      "origin": "https://emulate.dev",
+      "packages": [
+        "emulate"
+      ]
+    },
+    {
+      "origin": "https://tinkerpop.apache.org",
+      "packages": [
+        "gremlin"
+      ]
+    },
+    {
+      "origin": "https://c15t.com",
+      "packages": [
+        "c15t",
+        "@c15t/ui"
+      ]
+    },
+    {
+      "origin": "https://cli.vuejs.org",
+      "packages": [
+        "@vue/cli-service"
+      ]
+    },
+    {
+      "origin": "https://fireorm.js.org",
+      "packages": [
+        "fireorm"
+      ]
+    },
+    {
+      "origin": "https://theoephraim.github.io",
+      "packages": [
+        "google-spreadsheet"
+      ]
+    },
+    {
+      "origin": "https://yjl9903.github.io",
+      "packages": [
+        "unplugin-info"
+      ]
+    },
+    {
+      "origin": "https://conventional-changelog.js.org",
+      "packages": [
+        "conventional-changelog"
+      ]
+    },
+    {
+      "origin": "https://remedajs.com",
+      "packages": [
+        "remeda"
+      ]
+    },
+    {
+      "origin": "https://shiftcode.gitbook.io",
+      "packages": [
+        "@shiftcoders/dynamo-easy"
+      ]
+    },
+    {
+      "origin": "https://veryfront.com",
+      "packages": [
+        "veryfront"
+      ]
+    },
+    {
+      "origin": "https://aimock.copilotkit.dev",
+      "packages": [
+        "@copilotkit/aimock"
+      ]
+    },
+    {
+      "origin": "https://praz.codeberg.page",
+      "packages": [
+        "pinia-plugin-persistedstate"
+      ]
+    },
+    {
+      "origin": "https://hexo.io",
+      "packages": [
+        "hexo",
+        "hexo-cli",
+        "hexo-log"
+      ]
+    },
+    {
+      "origin": "https://next-intl.dev",
+      "packages": [
+        "use-intl",
+        "next-intl"
+      ]
+    },
+    {
+      "origin": "https://orchid-orm.netlify.app",
+      "packages": [
+        "orchid-orm"
+      ]
+    },
+    {
+      "origin": "https://better-result.dev",
+      "packages": [
+        "better-result"
+      ]
+    },
+    {
+      "origin": "https://effect-clickhouse.maple.dev",
+      "packages": [
+        "@maple-dev/effect-orm"
+      ]
+    },
+    {
+      "origin": "http://www.js-data.io",
+      "packages": [
+        "js-data"
+      ]
+    },
+    {
+      "origin": "https://extension.js.org",
+      "packages": [
+        "extension"
+      ]
+    },
+    {
+      "origin": "https://piral.io",
+      "packages": [
+        "piral-cli-webpack5",
+        "piral-cli-vite8",
+        "parcel-plugin-codegen",
+        "parcel-plugin-at-alias"
+      ]
+    },
+    {
+      "origin": "https://nx.dev",
+      "packages": [
+        "@nx/maven"
+      ]
+    },
+    {
+      "origin": "https://ohah.github.io",
+      "packages": [
+        "@zntc/core"
+      ]
+    },
+    {
+      "origin": "https://omgovich.github.io",
+      "packages": [
+        "react-colorful"
+      ]
+    },
+    {
+      "origin": "https://authjs.dev",
+      "packages": [
+        "next-auth"
+      ]
+    },
+    {
+      "origin": "https://particles.js.org",
+      "packages": [
+        "@tsparticles/engine",
+        "@tsparticles/updater-out-modes",
+        "@tsparticles/updater-rotate",
+        "@tsparticles/updater-life",
+        "@tsparticles/plugin-rgb-color"
+      ]
+    },
+    {
+      "origin": "https://framework7.io",
+      "packages": [
+        "framework7",
+        "framework7-react"
+      ]
+    },
+    {
+      "origin": "https://hono-rate-limiter.vercel.app",
+      "packages": [
+        "@hono-rate-limiter/redis"
+      ]
+    },
+    {
+      "origin": "https://incajs.tom96da.com",
+      "packages": [
+        "@incajs/cli"
+      ]
+    },
+    {
+      "origin": "https://use-gesture.netlify.app",
+      "packages": [
+        "@use-gesture/react"
+      ]
+    },
+    {
+      "origin": "https://bump.sh",
+      "packages": [
+        "bump-cli"
+      ]
+    },
+    {
+      "origin": "https://haptics.lochie.me",
+      "packages": [
+        "web-haptics"
+      ]
+    },
+    {
+      "origin": "https://usehooks-ts.com",
+      "packages": [
+        "usehooks-ts"
+      ]
+    },
+    {
+      "origin": "https://jscpd.dev",
+      "packages": [
+        "jscpd"
+      ]
+    },
+    {
+      "origin": "https://lunora.sh",
+      "packages": [
+        "@lunora/sql-store"
+      ]
+    },
+    {
+      "origin": "https://visulima.com",
+      "packages": [
+        "@visulima/vis"
+      ]
+    },
+    {
+      "origin": "https://wroud.dev",
+      "packages": [
+        "@wroud/vite-plugin-tsc"
+      ]
+    },
+    {
+      "origin": "https://qunitjs.com",
+      "packages": [
+        "qunit"
+      ]
+    },
+    {
+      "origin": "https://reactnavigation.org",
+      "packages": [
+        "@react-navigation/core",
+        "@react-navigation/routers"
+      ]
+    },
+    {
+      "origin": "https://thi.ng",
+      "packages": [
+        "@thi.ng/meta-css"
+      ]
+    },
+    {
+      "origin": "https://fontsource.org",
+      "packages": [
+        "@fontsource-variable/inter",
+        "@fontsource/inter",
+        "@fontsource-variable/geist",
+        "@fontsource/ibm-plex-mono",
+        "@fontsource-variable/jetbrains-mono"
+      ]
+    },
+    {
+      "origin": "https://react-apple-signin-auth.ahmedtokyo.com",
+      "packages": [
+        "react-apple-signin-auth"
+      ]
+    },
+    {
+      "origin": "https://vite-php.nititech.de",
+      "packages": [
+        "vite-plugin-php"
+      ]
+    },
+    {
+      "origin": "https://wundergraph.com",
+      "packages": [
+        "@wundergraph/orm"
+      ]
+    },
+    {
+      "origin": "https://nuqs.dev",
+      "packages": [
+        "nuqs"
+      ]
+    },
+    {
+      "origin": "https://www.cockroachlabs.com",
+      "packages": [
+        "sequelize-cockroachdb"
+      ]
+    },
+    {
+      "origin": "http://pm2.keymetrics.io",
+      "packages": [
+        "pm2"
+      ]
+    },
+    {
+      "origin": "https://jointjs.com",
+      "packages": [
+        "@joint/core"
+      ]
+    },
+    {
+      "origin": "https://reactnative.run",
+      "packages": [
+        "browser-metro",
+        "rnrun"
+      ]
+    },
+    {
+      "origin": "https://uiwjs.github.io",
+      "packages": [
+        "@uiw/react-signature",
+        "@uiw/react-codemirror"
+      ]
+    },
+    {
+      "origin": "https://vue-draggable-plus.pages.dev",
+      "packages": [
+        "vue-draggable-plus"
+      ]
+    },
+    {
+      "origin": "https://backtickjs.com",
+      "packages": [
+        "@backtickjs/bundler"
+      ]
+    },
+    {
+      "origin": "https://agimon.ai",
+      "packages": [
+        "@agimon-ai/po-build"
+      ]
+    },
+    {
+      "origin": "https://vanillaframework.io",
+      "packages": [
+        "vanilla-framework"
+      ]
+    },
+    {
+      "origin": "https://antoniandre.github.io",
+      "packages": [
+        "splitpanes"
+      ]
+    },
+    {
+      "origin": "https://ez.robintail.cz",
+      "packages": [
+        "express-zod-api"
+      ]
+    },
+    {
+      "origin": "https://www.mongodb.com",
+      "packages": [
+        "realm"
+      ]
+    },
+    {
+      "origin": "https://kangax.github.io",
+      "packages": [
+        "html-minifier"
+      ]
+    },
+    {
+      "origin": "https://objectstack.ai",
+      "packages": [
+        "@objectstack/objectql"
+      ]
+    },
+    {
+      "origin": "https://qvac.tether.io",
+      "packages": [
+        "@qvac/cli"
+      ]
+    },
+    {
+      "origin": "https://www.naiveui.com",
+      "packages": [
+        "naive-ui"
+      ]
+    },
+    {
+      "origin": "https://zodyac.dev",
+      "packages": [
+        "@zodyac/zod-mongoose"
+      ]
+    },
+    {
+      "origin": "https://colyseus.io",
+      "packages": [
+        "@colyseus/auth"
+      ]
+    },
+    {
+      "origin": "https://bddjr.github.io",
+      "packages": [
+        "vite-plugin-singlefile-compression"
+      ]
+    },
+    {
+      "origin": "https://electron-vite.org",
+      "packages": [
+        "electron-vite"
+      ]
+    },
+    {
+      "origin": "https://seedprotocol.io",
+      "packages": [
+        "@seedprotocol/sdk"
+      ]
+    },
+    {
+      "origin": "https://itty.dev",
+      "packages": [
+        "itty-router"
+      ]
+    },
+    {
+      "origin": "https://www.remotion.dev",
+      "packages": [
+        "@remotion/browser-bundler"
+      ]
+    },
+    {
+      "origin": "https://stdlib.io",
+      "packages": [
+        "@stdlib/assert-has-float64array-support",
+        "@stdlib/assert-has-uint16array-support",
+        "@stdlib/assert-is-little-endian",
+        "@stdlib/assert-has-uint8array-support",
+        "@stdlib/assert-is-big-endian"
+      ]
+    },
+    {
+      "origin": "https://directus.com",
+      "packages": [
+        "@directus/api",
+        "directus"
+      ]
+    },
+    {
+      "origin": "https://uql-orm.dev",
+      "packages": [
+        "uql-orm"
+      ]
+    },
+    {
+      "origin": "https://inspector.fe-dev.cn",
+      "packages": [
+        "code-inspector-plugin",
+        "@code-inspector/vite",
+        "@code-inspector/esbuild",
+        "@code-inspector/core",
+        "@code-inspector/webpack"
+      ]
+    },
+    {
+      "origin": "https://interfaces.antelopejs.com",
+      "packages": [
+        "@antelopejs/interface-database-decorators"
+      ]
+    },
+    {
+      "origin": "https://momentic.ai",
+      "packages": [
+        "momentic"
+      ]
+    },
+    {
+      "origin": "http://learnboost.github.com",
+      "packages": [
+        "cluster"
+      ]
+    },
+    {
+      "origin": "https://phosphoricons.com",
+      "packages": [
+        "@phosphor-icons/react"
+      ]
+    },
+    {
+      "origin": "https://ronin.co",
+      "packages": [
+        "ronin"
+      ]
+    },
+    {
+      "origin": "https://wevm.dev",
+      "packages": [
+        "ox"
+      ]
+    },
+    {
+      "origin": "https://zintrust.com",
+      "packages": [
+        "@zintrust/core"
+      ]
+    },
+    {
+      "origin": "http://velocityjs.org",
+      "packages": [
+        "velocity-animate"
+      ]
+    },
+    {
+      "origin": "https://beholdr.github.io",
+      "packages": [
+        "maska"
+      ]
+    },
+    {
+      "origin": "https://www.apollographql.com",
+      "packages": [
+        "@apollo/client"
+      ]
+    },
+    {
+      "origin": "https://www.deepl.com",
+      "packages": [
+        "deepl-node"
+      ]
+    },
+    {
+      "origin": "http://aurelia.io",
+      "packages": [
+        "aurelia-framework"
+      ]
+    },
+    {
+      "origin": "https://unocss.dev",
+      "packages": [
+        "@unocss/astro"
+      ]
+    },
+    {
+      "origin": "https://s-yadav.github.io",
+      "packages": [
+        "react-number-format"
+      ]
+    },
+    {
+      "origin": "https://nanosql.io",
+      "packages": [
+        "@nano-sql/core"
+      ]
+    },
+    {
+      "origin": "https://lokalise.github.io",
+      "packages": [
+        "@lokalise/node-api"
+      ]
+    },
+    {
+      "origin": "https://api-extractor.com",
+      "packages": [
+        "@microsoft/api-extractor"
+      ]
+    },
+    {
+      "origin": "https://agent-browser.dev",
+      "packages": [
+        "agent-browser"
+      ]
+    },
+    {
+      "origin": "https://iconists.co",
+      "packages": [
+        "@central-icons-react/round-filled-radius-2-stroke-1.5",
+        "@central-icons-react/round-outlined-radius-2-stroke-1.5",
+        "@central-icons-react/round-outlined-radius-3-stroke-2",
+        "@central-icons-react/round-outlined-radius-1-stroke-1.5",
+        "@central-icons-react/round-filled-radius-2-stroke-2"
+      ]
+    },
+    {
+      "origin": "https://ignis.venizia.ai",
+      "packages": [
+        "@venizia/ignis"
+      ]
+    },
+    {
+      "origin": "https://react-hotkeys-hook.vercel.app",
+      "packages": [
+        "react-hotkeys-hook"
+      ]
+    },
+    {
+      "origin": "http://rafeca.com",
+      "packages": [
+        "prettyjson"
+      ]
+    },
+    {
+      "origin": "https://commercetools.github.io",
+      "packages": [
+        "@commercetools/sdk-middleware-auth",
+        "@commercetools/sdk-auth"
+      ]
+    },
+    {
+      "origin": "https://croquiscom.github.com",
+      "packages": [
+        "cormo"
+      ]
+    },
+    {
+      "origin": "https://argos-ci.com",
+      "packages": [
+        "@argos-ci/core",
+        "@argos-ci/playwright",
+        "@argos-ci/cli"
+      ]
+    },
+    {
+      "origin": "https://popper.js.org",
+      "packages": [
+        "react-popper"
+      ]
+    },
+    {
+      "origin": "https://agentmail.to",
+      "packages": [
+        "agentmail"
+      ]
+    },
+    {
+      "origin": "https://heyapi.dev",
+      "packages": [
+        "@hey-api/codegen-core",
+        "@hey-api/spec-types",
+        "@hey-api/openapi-ts"
+      ]
+    },
+    {
+      "origin": "https://hub.nuxt.com",
+      "packages": [
+        "@nuxthub/core"
+      ]
+    },
+    {
+      "origin": "https://academy.vetra.io",
+      "packages": [
+        "@powerhousedao/builder-tools"
+      ]
+    },
+    {
+      "origin": "https://svar.dev",
+      "packages": [
+        "@svar-ui/react-menu",
+        "@svar-ui/react-filter"
+      ]
+    },
+    {
+      "origin": "https://lokicoule.github.io",
+      "packages": [
+        "@nestjs-cognito/auth"
+      ]
+    },
+    {
+      "origin": "https://mark1russell7.github.io",
+      "packages": [
+        "@procedures/vite"
+      ]
+    },
+    {
+      "origin": "https://mondel-orm.pages.dev",
+      "packages": [
+        "mondel"
+      ]
+    },
+    {
+      "origin": "https://devcycle.com",
+      "packages": [
+        "@devcycle/nodejs-server-sdk"
+      ]
+    },
+    {
+      "origin": "https://fivesobes.gitbook.io",
+      "packages": [
+        "nexorm"
+      ]
+    },
+    {
+      "origin": "https://lonelycpp.github.io",
+      "packages": [
+        "react-native-youtube-iframe"
+      ]
+    },
+    {
+      "origin": "https://mrodrig.github.io",
+      "packages": [
+        "json-2-csv"
+      ]
+    },
+    {
+      "origin": "https://teneplaysofficial.github.io",
+      "packages": [
+        "echo-banner"
+      ]
+    },
+    {
+      "origin": "http://dresende.github.io",
+      "packages": [
+        "orm"
+      ]
+    },
+    {
+      "origin": "https://www.syncfusion.com",
+      "packages": [
+        "@syncfusion/ej2-pivotview"
+      ]
+    },
+    {
+      "origin": "https://formik.org",
+      "packages": [
+        "formik"
+      ]
+    },
+    {
+      "origin": "https://turbineorm.dev",
+      "packages": [
+        "turbine-orm"
+      ]
+    },
+    {
+      "origin": "https://intlayer.org",
+      "packages": [
+        "@intlayer/cli"
+      ]
+    },
+    {
+      "origin": "https://omp.sh",
+      "packages": [
+        "@oh-my-pi/pi-coding-agent",
+        "@oh-my-pi/pi-ai",
+        "@oh-my-pi/pi-tui"
+      ]
+    },
+    {
+      "origin": "http://karma-runner.github.io",
+      "packages": [
+        "karma-cli"
+      ]
+    },
+    {
+      "origin": "https://mediabunny.dev",
+      "packages": [
+        "@mediabunny/server"
+      ]
+    },
+    {
+      "origin": "https://typesql.karsli.net",
+      "packages": [
+        "@typesql/drizzle",
+        "@typesql/kysely",
+        "@typesql/prisma"
+      ]
+    },
+    {
+      "origin": "https://funkyton.com",
+      "packages": [
+        "medusajs-launch-utils"
+      ]
+    },
+    {
+      "origin": "https://guchho.js.org",
+      "packages": [
+        "guchho"
+      ]
+    },
+    {
+      "origin": "https://react-leaflet.js.org",
+      "packages": [
+        "@react-leaflet/core",
+        "react-leaflet"
+      ]
+    },
+    {
+      "origin": "https://applitools.com",
+      "packages": [
+        "@applitools/utils",
+        "@applitools/eyes",
+        "@applitools/driver",
+        "@applitools/screenshoter",
+        "@applitools/spec-driver-webdriver"
+      ]
+    },
+    {
+      "origin": "https://keen-slider.io",
+      "packages": [
+        "keen-slider"
+      ]
+    },
+    {
+      "origin": "http://angular-ui.github.io",
+      "packages": [
+        "angular-ui-bootstrap"
+      ]
+    },
+    {
+      "origin": "https://qr-vue.tie.pub",
+      "packages": [
+        "qrcode.vue"
+      ]
+    },
+    {
+      "origin": "https://valentinh.github.io",
+      "packages": [
+        "react-easy-crop"
+      ]
+    },
+    {
+      "origin": "https://hammerkit.dev",
+      "packages": [
+        "hammerkit"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+# The corpus: the homepages of the 400 most popular npm packages, audited weekly with the
+# CLI built from main, one page each. The results are data, published on the `corpus-data`
+# branch (latest.json and one file per run), never on main. The headlines are what the
+# write-ups are made of: how many of these sites refuse Claude's search crawler at the edge,
+# serve their metadata only to Googlebot, stamp one date on every sitemap URL. See
+# scripts/corpus/ and corpus/README.md.
+name: Corpus audit
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'   # Mondays 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Audit only the first N sites (0 = all)'
+        required: false
+        default: '0'
+      rebuild_list:
+        description: 'Rebuild corpus/sites.json from npm before auditing'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: corpus
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build the runtime and the CLI from main
+        run: |
+          (cd packages/agent-runtime && pnpm build)
+          (cd packages/cli && pnpm build:js)
+
+      - name: Rebuild the site list
+        if: inputs.rebuild_list == true
+        run: node scripts/corpus/build-list.mjs --size 400 --out corpus/sites.json
+
+      - name: Audit the corpus
+        env:
+          LIMIT: ${{ inputs.limit || '0' }}
+        run: |
+          DATE=$(date -u +%F)
+          node scripts/corpus/audit.mjs --sites corpus/sites.json --out "corpus/results/$DATE.json" --limit "$LIMIT" --concurrency 6
+          cp "corpus/results/$DATE.json" corpus/latest.json
+          echo "DATE=$DATE" >> "$GITHUB_ENV"
+
+      - name: Summary
+        run: |
+          node -e '
+            const d = require("./corpus/latest.json");
+            const h = d.headlines, p = n => `${n} (${Math.round(100 * n / Math.max(h.audited, 1))}%)`;
+            const lines = [
+              `# Corpus audit ${process.env.DATE}`, "",
+              `${h.audited} of ${h.sites} sites audited, median score ${h.medianScore}.`, "",
+              "| Headline | Sites |", "|---|---|",
+              `| Edge refuses a search crawler (Googlebot or bingbot) | ${p(h.edgeRefusesSearchCrawler)} |`,
+              `| Edge refuses an AI search crawler (OAI-SearchBot, Claude-SearchBot, PerplexityBot) | ${p(h.edgeRefusesAiSearchCrawler)} |`,
+              `| Edge refuses a user-triggered fetcher | ${p(h.edgeRefusesUserFetcher)} |`,
+              `| Edge refuses a training crawler | ${p(h.edgeRefusesTrainingCrawler)} |`,
+              `| robots.txt disallows the AI search crawlers | ${p(h.robotsDisallowsAiSearch)} |`,
+              `| robots.txt disallows the training crawlers | ${p(h.robotsDisallowsTraining)} |`,
+              `| Metadata served to Googlebot but not to other agents | ${p(h.metadataStreamedForBots)} |`,
+              `| Client-rendered homepage | ${p(h.clientRendered)} |`,
+              `| Publishes llms.txt | ${p(h.llmsTxt)} |`,
+              `| No sitemap | ${p(h.noSitemap)} |`,
+              `| Every sitemap URL carries the same lastmod | ${p(h.sitemapLastmodUniform)} |`,
+              `| IndexNow key present | ${p(h.indexNow)} |`,
+            ];
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
+
+      - name: Publish the data on the corpus-data branch
+        run: |
+          git config user.name "rankcli-corpus"
+          git config user.email "corpus@rankcli.dev"
+          mkdir -p /tmp/data
+          cp corpus/latest.json "corpus/results/$DATE.json" corpus/sites.json /tmp/data/
+          if git ls-remote --exit-code origin corpus-data >/dev/null 2>&1; then
+            git fetch origin corpus-data
+            git checkout corpus-data
+          else
+            git checkout --orphan corpus-data
+            git rm -rfq . || true
+          fi
+          mkdir -p results
+          cp /tmp/data/latest.json latest.json
+          cp "/tmp/data/$DATE.json" "results/$DATE.json"
+          cp /tmp/data/sites.json sites.json
+          git add latest.json "results/$DATE.json" sites.json
+          git commit -q -m "corpus audit $DATE" || echo "nothing new"
+          git push origin corpus-data
