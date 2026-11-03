@@ -233,6 +233,14 @@ function calculateOrphanRisk(
 /**
  * Main function: Analyze topical cluster structure
  */
+function isRootPage(url: string): boolean {
+  try {
+    return (new URL(url).pathname.replace(/\/+$/, '') || '/') === '/';
+  } catch {
+    return false;
+  }
+}
+
 export function analyzeTopicalClusters(
   html: string,
   url: string
@@ -346,8 +354,9 @@ export function analyzeTopicalClusters(
     });
   }
 
-  // No breadcrumbs
-  if (!clusterSignals.hasBreadcrumbs) {
+  // No breadcrumbs. The homepage has nothing to lead back to: on the 400-site corpus this fired
+  // on 98 percent of homepages, which is the check describing the page type, not a finding.
+  if (!clusterSignals.hasBreadcrumbs && !isRootPage(url)) {
     issues.push({
       code: 'NO_BREADCRUMBS',
       severity: 'notice',
@@ -360,19 +369,6 @@ export function analyzeTopicalClusters(
     });
   }
 
-  // No related content section
-  if (!clusterSignals.hasRelatedPosts && !clusterSignals.hasCategoryLinks) {
-    issues.push({
-      code: 'NO_RELATED_CONTENT',
-      severity: 'notice',
-      category: 'on-page',
-      title: 'No related content section',
-      description: 'Page has no "Related Posts" or similar content discovery section.',
-      impact: 'Related content sections reduce bounce rate, increase pageviews, and strengthen topic clusters.',
-      howToFix: 'Add a section linking to related articles, products, or category pages.',
-      affectedUrls: [url],
-    });
-  }
 
   // High orphan page risk
   if (orphanPageRisk === 'high') {

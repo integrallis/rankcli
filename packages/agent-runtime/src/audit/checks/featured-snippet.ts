@@ -425,36 +425,7 @@ export function analyzeFeaturedSnippet(
     });
   }
 
-  // Analyze inverted pyramid
-  if (!invertedPyramid.found) {
-    issues.push({
-      code: 'INVERTED_PYRAMID_MISSING',
-      severity: 'notice',
-      category: 'content',
-      title: 'Content not structured for featured snippets',
-      description: 'First paragraph does not contain a direct answer or summary.',
-      impact: 'Featured snippets pull from early content; burying answers reduces snippet capture rate.',
-      howToFix: 'Start with a concise answer (40-80 words) that directly addresses the page topic.',
-      affectedUrls: [url],
-      details: { invertedPyramidScore: invertedPyramid.score },
-    });
-  }
 
-  // Check for snippet bait headers
-  if (snippetBaitHeaders.length === 0) {
-    issues.push({
-      code: 'NO_SNIPPET_BAIT_HEADERS',
-      severity: 'notice',
-      category: 'on-page',
-      title: 'No snippet-targeting headers found',
-      description: 'Headings do not use patterns that commonly trigger featured snippets.',
-      impact: 'Missing opportunities for high-visibility snippet placements.',
-      howToFix:
-        'Use headers like "What is [topic]?", "How to [action]", or "X Ways to [achieve goal]".',
-      affectedUrls: [url],
-      details: { suggestedPatterns: ['What is X?', 'How to X', 'X Steps to Y', 'Best X for Y'] },
-    });
-  }
 
   return {
     issues,

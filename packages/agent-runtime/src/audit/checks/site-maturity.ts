@@ -370,27 +370,6 @@ export async function analyzeSiteMaturity(
 
   // Generate issues based on maturity. Only the Wayback Machine dates a site; a certificate's
   // age is its last renewal (Let's Encrypt renews every 60 to 90 days), so rankcli.dev was
-  // reported as 35 days old on evidence of nothing. With no snapshot, age is unknown, not new.
-  if (maturityLevel === 'new' && ageSource === 'wayback' && estimatedAgeDays !== null) {
-    issues.push({
-      code: 'NEW_SITE_STRATEGY',
-      severity: 'notice',
-      category: 'content',
-      title: 'New website detected - Authority-first strategy recommended',
-      description:
-        `The Wayback Machine first saw this site ${estimatedAgeDays} days ago. Standard SEO advice won't work well for a site under 90 days old.`,
-      impact:
-        'Creating lots of content without authority is wasted effort. Content from new sites rarely ranks.',
-      howToFix:
-        'Focus on building 10+ quality backlinks to ONE great page before expanding content. See strategic recommendations.',
-      affectedUrls: [url],
-      details: {
-        estimatedAge: estimatedAgeDays,
-        recommendedStrategy: strategy,
-        recommendations,
-      },
-    });
-  }
 
   // CONTENT_AUTHORITY_IMBALANCE used to be reported here ("~1,608 pages but limited backlink
   // signals") on no backlink data at all: the proxy was Wayback snapshot count. The ratio stays

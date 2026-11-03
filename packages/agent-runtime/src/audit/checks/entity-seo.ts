@@ -337,19 +337,6 @@ export function analyzeEntitySEO(
     });
   }
 
-  // No Wikipedia-style intro
-  if (!entityClarity.hasWikipediaStyleIntro) {
-    issues.push({
-      code: 'NO_ENTITY_DEFINITION',
-      severity: 'notice',
-      category: 'content',
-      title: 'Missing entity definition in content',
-      description: 'First paragraph lacks a clear definition of the primary entity.',
-      impact: 'Clear entity definitions help AI systems extract and cite your content correctly.',
-      howToFix: 'Start content with "[Entity Name] is a [type] that [does what]" pattern.',
-      affectedUrls: [url],
-    });
-  }
 
   // Low entity consistency
   if (!entityClarity.entityNameConsistency && entityClarity.entityMentionCount < 3) {

@@ -447,19 +447,6 @@ export function analyzeInteractiveTools(
     });
   }
 
-  // Low dwell time signals overall
-  if (dwellTimeScore < 20 && uniqueTools.length === 0) {
-    issues.push({
-      code: 'LOW_DWELL_TIME_SIGNALS',
-      severity: 'notice',
-      category: 'content',
-      title: 'Page lacks dwell time optimization',
-      description: 'No interactive tools, calculators, quizzes, or video embeds detected.',
-      impact: 'Interactive content significantly increases time on page, a user engagement signal.',
-      howToFix: 'Add at least one interactive element: calculator, quiz, embedded video, or free tool.',
-      affectedUrls: [url],
-    });
-  }
 
   return {
     issues,

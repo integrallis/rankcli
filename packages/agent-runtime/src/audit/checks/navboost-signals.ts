@@ -313,24 +313,6 @@ export function analyzeNavBoostSignals(
     });
   }
 
-  // High bounce risk
-  if (!bounceRiskFactors.hasAboveFoldContent || !bounceRiskFactors.hasImmediateValue) {
-    issues.push({
-      code: 'HIGH_BOUNCE_RISK',
-      // A notice: a heuristic score, not a defect a crawler can see, and it fired on most sites.
-      severity: 'notice',
-      category: 'content',
-      title: 'Page has high bounce risk signals',
-      description: 'The page lacks above-fold content or immediate value for visitors.',
-      impact: 'NavBoost tracks bounce rate. >70% bounce with <30s sessions hurts rankings.',
-      howToFix: 'Add compelling content above the fold that delivers immediate value to visitors.',
-      affectedUrls: [url],
-      details: {
-        hasAboveFoldContent: bounceRiskFactors.hasAboveFoldContent,
-        hasImmediateValue: bounceRiskFactors.hasImmediateValue,
-      },
-    });
-  }
 
   // Popup/interstitial risk
   if (bounceRiskFactors.hasPopupRisk) {

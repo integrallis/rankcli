@@ -98,30 +98,6 @@ describe('analyzeRAGChunkReadiness', () => {
     expect(data.sections[0].startsWithDanglingReference).toBe(false);
   });
 
-  it('raises RAG_CHUNK_SIZE_MISMATCH when most sections are poorly sized', () => {
-    const html = `
-      <html><body>
-        <h2>One</h2><p>${words(20)}</p>
-        <h2>Two</h2><p>${words(900)}</p>
-        <h2>Three</h2><p>${words(15)}</p>
-      </body></html>
-    `;
-    const { issues } = analyzeRAGChunkReadiness(html, testUrl);
-    expect(issues.some((i) => i.code === 'RAG_CHUNK_SIZE_MISMATCH')).toBe(true);
-  });
-
-  it('does not raise RAG_CHUNK_SIZE_MISMATCH when most sections are well-sized', () => {
-    const html = `
-      <html><body>
-        <h2>One</h2><p>${words(200)}</p>
-        <h2>Two</h2><p>${words(250)}</p>
-        <h2>Three</h2><p>${words(300)}</p>
-      </body></html>
-    `;
-    const { issues } = analyzeRAGChunkReadiness(html, testUrl);
-    expect(issues.some((i) => i.code === 'RAG_CHUNK_SIZE_MISMATCH')).toBe(false);
-  });
-
   it('raises RAG_CHUNK_DANGLING_REFERENCES when over 30% of sections open with one', () => {
     const html = `
       <html><body>

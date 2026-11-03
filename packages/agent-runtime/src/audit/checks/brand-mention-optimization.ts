@@ -228,22 +228,6 @@ export function analyzeBrandMentionOptimization(
 
   // Generate issues
 
-  // No clear brand definition
-  if (!hasBrandDefinition) {
-    issues.push({
-      code: 'AI_NO_BRAND_DEFINITION',
-      severity: 'warning',
-      category: 'ai-readiness',
-      title: 'No clear brand definition for AI to extract',
-      description: 'AI systems look for clear "Brand X is..." statements to quote when recommending brands. Your page lacks quotable brand definitions.',
-      impact: 'AI cannot accurately describe your brand, reducing recommendation likelihood.',
-      howToFix: 'Add a clear brand definition early in your content: "[Brand] is a [category] that [key benefit]." Make it quotable (under 200 characters).',
-      affectedUrls: [url],
-      details: {
-        suggestion: `Example: "${potentialBrandName.charAt(0).toUpperCase() + potentialBrandName.slice(1)} is a [category] that helps [audience] [achieve benefit]."`,
-      },
-    });
-  }
 
   // No USP
   if (!hasUSP) {
@@ -266,22 +250,6 @@ export function analyzeBrandMentionOptimization(
   if (!hasTestimonials) missingTopics.push('testimonials/reviews');
   if (!hasProofPoints) missingTopics.push('proof points/case studies');
 
-  if (missingTopics.length >= 2) {
-    issues.push({
-      code: 'AI_INCOMPLETE_BRAND_COVERAGE',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Incomplete brand topic coverage',
-      description: `Missing key brand topics that AI uses to answer queries: ${missingTopics.join(', ')}. AI may rely on third-party sources instead.`,
-      impact: 'Third-party sites may define your brand narrative instead of you.',
-      howToFix: 'Cover key brand topics on your site: pricing, positioning, proof (testimonials, case studies), and FAQs.',
-      affectedUrls: [url],
-      details: {
-        missingTopics,
-        recommendation: 'Control your brand narrative by having authoritative content on these topics on your own site.',
-      },
-    });
-  }
 
   // No review platform integration
   if (!hasReviewLinks && !hasTestimonials) {
@@ -304,28 +272,6 @@ export function analyzeBrandMentionOptimization(
     });
   }
 
-  // Low brand score
-  if (brandScore < 50) {
-    issues.push({
-      code: 'AI_LOW_BRAND_SCORE',
-      severity: 'warning',
-      category: 'ai-readiness',
-      title: 'Brand is not well-optimized for AI extraction',
-      description: `Brand optimization score: ${brandScore}/100. AI may struggle to accurately describe and recommend your brand.`,
-      impact: 'Low likelihood of being recommended in AI answers for brand-related queries.',
-      howToFix: 'Improve brand clarity: add quotable definitions, USPs, testimonials, proof points, and link to review platforms.',
-      affectedUrls: [url],
-      details: {
-        brandScore,
-        hasBrandDefinition,
-        hasUSP,
-        hasTestimonials,
-        hasProofPoints,
-        hasReviewLinks,
-        quotableBrandStatements: quotableBrandStatements.slice(0, 3),
-      },
-    });
-  }
 
   return {
     issues,

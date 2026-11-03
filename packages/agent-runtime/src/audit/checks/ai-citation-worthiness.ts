@@ -284,33 +284,7 @@ export function analyzeAICitationWorthiness(
 
   // === GENERATE ISSUES ===
 
-  // No original data or research
-  if (!hasOriginalData && !hasPrimaryResearch) {
-    issues.push({
-      code: 'AI_NO_ORIGINAL_DATA',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No original data or research signals',
-      description: 'Content lacks original data, surveys, or research findings. AI prefers citing sources with unique, first-party data.',
-      impact: 'Generic content without original data is less likely to be cited as a source.',
-      howToFix: 'Add original data: survey results, internal analytics, case study numbers, or primary research findings. Use phrases like "Our data shows..." or "We surveyed X users...".',
-      affectedUrls: [url],
-    });
-  }
 
-  // No first-person experience
-  if (!hasFirstPersonExperience && !hasCaseStudies) {
-    issues.push({
-      code: 'AI_NO_EXPERIENCE_SIGNALS',
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'No first-hand experience signals',
-      description: 'Content reads like it could be AI-generated. No "I tested...", "We implemented...", or case study language found.',
-      impact: 'AI may prefer sources that demonstrate real-world experience over generic explanations.',
-      howToFix: 'Add personal experience: "In my experience...", "When we tested...", "Here\'s what happened when...". Include specific scenarios you\'ve encountered.',
-      affectedUrls: [url],
-    });
-  }
 
   // No author credentials
   if (!hasAuthorByline && !hasAuthorCredentials) {
@@ -326,30 +300,6 @@ export function analyzeAICitationWorthiness(
     });
   }
 
-  // Low citation worthiness
-  if (citationWorthinessScore < 40) {
-    issues.push({
-      code: 'AI_LOW_CITATION_WORTHINESS',
-      // A notice: a heuristic score, not a defect a crawler can see, and it fired on most sites.
-      severity: 'notice',
-      category: 'ai-readiness',
-      title: 'Content lacks AI-proof originality signals',
-      description: `Citation worthiness score: ${citationWorthinessScore}/100. Content appears generic and could be easily replicated by AI.`,
-      impact: 'AI may not cite this content as it lacks unique value that AI cannot generate itself.',
-      howToFix: 'Add what AI can\'t fake: original data, real screenshots, dated experiences, expert quotes, case studies, and specific proof points.',
-      affectedUrls: [url],
-      details: {
-        citationWorthinessScore,
-        aiProofElements: aiProofElements.length > 0 ? aiProofElements : ['None detected'],
-        missing: [
-          !hasOriginalData && 'Original data/research',
-          !hasFirstPersonExperience && 'First-person experience',
-          !hasAuthorCredentials && 'Expert credentials',
-          !hasSpecificNumbers && 'Specific data points',
-        ].filter(Boolean),
-      },
-    });
-  }
 
   return {
     issues,

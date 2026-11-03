@@ -181,22 +181,6 @@ export async function analyzeTrackingVerification(
   };
 
   // ==================== GA4 Check ====================
-  // A site on another analytics product has made its choice; GA4 is not missing from it.
-  if (!hasGa4 && !hasGtm && otherAnalytics.length === 0) {
-    issues.push({
-      code: 'GA4_MISSING',
-      // A notice: which analytics a site runs is a choice, not an SEO defect.
-      severity: 'notice',
-      category: 'on-page',
-      title: 'Google Analytics 4 not detected',
-      description:
-        'No GA4 tracking code found. GA4 is essential for measuring organic traffic and conversions.',
-      impact: 'Cannot measure SEO impact without analytics tracking.',
-      howToFix:
-        'Add GA4 tracking code to your site. Get your measurement ID from analytics.google.com.',
-      affectedUrls: [url],
-    });
-  }
 
   // ==================== GSC Verification Check ====================
   // Without DNS (Deno, offline) a TXT-verified site looks the same as an unverified one, so the
@@ -226,40 +210,10 @@ export async function analyzeTrackingVerification(
   // ==================== Bing Verification Check ====================
   if (!hasBingVerification) {
     const dnsChecked = verification.dnsChecked;
-    issues.push({
-      code: 'BING_VERIFICATION_MISSING',
-      severity: 'notice',
-      category: 'on-page',
-      title: dnsChecked
-        ? 'Bing Webmaster Tools verification not found'
-        : 'Bing Webmaster Tools verification not visible in the HTML',
-      description: dnsChecked
-        ? 'No msvalidate.01 meta tag in the HTML, no MS= TXT record on the domain and no /BingSiteAuth.xml file. Bing/Yahoo account for 5-8% of search traffic.'
-        : 'No msvalidate.01 meta tag in the HTML and no /BingSiteAuth.xml file. The site may be verified through a DNS record instead, which this run could not check. Bing/Yahoo account for 5-8% of search traffic.',
-      impact: 'Missing insights on Bing/Yahoo search traffic.',
-      howToFix:
-        'If the site is not yet in Bing Webmaster Tools, add it there: import it from Google Search Console, or verify with the meta tag, a DNS record or BingSiteAuth.xml. Get it from bing.com/webmasters.',
-      affectedUrls: [url],
-      details: { dnsChecked },
-    });
   }
 
   // ==================== GTM Check (informational) ====================
   if (!hasGtm) {
-    if (otherAnalytics.length === 0) {
-      issues.push({
-        code: 'GTM_MISSING',
-        severity: 'notice',
-        category: 'on-page',
-        title: 'Google Tag Manager not detected',
-        description:
-          'GTM not found. While not required, GTM makes it easier to manage tracking tags without code changes.',
-        impact: 'Tag management requires developer involvement for each change.',
-        howToFix:
-          'Consider using GTM for easier tag management. It allows marketing to add tags without developer help.',
-        affectedUrls: [url],
-      });
-    }
   } else if (!hasGtmNoscript) {
     issues.push({
       code: 'GTM_NOSCRIPT_MISSING',

@@ -1520,24 +1520,6 @@ Allow: /`,
     impact: 'Missing out on FAQ rich results and PAA box opportunities.',
     howToFix: 'Add FAQPage structured data for your Q&A content.',
   },
-  INVERTED_PYRAMID_MISSING: {
-    code: 'INVERTED_PYRAMID_MISSING',
-    severity: 'notice',
-    category: 'content',
-    title: 'Content not structured for featured snippets',
-    description: 'First paragraph does not contain a direct answer or summary.',
-    impact: 'Featured snippets pull from early content; burying answers reduces snippet capture rate.',
-    howToFix: 'Start with a concise answer (40-80 words) that directly addresses the page topic.',
-  },
-  NO_SNIPPET_BAIT_HEADERS: {
-    code: 'NO_SNIPPET_BAIT_HEADERS',
-    severity: 'notice',
-    category: 'on-page',
-    title: 'No snippet-targeting headers found',
-    description: 'Headings do not use patterns that commonly trigger featured snippets.',
-    impact: 'Missing opportunities for high-visibility snippet placements.',
-    howToFix: 'Use headers like "What is [topic]?", "How to [action]", or "X Ways to [achieve goal]".',
-  },
 
   // Internal Link Graph
   NO_CONTEXTUAL_INTERNAL_LINKS: {
@@ -1670,15 +1652,6 @@ Allow: /`,
     impact: 'Citing authoritative sources builds trust for sensitive topics.',
     howToFix: 'Add citations to government, academic, or recognized industry sources.',
   },
-  NO_ENTITY_IDENTIFIED: {
-    code: 'NO_ENTITY_IDENTIFIED',
-    severity: 'notice',
-    category: 'content',
-    title: 'No author or organization identified',
-    description: 'Page lacks clear attribution to an author or organization.',
-    impact: 'Anonymous content may be seen as less trustworthy.',
-    howToFix: 'Add author byline or organization information with structured data.',
-  },
   NO_ORGANIZATION_SCHEMA: {
     code: 'NO_ORGANIZATION_SCHEMA',
     severity: 'notice',
@@ -1705,15 +1678,6 @@ Allow: /`,
     description: 'Content has published date but no last-modified date.',
     impact: 'Modified dates signal content freshness to search engines.',
     howToFix: 'Add article:modified_time meta tag or dateModified in schema.',
-  },
-  NO_EXPERIENCE_SIGNALS: {
-    code: 'NO_EXPERIENCE_SIGNALS',
-    severity: 'notice',
-    category: 'content',
-    title: 'No first-hand experience signals detected',
-    description: 'Content lacks indicators of personal/first-hand experience.',
-    impact: 'The "Experience" in E-E-A-T values authentic, first-hand knowledge.',
-    howToFix: 'Add personal insights, original photos, or hands-on testing details.',
   },
 
   // IndexNow
@@ -1784,15 +1748,6 @@ Allow: /`,
   },
 
   // Site Maturity
-  NEW_SITE_STRATEGY: {
-    code: 'NEW_SITE_STRATEGY',
-    severity: 'notice',
-    category: 'content',
-    title: 'New website detected - Authority-first strategy recommended',
-    description: 'Your site appears to be new (<90 days). Standard SEO advice won\'t work well.',
-    impact: 'Creating lots of content without authority is wasted effort.',
-    howToFix: 'Focus on building 10+ quality backlinks to ONE great page before expanding content.',
-  },
   CONTENT_AUTHORITY_IMBALANCE: {
     code: 'CONTENT_AUTHORITY_IMBALANCE',
     severity: 'warning',
