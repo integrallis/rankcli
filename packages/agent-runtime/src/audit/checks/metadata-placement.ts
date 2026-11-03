@@ -35,14 +35,21 @@ export interface Placement {
   inBody: string[];
 }
 
-/** Which of the tags that matter sit in <head>, and which ended up in <body>. */
+/**
+ * Which of the tags that matter sit in <head>, and which ended up in <body> instead. A tag in
+ * the body counts only when <head> has none of it: a second copy is the duplicate-title
+ * check's business, and an inline icon's <svg><title> is not a page title at all (that one
+ * reported 41 of 367 well-built sites in the first corpus run).
+ */
 export function metadataPlacement(html: string): Placement {
   const $ = cheerio.load(html);
   const inHead: string[] = [];
   const inBody: string[] = [];
   for (const tag of TAGS) {
-    if ($(`head ${tag.select}`).length > 0) inHead.push(tag.label);
-    if ($(`body ${tag.select}`).length > 0) inBody.push(tag.label);
+    const inHeadCount = $(`head ${tag.select}`).length;
+    if (inHeadCount > 0) inHead.push(tag.label);
+    const bodyMatches = $(`body ${tag.select}`).filter((_, el) => $(el).closest('svg').length === 0);
+    if (inHeadCount === 0 && bodyMatches.length > 0) inBody.push(tag.label);
   }
   return { inHead, inBody };
 }

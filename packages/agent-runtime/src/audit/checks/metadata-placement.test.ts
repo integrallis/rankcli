@@ -27,6 +27,15 @@ describe('metadata placement', () => {
     expect(metadataPlacement(streamed).inBody).toEqual(['<title>', 'the meta description', 'the canonical link']);
   });
 
+  // vuejs.org, getbootstrap.com and developer.mozilla.org all have an inline icon with an
+  // <svg><title>; the first corpus run reported 41 of 367 sites over it.
+  it('ignores an SVG title in the body, and a second copy of a tag that head already has', () => {
+    const icon = '<!doctype html><html><head><title>Docs</title><meta name="description" content="d"><link rel="canonical" href="https://example.com/"></head><body><svg><title>Logo</title></svg><p>x</p><title>Stray</title></body></html>';
+    expect(metadataPlacement(icon).inBody).toEqual([]);
+    const onlyInBody = '<!doctype html><html><head><meta charset="utf-8"></head><body><svg><title>Logo</title></svg><p>x</p><link rel="canonical" href="https://example.com/"></body></html>';
+    expect(metadataPlacement(onlyInBody).inBody).toEqual(['the canonical link']);
+  });
+
   it('costs no request and says nothing for a page with its metadata in head', async () => {
     const spy = mockByAgent(() => full);
     const { issues } = await analyzeMetadataPlacement(full, URL_);
