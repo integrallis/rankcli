@@ -74,7 +74,7 @@ jobs:
           PACKAGE: ${{ inputs.package }}
         run: |
           if [ "$PACKAGE" = all ]; then
-            echo "names=astro-rankcli vite-plugin-rankcli next-rankcli" >> "$GITHUB_OUTPUT"
+            echo "names=astro-rankcli vite-plugin-rankcli next-rankcli nuxt-rankcli" >> "$GITHUB_OUTPUT"
           else
             echo "names=$PACKAGE" >> "$GITHUB_OUTPUT"
           fi
@@ -89,6 +89,7 @@ jobs:
           set -euo pipefail
           declare -A DIRS=(
             [astro-rankcli]=astro-plugin
+            [nuxt-rankcli]=nuxt-plugin
             [vite-plugin-rankcli]=vite-plugin
             [next-rankcli]=next-plugin
           )
