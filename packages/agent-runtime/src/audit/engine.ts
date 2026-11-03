@@ -22,7 +22,6 @@ import { analyzeCanonicalAdvanced } from './checks/canonical-advanced.js';
 import { analyzePagination } from './checks/pagination.js';
 import { analyzeRedirects } from './checks/redirect-analysis.js';
 import { analyzeCrawlerAccess } from './checks/crawler-access.js';
-import { extractInternalLinks } from './discovery/link-crawler.js';
 // New competitor-parity checks
 import { runAIReadinessChecks } from './checks/ai-readiness.js';
 import { analyzeSERPPreview } from './checks/serp-preview.js';
@@ -48,6 +47,7 @@ import { analyzeBingOptimization } from './checks/bing-optimization.js';
 // Competitor-parity checks (from missing-checks.md analysis)
 import { validateRobotsTxt } from './checks/robots-validation.js';
 import { analyzeLlmsTxt } from './checks/llms-txt.js';
+import { extractInternalLinks } from './discovery/link-crawler.js';
 import { analyzeHtmlCompliance } from './checks/html-compliance.js';
 import { analyzeCanonicalDomain } from './checks/canonical-domain.js';
 import { analyzeCachingHeaders } from './checks/caching-headers.js';
