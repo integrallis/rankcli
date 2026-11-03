@@ -44,3 +44,16 @@ describe('DOM analysis', () => {
     expect(issues.map((i) => i.code)).not.toContain('DOM_SIZE_EXCESSIVE');
   });
 });
+
+describe('RENDER_BLOCKING_RESOURCES', () => {
+  const style = `<style>${'body{margin:0}'.repeat(20)}</style>`;
+  it('does not count an inline <style>, which is the fix it recommends (rankcli #19)', () => {
+    const { issues } = analyzeDOMStructure(`<html><head>${style}</head><body><p>x</p></body></html>`, URL);
+    expect(issues.map((i) => i.code)).not.toContain('RENDER_BLOCKING_RESOURCES');
+  });
+  it('still counts an external stylesheet and a synchronous script', () => {
+    const html = `<html><head><link rel="stylesheet" href="/a.css"><script src="/a.js"></script></head><body><p>x</p></body></html>`;
+    const issue = analyzeDOMStructure(html, URL).issues.find((i) => i.code === 'RENDER_BLOCKING_RESOURCES');
+    expect(issue?.details?.totalCount).toBe(2);
+  });
+});

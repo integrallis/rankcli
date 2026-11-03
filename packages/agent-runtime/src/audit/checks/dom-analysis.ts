@@ -86,13 +86,9 @@ function findRenderBlockingResources($: cheerio.CheerioAPI): { css: string[]; js
     }
   });
 
-  // Find inline style tags in head (blocking)
-  $('head style').each((_, el) => {
-    const content = $(el).html();
-    if (content && content.trim().length > 100) {
-      css.push('[inline-style]');
-    }
-  });
+  // An inline <style> is parser-blocking but costs no network round-trip before first
+  // paint; inlining critical CSS is the remedy this check recommends, so it is not counted
+  // (rankcli #19: counting it made the finding impossible to clear).
 
   // Find render-blocking JS (in head, without async/defer)
   $('head script[src]').each((_, el) => {
@@ -175,9 +171,9 @@ export function analyzeDOMStructure(html: string, url: string): { issues: AuditI
         jsFiles: renderBlockingResources.js,
         totalCount: criticalPathLength,
         recommendation:
-          criticalPathLength > 3
-            ? 'Inline critical CSS and defer non-critical resources'
-            : 'Consider using async/defer for scripts',
+          renderBlockingResources.css.length > 0
+            ? 'Inline the critical CSS and load the rest with media="print" onload, or preload it; add async or defer to the scripts'
+            : 'Add async or defer to the scripts',
       },
     });
   }
