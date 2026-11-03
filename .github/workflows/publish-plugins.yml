@@ -19,6 +19,7 @@ on:
         options:
           - all
           - astro-rankcli
+          - nuxt-rankcli
           - vite-plugin-rankcli
           - next-rankcli
         default: all

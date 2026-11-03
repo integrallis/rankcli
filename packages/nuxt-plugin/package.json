@@ -1,6 +1,6 @@
 {
   "name": "nuxt-rankcli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nuxt module: after nuxi generate, the full RankCLI audit of the output (280+ SEO and AI-search checks, with a CI gate). A server build has nothing static to audit; the module says so and names the command for the deploy.",
   "license": "MIT",
   "publishConfig": {

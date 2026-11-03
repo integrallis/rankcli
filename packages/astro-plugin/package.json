@@ -1,6 +1,6 @@
 {
   "name": "astro-rankcli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Astro integration: on every build, the full RankCLI audit of the output (280+ SEO and AI-search checks, with a CI gate), plus sitemap.xml, robots.txt and per-page meta validation",
   "license": "MIT",
   "publishConfig": {

@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-rankcli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Vite plugin for SEO lint on each build: meta validation, sitemap.xml and robots.txt. The full 280-check audit of the built site is rankcli audit --dir dist",
   "license": "MIT",
   "publishConfig": {
