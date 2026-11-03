@@ -7,7 +7,7 @@ NAME="${1:?usage: npm-publish.sh <package-name>}"
 VERSION=$(node -p "require('./package.json').version")
 # The workflow file that ran this, for the trust-link command in the messages
 # (GITHUB_WORKFLOW_REF looks like owner/repo/.github/workflows/release.yml@refs/heads/main).
-WORKFLOW_FILE="${GITHUB_WORKFLOW_REF##*/}"; WORKFLOW_FILE="${WORKFLOW_FILE%%@*}"
+WORKFLOW_FILE="${GITHUB_WORKFLOW_REF%%@*}"; WORKFLOW_FILE="${WORKFLOW_FILE##*/}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-integrallis/rankcli}"
 if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
   echo "$NAME@$VERSION is already on npm, skipping"
