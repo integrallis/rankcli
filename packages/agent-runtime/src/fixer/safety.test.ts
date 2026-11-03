@@ -162,4 +162,37 @@ describe('invented content', () => {
     const page = '<html><head><title>x</title></head><body><p>Call +1-480-463-4962</p></body></html>';
     expect(assessReplacement('about.html', page, page + '<!-- ok -->').map((c) => c.code)).toEqual([]);
   });
+
+  describe('business facts only the owner can supply', () => {
+    const page = (ld: object) =>
+      `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="root"></div></body></html>`;
+    const codesOf = (o: string | null, r: string) => assessReplacement('index.html', o, r).map((c) => c.code);
+
+    it('refuses a believable phone number the site never published', () => {
+      const r = page({ '@type': 'Organization', name: 'Acme', telephone: '+1-415-867-2231' });
+      expect(codesOf('<html><head></head><body><div id="root"></div></body></html>', r)).toContain('invented_business_fact');
+    });
+
+    it('refuses an invented address and social profile', () => {
+      const r = page({ '@type': 'LocalBusiness', name: 'Acme', address: { streetAddress: '42 Harbor Road', postalCode: '94110' }, sameAs: ['https://x.com/acme'] });
+      const found = assessReplacement('index.html', null, r).filter((c) => c.code === 'invented_business_fact');
+      expect(found.map((c) => c.detail).join(' ')).toMatch(/streetAddress.*postalCode.*sameAs|42 Harbor Road/s);
+    });
+
+    it('refuses a new tel: or mailto: link', () => {
+      const r = '<html><body><a href="tel:+14158672231">Call</a><a href="mailto:hi@acme.io">Mail</a></body></html>';
+      expect(assessReplacement('index.html', '<html><body></body></html>', r).filter((c) => c.code === 'invented_business_fact')).toHaveLength(2);
+    });
+
+    it('accepts facts the site already states, moved into structured data', () => {
+      const o = '<html><body><footer>Call +1-415-867-2231</footer><div id="root"></div></body></html>';
+      const r = o.replace('<body>', `<body><script type="application/ld+json">${JSON.stringify({ '@type': 'Organization', name: 'Acme', telephone: '+1-415-867-2231' })}</script>`);
+      expect(codesOf(o, r)).not.toContain('invented_business_fact');
+    });
+
+    it('accepts structured data that carries no business facts', () => {
+      expect(codesOf(null, page({ '@type': 'WebSite', name: 'Acme', url: 'https://acme.io' }))).not.toContain('invented_business_fact');
+    });
+  });
 });
+

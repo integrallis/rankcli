@@ -26,6 +26,7 @@ export interface ReplacementConcern {
     | 'fewer_sitemap_urls'
     | 'lastmod_moved_backwards'
     | 'placeholder_content'
+    | 'invented_business_fact'
     | 'canonical_in_shared_shell';
   detail: string;
 }
@@ -146,6 +147,53 @@ const PLACEHOLDERS: { pattern: RegExp; what: string }[] = [
   { pattern: /\bXXX-XXX-XXXX\b/i, what: 'an unfilled phone template' },
 ];
 
+/**
+ * Facts about a business that only its owner can supply. PLACEHOLDERS catches the obvious
+ * fakes; this catches the believable ones. A model asked to fix "no phone number detected"
+ * can write a plausible number as easily as a 555 one, and either is a false public claim
+ * once it is committed. So any phone, email, street address, coordinates, opening hours,
+ * rating or social-profile URL that the replacement introduces and the original did not
+ * already contain is refused. The site owner adds those; the PR asks for them instead.
+ */
+const BUSINESS_FACT_KEYS = new Set([
+  'telephone', 'faxNumber', 'email', 'streetAddress', 'postalCode', 'addressLocality',
+  'addressRegion', 'postOfficeBoxNumber', 'latitude', 'longitude', 'openingHours',
+  'priceRange', 'foundingDate', 'numberOfEmployees', 'ratingValue', 'reviewCount',
+  'ratingCount', 'sameAs', 'vatID', 'taxID', 'legalName', 'founder',
+]);
+
+function businessFacts(text: string): Set<string> {
+  const facts = new Set<string>();
+  const visit = (node: unknown, key?: string) => {
+    if (Array.isArray(node)) return node.forEach((v) => visit(v, key));
+    if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) visit(v, k);
+      return;
+    }
+    if (key && BUSINESS_FACT_KEYS.has(key) && (typeof node === 'string' || typeof node === 'number')) {
+      const value = String(node).trim();
+      if (value) facts.add(`${key}: ${value}`);
+    }
+  };
+  for (const m of text.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      visit(JSON.parse(m[1]));
+    } catch {
+      // Invalid JSON-LD is reported by jsonLdConcerns.
+    }
+  }
+  for (const m of text.matchAll(/href=["'](tel|mailto):([^"'?]+)/gi)) facts.add(`${m[1].toLowerCase()}: ${m[2].trim()}`);
+  return facts;
+}
+
+/** A fact is new unless its value already appears somewhere in the original file. */
+function inventedFacts(original: string | null, replacement: string): string[] {
+  return [...businessFacts(replacement)].filter((fact) => {
+    const value = fact.slice(fact.indexOf(': ') + 2);
+    return !(original && original.includes(value));
+  });
+}
+
 /** An SPA shell: one file that serves many routes. */
 function isSharedShell(html: string): boolean {
   return /<div[^>]+id=["'](root|app|__next|__nuxt)["']/i.test(html);
@@ -166,6 +214,10 @@ export function assessReplacement(
     if (hit && !(original && pattern.test(original))) {
       add('placeholder_content', `contains ${what} (${hit[0]})`);
     }
+  }
+
+  for (const fact of inventedFacts(original, replacement)) {
+    add('invented_business_fact', `adds ${fact}, which the original does not contain`);
   }
 
   // A canonical in a file that serves every route tells search engines every page is a
