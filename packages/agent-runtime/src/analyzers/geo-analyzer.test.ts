@@ -294,16 +294,45 @@ Disallow: /
       expect(ssrResult.score).toBeGreaterThan(spaResult.score);
     });
 
-    it('includes blocked crawlers in issues', async () => {
+    it('reports a disallowed AI search crawler as critical, with the fix for that crawler', async () => {
       const html = `<html><body><h1>Test</h1><p>Content</p></body></html>`;
       const robotsTxt = `
-User-agent: GPTBot
+User-agent: OAI-SearchBot
 Disallow: /
 `;
       const result = await analyzeGEO(html, 'https://example.com', robotsTxt);
       
-      expect(result.aiCrawlerAccess.blockedCrawlers).toContain('GPTBot');
-      expect(result.issues.some(i => i.code === 'GEO_AI_CRAWLERS_BLOCKED')).toBe(true);
+      expect(result.aiCrawlerAccess.blockedCrawlers).toContain('OAI-SearchBot');
+      expect(result.aiCrawlerAccess.byClass['ai-search'].blocked).toEqual(['OAI-SearchBot']);
+      expect(result.aiCrawlerAccess.robotsTxtAllowsAI).toBe(false);
+      const issue = result.issues.find(i => i.code === 'GEO_AI_CRAWLERS_BLOCKED');
+      expect(issue?.severity).toBe('critical');
+      expect(issue?.howToFix).toContain('User-agent: OAI-SearchBot\nAllow: /');
+      expect(issue?.howToFix).not.toContain('Claude-Web');
+      expect(result.recommendations.some(r => r.includes('OAI-SearchBot'))).toBe(true);
+    });
+
+    it('treats a disallowed training crawler as policy: listed, no issue, no score penalty', async () => {
+      const html = `<html><body><h1>Test</h1><p>Content</p></body></html>`;
+      const open = await analyzeGEO(html, 'https://example.com', '');
+      const result = await analyzeGEO(html, 'https://example.com', 'User-agent: GPTBot\nDisallow: /\n\nUser-agent: ClaudeBot\nDisallow: /\n');
+      
+      expect(result.aiCrawlerAccess.blockedCrawlers).toEqual(expect.arrayContaining(['GPTBot', 'ClaudeBot']));
+      expect(result.aiCrawlerAccess.byClass.training.blocked).toEqual(expect.arrayContaining(['GPTBot', 'ClaudeBot']));
+      expect(result.aiCrawlerAccess.robotsTxtAllowsAI).toBe(true);
+      expect(result.issues.some(i => i.code === 'GEO_AI_CRAWLERS_BLOCKED')).toBe(false);
+      expect(result.score).toBe(open.score);
+      expect(result.recommendations.some(r => r.includes('no visibility cost'))).toBe(true);
+    });
+
+    it('warns about a disallowed user-triggered fetcher', async () => {
+      const html = `<html><body><h1>Test</h1><p>Content</p></body></html>`;
+      const result = await analyzeGEO(html, 'https://example.com', 'User-agent: ChatGPT-User\nDisallow: /\n');
+      
+      const issue = result.issues.find(i => i.code === 'GEO_AI_USER_FETCH_BLOCKED');
+      expect(issue?.severity).toBe('warning');
+      expect(result.issues.some(i => i.code === 'GEO_AI_CRAWLERS_BLOCKED')).toBe(false);
+      expect(result.aiCrawlerAccess.robotsTxtAllowsAI).toBe(false);
     });
   });
 

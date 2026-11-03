@@ -44,14 +44,18 @@ describe('seo_geo_check reads the real robots.txt', () => {
 
   it('reports a crawler the site blocks as blocked (it used to say every crawler was allowed)', async () => {
     const text = textOf(await handleAnalysisTool('seo_geo_check', { url: `${site.base}/` }));
-    const blockedRow = text.split('\n').find(l => l.includes('Blocked'))!;
-    expect(blockedRow).toContain('GPTBot');
+    // GPTBot is a training crawler: listed as disallowed by policy, not as a visibility loss.
+    const trainingRow = text.split('\n').find(l => l.includes('training only'))!;
+    expect(trainingRow).toContain('GPTBot');
+    expect(text.split('\n').find(l => l.includes('AI answers draw from them'))).toContain('None');
     expect(text).toContain('robots.txt fetched from');
   });
 
   it('uses caller-provided robots.txt without fetching', async () => {
     const text = textOf(await handleAnalysisTool('seo_geo_check', { url: `${site.base}/`, html: PAGE, robotsTxt: 'User-agent: *\nAllow: /\n' }));
-    expect(text.split('\n').find(l => l.includes('Blocked'))).toContain('None');
+    const disallowedRows = text.split('\n').filter(l => l.includes('Disallowed'));
+    expect(disallowedRows.length).toBe(3);
+    for (const row of disallowedRows) expect(row).toContain('None');
     expect(text).toContain('robots.txt as provided');
   });
 
