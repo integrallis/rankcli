@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { SEOIssue, Fix, FrameworkInfo } from './types.js';
@@ -390,21 +391,34 @@ function generateTwitterFix(context: FixContext, siteName: string): GeneratedFix
 }
 
 function generateSchemaFix(context: FixContext, siteName: string, url: string): GeneratedFix {
-  const { htmlPath, framework } = context;
+  const { htmlPath, htmlContent } = context;
 
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    'name': siteName,
-    'url': url,
-    'applicationCategory': 'WebApplication',
-    'operatingSystem': 'Web Browser',
-    'offers': {
-      '@type': 'Offer',
-      'price': '0',
-      'priceCurrency': 'USD',
-    },
-  };
+  // Only facts the page states (rankcli #20): the type is WebSite for the site root and
+  // WebPage elsewhere, the name is the page's own title, the description its meta
+  // description. Never a SoftwareApplication, never an Offer: a price cannot be inferred
+  // from the absence of markup, and fabricated commercial data is a manual-action risk.
+  const $ = cheerio.load(htmlContent || '');
+  const title = $('title').first().text().trim();
+  const description = ($('meta[name="description"]').attr('content') || '').trim();
+  let origin = url;
+  let isRoot = true;
+  try {
+    const u = new URL(url);
+    origin = u.origin;
+    isRoot = u.pathname === '/' || u.pathname === '';
+  } catch {
+    // keep the url as given
+  }
+  const schema: Record<string, unknown> = isRoot
+    ? { '@context': 'https://schema.org', '@type': 'WebSite', name: title || siteName, url: origin }
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: title || siteName,
+        url,
+        isPartOf: { '@type': 'WebSite', name: siteName, url: origin },
+      };
+  if (description) schema.description = description;
 
   const schemaScript = `<script type="application/ld+json">
 ${JSON.stringify(schema, null, 2)}
@@ -415,7 +429,7 @@ ${JSON.stringify(schema, null, 2)}
     file: htmlPath,
     before: '</head>',
     after: `    ${schemaScript}\n  </head>`,
-    explanation: 'Added JSON-LD structured data for rich search results',
+    explanation: `Added ${schema['@type']} JSON-LD built from the page's own title and description`,
   };
 }
 
