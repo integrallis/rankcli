@@ -1090,18 +1090,6 @@ Allow: /`,
     howToFix:
       'Two ways to make your stance explicit, either works: (1) add a Content-Signal line to robots.txt - e.g. "Content-Signal: search=yes,ai-train=no,use=reference" - the format Cloudflare\'s AI Crawl Control update actually reads, or (2) add explicit User-agent rules for the search crawlers (OAI-SearchBot, Claude-SearchBot, PerplexityBot) and, separately, the training crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended). Either way, confirm the matching allow/block posture in the Cloudflare dashboard under Bot Management → AI Crawl Control. If you\'d rather charge than block, Cloudflare\'s Pay Per Crawl (AI Crawl Control → Payments tab) lets you set a per-crawl price instead of a flat allow/deny — worth a look if you get meaningful AI-crawler traffic.',
   },
-  NO_AGENT_EXPERIENCE_SURFACE: {
-    code: 'NO_AGENT_EXPERIENCE_SURFACE',
-    severity: 'notice',
-    category: 'ai-readiness',
-    title: 'No agent-facing discovery surface found',
-    description:
-      'None of the emerging AI-agent discovery conventions were found: llms-full.txt, SKILL.md, a discoverable MCP server, or an OpenAPI spec. This is a genuinely new, low-adoption category as of 2026 — most sites have none of these yet — so this is an opportunity, not a compliance failure.',
-    impact:
-      'AI agents (not just chatbots answering questions, but agents that browse and act on a user\'s behalf) increasingly prefer sites that expose machine-readable capabilities over ones that require scraping and guessing at HTML structure. Being an early, discoverable site in this space is a low-competition differentiator right now.',
-    howToFix:
-      'Start with whichever fits your site: llms-full.txt (a single Markdown dump of your key content — measured as fetched roughly 2x more than plain llms.txt), a SKILL.md capability manifest, or an OpenAPI spec at /openapi.json if you already have an API. A discoverable MCP server is the highest-effort, highest-payoff option if your product has one to expose.',
-  },
   HIGH_JS_RENDERING_RATIO: {
     code: 'HIGH_JS_RENDERING_RATIO',
     severity: 'warning',

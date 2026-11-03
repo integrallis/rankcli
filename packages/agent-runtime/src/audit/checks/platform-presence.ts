@@ -525,23 +525,6 @@ export function analyzePlatformPresence(
     });
   }
 
-  // No high-priority platforms
-  if (!hasHighPriorityPlatforms && detectedPlatforms.length > 0) {
-    issues.push({
-      code: 'NO_HIGH_PRIORITY_PLATFORMS',
-      severity: 'notice',
-      category: 'social',
-      title: 'Missing high-priority platform links',
-      description: 'No links to YouTube, TikTok, Twitter/X, LinkedIn, or Reddit detected.',
-      impact: 'These platforms have the highest reach and impact for SEO diversification.',
-      howToFix: 'Prioritize creating presence on YouTube, Twitter/X, and LinkedIn (using RICE framework).',
-      affectedUrls: [url],
-      details: {
-        currentPlatforms: detectedPlatforms,
-        recommendedPlatforms: highPriorityPlatforms,
-      },
-    });
-  }
 
   // No schema sameAs
   if (schemaData.sameAsUrls.length === 0 && socialProfiles.length > 0) {

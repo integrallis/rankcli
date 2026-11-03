@@ -187,24 +187,6 @@ export async function analyzeTrackingVerification(
   // wording only claims what was seen.
   if (!hasGscVerification) {
     const dnsChecked = verification.dnsChecked;
-    issues.push({
-      code: 'GSC_VERIFICATION_MISSING',
-      // A notice: a site verified by DNS, Google Analytics or Tag Manager leaves no trace here.
-      severity: 'notice',
-      category: 'on-page',
-      title: dnsChecked
-        ? 'Google Search Console verification not found'
-        : 'Google Search Console verification not visible in the HTML',
-      description: dnsChecked
-        ? 'No google-site-verification meta tag in the HTML and no google-site-verification TXT record on the domain. GSC provides essential data about your search performance.'
-        : 'No google-site-verification meta tag in the HTML. The site may be verified through a DNS TXT record instead, which this run could not check. GSC provides essential data about your search performance.',
-      impact: 'Missing critical insights into Google search visibility, impressions, and clicks.',
-      howToFix: dnsChecked
-        ? 'Verify the site in Google Search Console: add the meta tag to <head>, or a TXT record to the domain\'s DNS. Get it from search.google.com/search-console.'
-        : 'If the site is not yet verified in Google Search Console, add the meta tag to <head> or a TXT record to the domain\'s DNS. Get it from search.google.com/search-console.',
-      affectedUrls: [url],
-      details: { dnsChecked },
-    });
   }
 
   // ==================== Bing Verification Check ====================

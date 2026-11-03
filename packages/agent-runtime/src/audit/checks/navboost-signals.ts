@@ -295,38 +295,8 @@ export function analyzeNavBoostSignals(
 
   // Generate issues
 
-  // Low CTR potential
-  if (clickOptimization.estimatedCTRPotential === 'low') {
-    issues.push({
-      code: 'LOW_CTR_POTENTIAL',
-      severity: 'warning',
-      category: 'on-page',
-      title: 'Title and meta description have low CTR potential',
-      description: 'The title and meta description lack compelling elements that drive clicks.',
-      impact: 'NavBoost uses click data as a ranking signal. Higher CTR improves rankings over time.',
-      howToFix: 'Add power words (free, best, ultimate), numbers, or current year to increase CTR.',
-      affectedUrls: [url],
-      details: {
-        ctrPotential: clickOptimization.estimatedCTRPotential,
-        titleTruncated: clickOptimization.titleTruncated,
-      },
-    });
-  }
 
 
-  // Popup/interstitial risk
-  if (bounceRiskFactors.hasPopupRisk) {
-    issues.push({
-      code: 'POPUP_BOUNCE_RISK',
-      severity: 'notice',
-      category: 'content',
-      title: 'Popup/modal detected - potential bounce risk',
-      description: 'Popups detected that may cause visitors to leave immediately.',
-      impact: 'Intrusive interstitials increase bounce rate and hurt NavBoost signals.',
-      howToFix: 'Delay popups by 30+ seconds, or use exit-intent only. Avoid fullscreen overlays.',
-      affectedUrls: [url],
-    });
-  }
 
   // Thin content with low dwell time
   if (dwellTimeFactors.contentDepth === 'thin' && dwellTimeFactors.estimatedReadTime < 3) {
