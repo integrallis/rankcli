@@ -7,7 +7,7 @@ vi.mock('./engine.js', () => ({ runFullAudit: (...args: unknown[]) => runFullAud
 const discoverPagesFromSitemap = vi.fn();
 vi.mock('./discovery/sitemap.js', () => ({ discoverPagesFromSitemap: (...args: unknown[]) => discoverPagesFromSitemap(...args) }));
 
-import { auditSite, mergeIssues, buildLinkGraph, linkGraphIssues, type SiteAuditProgress } from './site-audit.js';
+import { auditSite, mergeIssues, buildLinkGraph, linkGraphIssues, type SiteAuditProgress, canonicalPageUrl } from './site-audit.js';
 
 const report = (url: string, overall: number, issues: Array<{ code: string; severity: string }>): AuditReport => ({
   url,
@@ -165,5 +165,27 @@ describe('link graph', () => {
     const result = await auditSite({ url: 'https://example.com', maxPages: 2 });
     expect(result?.linkGraph).toBeUndefined();
     expect(result?.issues.map(i => i.code)).not.toContain('NAV_NOT_IN_HTML');
+  });
+});
+
+describe('homepage keyed as index.html (rankcli #23)', () => {
+  it('canonicalPageUrl folds /index.html into /', () => {
+    expect(canonicalPageUrl('https://integrallis.com/index.html')).toBe('https://integrallis.com/');
+    expect(canonicalPageUrl('https://integrallis.com/docs/index.htm')).toBe('https://integrallis.com/docs');
+  });
+  it('counts the homepage links when the crawl spelled the homepage index.html', () => {
+    const audited = new Map<string, string[]>([
+      ['https://integrallis.com/', ['https://integrallis.com/', 'https://integrallis.com/products', 'https://integrallis.com/research', 'https://integrallis.com/writing']],
+      ['https://integrallis.com/products', ['https://integrallis.com/']],
+    ]);
+    const graph = buildLinkGraph('https://integrallis.com/index.html', audited, { urls: [], complete: false });
+    expect(graph.homepageLinks).toBe(3);
+  });
+  it('falls back to the first audited page when the entry URL is not among the audited keys', () => {
+    const audited = new Map<string, string[]>([
+      ['https://site.test/start', ['https://site.test/a', 'https://site.test/b', 'https://site.test/c']],
+    ]);
+    const graph = buildLinkGraph('https://site.test/', audited, { urls: [], complete: false });
+    expect(graph.homepageLinks).toBe(3);
   });
 });
