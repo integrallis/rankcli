@@ -53,15 +53,12 @@ export function extractLinks(html: string, baseUrl: string): string[] {
         continue;
       }
 
-      // Parse the URL
-      let url: URL;
-      if (href.startsWith('http://') || href.startsWith('https://')) {
-        url = new URL(href);
-      } else if (href.startsWith('/')) {
-        url = new URL(href, base);
-      } else {
-        continue; // Skip relative paths that don't start with /
-      }
+      // Resolve against the page URL, not the origin: a document-relative href such as
+      // "research.html" is how a flat static site links between pages, and skipping those
+      // left the whole link graph empty for such sites (rankcli #23). mailto:, tel:,
+      // javascript: and fragments are already gone via EXCLUDE_PATTERNS, and the
+      // same-hostname check below still drops anything off-site.
+      const url = new URL(href, baseUrl);
 
       // Only include same-domain links
       if (url.hostname !== base.hostname) {
