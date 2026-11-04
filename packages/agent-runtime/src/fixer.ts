@@ -5,6 +5,7 @@ import type { SEOIssue, Fix, FrameworkInfo } from './types.js';
 import { detectFramework, findHtmlEntry, readFile } from './tools/files.js';
 import { generateH1Fix } from './tools/h1-fixer.js';
 import { getFrameworkSpecificFix } from './fixer/framework-fixes.js';
+import { pageSchemaGraph } from './fixer/schemas.js';
 
 export interface FixGeneratorOptions {
   cwd: string;
@@ -131,7 +132,6 @@ async function generateFixForIssue(
     case 'SCHEMA_ORG_MISSING':
     case 'NO_ORGANIZATION_SCHEMA':
     case 'NO_ENTITY_SCHEMA':
-    case 'FAQ_SCHEMA_MISSING':
       return generateSchemaFix(context, siteName, fullUrl);
 
     // Robots.txt issues
@@ -393,35 +393,31 @@ function generateTwitterFix(context: FixContext, siteName: string): GeneratedFix
 function generateSchemaFix(context: FixContext, siteName: string, url: string): GeneratedFix {
   const { htmlPath, htmlContent } = context;
 
-  // Only facts the page states (rankcli #20): the type is WebSite for the site root and
-  // WebPage elsewhere, the name is the page's own title, the description its meta
-  // description. Never a SoftwareApplication, never an Offer: a price cannot be inferred
-  // from the absence of markup, and fabricated commercial data is a manual-action risk.
+  // Shared with the deterministic fixer via pageSchemaGraph so both paths emit the same
+  // thing (rankcli #20). The Organization matters: NO_ORGANIZATION_SCHEMA and
+  // NO_ENTITY_SCHEMA are dispatched here, and neither is satisfied by a WebSite or
+  // WebPage alone.
   const $ = cheerio.load(htmlContent || '');
   const title = $('title').first().text().trim();
   const description = ($('meta[name="description"]').attr('content') || '').trim();
   let origin = url;
-  let isRoot = true;
   try {
-    const u = new URL(url);
-    origin = u.origin;
-    isRoot = u.pathname === '/' || u.pathname === '';
+    origin = new URL(url).origin;
   } catch {
     // keep the url as given
   }
-  const schema: Record<string, unknown> = isRoot
-    ? { '@context': 'https://schema.org', '@type': 'WebSite', name: title || siteName, url: origin }
-    : {
-        '@context': 'https://schema.org',
-        '@type': 'WebPage',
-        name: title || siteName,
-        url,
-        isPartOf: { '@type': 'WebSite', name: siteName, url: origin },
-      };
-  if (description) schema.description = description;
+
+  const graph = pageSchemaGraph({
+    siteName,
+    siteUrl: origin,
+    pageUrl: url,
+    pageTitle: title,
+    description,
+  });
+  const types = graph.map(node => node['@type']).join(' + ');
 
   const schemaScript = `<script type="application/ld+json">
-${JSON.stringify(schema, null, 2)}
+${JSON.stringify(graph, null, 2)}
     </script>`;
 
   return {
@@ -429,7 +425,7 @@ ${JSON.stringify(schema, null, 2)}
     file: htmlPath,
     before: '</head>',
     after: `    ${schemaScript}\n  </head>`,
-    explanation: `Added ${schema['@type']} JSON-LD built from the page's own title and description`,
+    explanation: `Added ${types} JSON-LD built from the page's own title and description`,
   };
 }
 

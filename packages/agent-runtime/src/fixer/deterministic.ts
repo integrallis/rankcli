@@ -11,7 +11,7 @@
 // a model the whole file and committing whatever comes back.
 
 import { generateAIFriendlyRobotsTxt } from '../analyzers/geo-analyzer.js';
-import { generateOrganizationSchema, generateWebSiteSchema } from './schemas.js';
+import { pageSchemaBlock } from './schemas.js';
 
 export interface DeterministicFixInput {
   siteUrl: string;
@@ -109,15 +109,8 @@ ${links}
 
 /** The JSON-LD block, as it is inserted into <head>. */
 function jsonLdBlock(siteName: string, siteUrl: string, description: string | null | undefined): string {
-  const base = siteUrl.replace(/\/$/, '');
-  const graph = [
-    generateWebSiteSchema({ name: siteName, url: base, ...(description ? { description } : {}) } as never),
-    generateOrganizationSchema({ name: siteName, url: base, ...(description ? { description } : {}) } as never),
-  ];
-  return `    <script type="application/ld+json">\n${JSON.stringify(graph, null, 2)
-    .split('\n')
-    .map((line) => `    ${line}`)
-    .join('\n')}\n    </script>\n`;
+  // pageSchemaGraph is shared with the agent fixer so the two cannot drift (rankcli #20).
+  return pageSchemaBlock({ siteName, siteUrl, description });
 }
 
 const SCHEMA_CODES = [

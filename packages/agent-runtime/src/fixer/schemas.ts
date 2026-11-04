@@ -969,3 +969,72 @@ export const Schemas = {
   speakable: generateSpeakableSchema,
   sitelinksSearchbox: generateSitelinksSearchboxSchema,
 };
+
+/**
+ * The JSON-LD a page gets when it has none, as both fixer paths emit it.
+ *
+ * One builder because the two paths disagreeing is what rankcli #20 turned into a bug: the
+ * agent fixer was emitting a lone WebSite/WebPage for NO_ORGANIZATION_SCHEMA and
+ * NO_ENTITY_SCHEMA, neither of which those checks accept, while the deterministic fixer
+ * emitted [WebSite, Organization] for the same codes. A "fix" that cannot clear the issue it
+ * answers is worse than none: it reports success and changes nothing.
+ *
+ * Only facts the page states. The root is a WebSite, a deeper page a WebPage pointing at it,
+ * the name is the page's own title and the description its meta description. Never a
+ * SoftwareApplication and never an Offer - a price cannot be inferred from the absence of
+ * markup, and fabricated commercial data is a manual-action risk.
+ */
+export function pageSchemaGraph(input: {
+  siteName: string;
+  siteUrl: string;
+  pageUrl?: string;
+  pageTitle?: string | null;
+  description?: string | null;
+}): Record<string, unknown>[] {
+  const base = input.siteUrl.replace(/\/$/, '');
+  const pageUrl = input.pageUrl ?? base;
+  let isRoot = true;
+  try {
+    const u = new URL(pageUrl);
+    isRoot = u.pathname === '/' || u.pathname === '';
+  } catch {
+    // an unparseable page url is treated as the root, which is the conservative shape
+  }
+  const name = (input.pageTitle || '').trim() || input.siteName;
+  const description = (input.description || '').trim();
+
+  const primary: Record<string, unknown> = isRoot
+    ? { '@context': 'https://schema.org', '@type': 'WebSite', name, url: base }
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name,
+        url: pageUrl,
+        isPartOf: { '@type': 'WebSite', name: input.siteName, url: base },
+      };
+  if (description) primary.description = description;
+
+  // The Organization is what NO_ORGANIZATION_SCHEMA and NO_ENTITY_SCHEMA actually look for.
+  // Name and url always; the description only at the site root, where the page's meta
+  // description is describing the site as a whole and the deterministic fixer already
+  // emitted it. On a deeper page that text describes the page, not the company, so
+  // attaching it to the Organization would be putting words in the entity's mouth.
+  const organization: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: input.siteName,
+    url: base,
+  };
+  if (description && isRoot) organization.description = description;
+
+  return [primary, organization];
+}
+
+/** The <script> tag for pageSchemaGraph, indented for insertion into <head>. */
+export function pageSchemaBlock(input: Parameters<typeof pageSchemaGraph>[0]): string {
+  const json = JSON.stringify(pageSchemaGraph(input), null, 2)
+    .split('\n')
+    .map(line => `    ${line}`)
+    .join('\n');
+  return `    <script type="application/ld+json">\n${json}\n    </script>\n`;
+}
