@@ -42,6 +42,21 @@ describe('pageSchemaGraph', () => {
     expect(json).not.toContain('applicationCategory');
   });
 
+  it('keeps the Organization description at the root, as the deterministic fixer did', () => {
+    const [, org] = pageSchemaGraph({ siteName: 'Example', siteUrl: 'https://example.com', description: 'What we make.' });
+    expect(org.description).toBe('What we make.');
+  });
+
+  it('does not attach a deeper page description to the Organization', () => {
+    const [, org] = pageSchemaGraph({
+      siteName: 'Example',
+      siteUrl: 'https://example.com',
+      pageUrl: 'https://example.com/research.html',
+      description: 'Five open studies.',
+    });
+    expect(org).not.toHaveProperty('description');
+  });
+
   it('omits an absent description rather than inventing one', () => {
     const [primary] = pageSchemaGraph({ siteName: 'Example', siteUrl: 'https://example.com' });
     expect(primary).not.toHaveProperty('description');

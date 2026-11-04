@@ -1015,13 +1015,17 @@ export function pageSchemaGraph(input: {
   if (description) primary.description = description;
 
   // The Organization is what NO_ORGANIZATION_SCHEMA and NO_ENTITY_SCHEMA actually look for.
-  // Name and url only: anything else would be invented.
+  // Name and url always; the description only at the site root, where the page's meta
+  // description is describing the site as a whole and the deterministic fixer already
+  // emitted it. On a deeper page that text describes the page, not the company, so
+  // attaching it to the Organization would be putting words in the entity's mouth.
   const organization: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: input.siteName,
     url: base,
   };
+  if (description && isRoot) organization.description = description;
 
   return [primary, organization];
 }
