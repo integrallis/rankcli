@@ -48,20 +48,23 @@ export function extractLinks(html: string, baseUrl: string): string[] {
     try {
       const href = match[1];
 
+      // A whitespace-only href is not a link. Before relative hrefs were resolved it fell
+      // through the skip below; now it would resolve to the page itself and add a self-link.
+      if (!href.trim()) {
+        continue;
+      }
+
       // Skip excluded patterns
       if (EXCLUDE_PATTERNS.some(pattern => pattern.test(href))) {
         continue;
       }
 
-      // Parse the URL
-      let url: URL;
-      if (href.startsWith('http://') || href.startsWith('https://')) {
-        url = new URL(href);
-      } else if (href.startsWith('/')) {
-        url = new URL(href, base);
-      } else {
-        continue; // Skip relative paths that don't start with /
-      }
+      // Resolve against the page URL, not the origin: a document-relative href such as
+      // "research.html" is how a flat static site links between pages, and skipping those
+      // left the whole link graph empty for such sites (rankcli #23). mailto:, tel:,
+      // javascript: and fragments are already gone via EXCLUDE_PATTERNS, and the
+      // same-hostname check below still drops anything off-site.
+      const url = new URL(href, baseUrl);
 
       // Only include same-domain links
       if (url.hostname !== base.hostname) {
