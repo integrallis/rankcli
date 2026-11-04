@@ -48,6 +48,12 @@ export function extractLinks(html: string, baseUrl: string): string[] {
     try {
       const href = match[1];
 
+      // A whitespace-only href is not a link. Before relative hrefs were resolved it fell
+      // through the skip below; now it would resolve to the page itself and add a self-link.
+      if (!href.trim()) {
+        continue;
+      }
+
       // Skip excluded patterns
       if (EXCLUDE_PATTERNS.some(pattern => pattern.test(href))) {
         continue;

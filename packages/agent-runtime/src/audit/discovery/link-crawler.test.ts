@@ -48,6 +48,16 @@ describe('extractLinks', () => {
     expect(extractLinks(html, 'https://example.com/')).toEqual(['https://example.com/keep.html']);
   });
 
+  it('ignores a whitespace-only href rather than treating it as a self-link', () => {
+    expect(extractLinks('<a href=" ">x</a>', 'https://example.com/docs/a.html')).toEqual([]);
+  });
+
+  it('resolves dot segments and still rejects protocol-relative off-site links', () => {
+    expect(extractLinks('<a href="../up.html">x</a>', 'https://example.com/docs/a.html'))
+      .toEqual(['https://example.com/up.html']);
+    expect(extractLinks('<a href="//evil.example/x.html">x</a>', 'https://example.com/')).toEqual([]);
+  });
+
   it('deduplicates one page reached by two spellings', () => {
     const html = `
       <a href="a.html">one</a>
