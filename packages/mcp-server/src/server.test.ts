@@ -119,3 +119,18 @@ describe('blockPrivateNetworks', () => {
     await expect(guardedFetch('file:///etc/passwd')).rejects.toThrow(/only http/);
   });
 });
+
+describe('tool annotations', () => {
+  it('declares every tool read-only and non-destructive, open-world only when it fetches a URL', async () => {
+    const { ANALYSIS_TOOLS } = await import('./server.js');
+    expect(ANALYSIS_TOOLS.length).toBeGreaterThanOrEqual(13);
+    for (const tool of ANALYSIS_TOOLS) {
+      expect(tool.annotations?.readOnlyHint, tool.name).toBe(true);
+      expect(tool.annotations?.destructiveHint, tool.name).toBe(false);
+    }
+    const open = ANALYSIS_TOOLS.filter((t) => t.annotations?.openWorldHint).map((t) => t.name).sort();
+    expect(open).toEqual(['seo_analyze', 'seo_core_web_vitals', 'seo_geo_check', 'seo_images', 'seo_internal_links', 'seo_mobile', 'seo_security_headers', 'seo_structured_data']);
+    const closed = ANALYSIS_TOOLS.filter((t) => !t.annotations?.openWorldHint).map((t) => t.name).sort();
+    expect(closed).toEqual(['seo_ai_crawlers', 'seo_generate_robots', 'seo_generate_schema', 'seo_generate_security_headers', 'seo_robots_ai']);
+  });
+});

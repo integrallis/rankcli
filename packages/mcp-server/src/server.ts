@@ -76,7 +76,29 @@ async function resolveRobotsTxt(url: string, provided: string | undefined, optio
   return fetchRobotsTxt(url, options);
 }
 
-export const ANALYSIS_TOOLS: Tool[] = [
+/**
+ * Safety annotations (MCP spec, read by ChatGPT's plugin review and shown by clients): every
+ * tool here reads and analyzes; none writes, deletes or acts for the user. The ones that take
+ * a URL fetch it, so they are open-world; the ones that take text or nothing are closed.
+ */
+const FETCHES_THE_WEB = new Set([
+  'seo_analyze', 'seo_geo_check', 'seo_core_web_vitals', 'seo_structured_data',
+  'seo_security_headers', 'seo_images', 'seo_internal_links', 'seo_mobile',
+]);
+function annotated(tool: Tool): Tool {
+  return {
+    ...tool,
+    annotations: {
+      title: tool.name.replace(/^seo_/, '').replace(/_/g, ' '),
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: FETCHES_THE_WEB.has(tool.name),
+    },
+  };
+}
+
+const TOOL_DEFINITIONS: Tool[] = [
   {
     name: 'seo_analyze',
     description: `Run comprehensive SEO analysis on a webpage. Returns scores and issues for:
@@ -339,6 +361,8 @@ Critical for visibility in ChatGPT, Perplexity, Claude, and Gemini responses.`,
     },
   },
 ];
+
+export const ANALYSIS_TOOLS: Tool[] = TOOL_DEFINITIONS.map(annotated);
 
 // Every real MCP call is a moment someone found genuine value from this
 // free tool with zero signup - the one place that value can turn into an
